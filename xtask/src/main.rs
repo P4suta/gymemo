@@ -20,8 +20,8 @@ const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
-  ui-test [--only light|dark] [XCODEBUILD_ARGUMENT]...
-                                    Run the UI tests on the dedicated simulator, in the light appearance and then in the dark one
+  ui-test [--only light|dark|contrast|dark-contrast] [XCODEBUILD_ARGUMENT]...
+                                    Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast
   screenshots                       Export the screenshots of the latest UI test run into a new directory
   app [LAUNCH_ARGUMENT]...          Build the app and open it on the dedicated simulator
   help                              Print this message";
@@ -50,7 +50,7 @@ fn ui_test(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         let name = arguments.next().unwrap_or_default();
         only = Some(Appearance::parse(&name).ok_or_else(|| {
             Failure::new(format!(
-                "--only takes light or dark, and it received `{name}`\n\n{USAGE}"
+                "--only takes light, dark, contrast, or dark-contrast, and it received `{name}`\n\n{USAGE}"
             ))
         })?);
     }

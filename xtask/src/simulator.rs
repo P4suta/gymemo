@@ -21,17 +21,29 @@ const RESULTS: &str = "target/ui-test";
 const SCREENSHOTS: &str = "target/screenshots";
 /// The test class that runs only while the simulator shows the dark appearance.
 const DARK_TESTS: &str = "gymemoUITests/DarkAppearanceTests";
+/// The test class that runs only while the simulator increases the contrast in the light appearance.
+const CONTRAST_TESTS: &str = "gymemoUITests/IncreasedContrastTests";
+/// The test class that runs only while the simulator increases the contrast in the dark appearance.
+const DARK_CONTRAST_TESTS: &str = "gymemoUITests/DarkIncreasedContrastTests";
 
-/// The system appearance of the simulator during one pass of the UI tests.
-/// `XCUIDevice` doesn't change the appearance on the pinned simulator, so `simctl` sets it around each pass.
+/// The display settings of the simulator during one pass of the UI tests: light, dark, and each of the two with Increase Contrast.
+/// The accessibility guidance asks an app to check the contrast in both appearances.
+/// `XCUIDevice` doesn't change these settings on the pinned simulator, so `simctl` sets them around each pass.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Appearance {
     Light,
     Dark,
+    Contrast,
+    DarkContrast,
 }
 
 impl Appearance {
-    const ALL: [Appearance; 2] = [Appearance::Light, Appearance::Dark];
+    const ALL: [Appearance; 4] = [
+        Appearance::Light,
+        Appearance::Dark,
+        Appearance::Contrast,
+        Appearance::DarkContrast,
+    ];
 
     pub fn parse(text: &str) -> Option<Self> {
         Self::ALL
@@ -43,14 +55,35 @@ impl Appearance {
         match self {
             Appearance::Light => "light",
             Appearance::Dark => "dark",
+            Appearance::Contrast => "contrast",
+            Appearance::DarkContrast => "dark-contrast",
         }
     }
 
-    /// The `xcodebuild` argument that gives the dark-only tests to the dark pass and every other test to the light pass.
-    fn selection(self) -> String {
+    /// The interface style of the pass.
+    fn style(self) -> &'static str {
         match self {
-            Appearance::Light => format!("-skip-testing:{DARK_TESTS}"),
-            Appearance::Dark => format!("-only-testing:{DARK_TESTS}"),
+            Appearance::Dark | Appearance::DarkContrast => "dark",
+            Appearance::Light | Appearance::Contrast => "light",
+        }
+    }
+
+    /// Whether the pass turns Increase Contrast on.
+    fn increases_contrast(self) -> bool {
+        matches!(self, Appearance::Contrast | Appearance::DarkContrast)
+    }
+
+    /// The `xcodebuild` arguments that give each special test class to its own pass and every other test to the light pass.
+    fn selection(self) -> Vec<String> {
+        match self {
+            Appearance::Light => vec![
+                format!("-skip-testing:{DARK_TESTS}"),
+                format!("-skip-testing:{CONTRAST_TESTS}"),
+                format!("-skip-testing:{DARK_CONTRAST_TESTS}"),
+            ],
+            Appearance::Dark => vec![format!("-only-testing:{DARK_TESTS}")],
+            Appearance::Contrast => vec![format!("-only-testing:{CONTRAST_TESTS}")],
+            Appearance::DarkContrast => vec![format!("-only-testing:{DARK_CONTRAST_TESTS}")],
         }
     }
 }
@@ -138,7 +171,13 @@ fn device() -> Result<String> {
 }
 
 fn set_appearance(device: &str, appearance: Appearance) -> Result<()> {
-    output(Command::new("xcrun").args(["simctl", "ui", device, "appearance", appearance.name()]))
+    output(Command::new("xcrun").args(["simctl", "ui", device, "appearance", appearance.style()]))?;
+    let contrast = if appearance.increases_contrast() {
+        "enabled"
+    } else {
+        "disabled"
+    };
+    output(Command::new("xcrun").args(["simctl", "ui", device, "increase_contrast", contrast]))
         .map(|_| ())
 }
 
@@ -173,7 +212,7 @@ fn pass(
         .args(["-derivedDataPath", "DerivedData"])
         .arg("-resultBundlePath")
         .arg(bundle)
-        .arg(appearance.selection())
+        .args(appearance.selection())
         .args(arguments)
         .status()
         .context(|| "Start xcodebuild".to_owned())?;
@@ -199,8 +238,8 @@ fn pass(
     ))
 }
 
-/// Runs the UI tests on the dedicated simulator, first in the light appearance and then in the dark one.
-/// `only` keeps one of the two passes, and `arguments` go on to `xcodebuild`.
+/// Runs the UI tests on the dedicated simulator: in the light appearance, in the dark one, and in both with Increase Contrast.
+/// `only` keeps one of the passes, and `arguments` go on to `xcodebuild`.
 /// Each run writes new result bundles, so a run never overwrites an earlier one.
 pub fn ui_test(root: &Path, only: Option<Appearance>, arguments: &[String]) -> Result<()> {
     let device = device()?;
@@ -225,7 +264,7 @@ pub fn ui_test(root: &Path, only: Option<Appearance>, arguments: &[String]) -> R
             break;
         }
     }
-    // The simulator returns to the light appearance, and a failure to return never hides a test failure.
+    // The simulator returns to the light appearance at the default contrast, and a failure to return never hides a test failure.
     let restored = set_appearance(&device, Appearance::Light);
     outcome.and(restored)
 }
@@ -362,7 +401,37 @@ mod tests {
         assert_eq!(Appearance::parse("dark"), Some(Appearance::Dark));
         assert_eq!(Appearance::parse("light"), Some(Appearance::Light));
         assert_eq!(Appearance::parse("sepia"), None);
-        assert!(Appearance::Light.selection().starts_with("-skip-testing:"));
-        assert!(Appearance::Dark.selection().starts_with("-only-testing:"));
+        assert_eq!(Appearance::parse("contrast"), Some(Appearance::Contrast));
+        assert_eq!(
+            Appearance::parse("dark-contrast"),
+            Some(Appearance::DarkContrast)
+        );
+        assert_eq!(
+            Appearance::Light.selection(),
+            [
+                "-skip-testing:gymemoUITests/DarkAppearanceTests",
+                "-skip-testing:gymemoUITests/IncreasedContrastTests",
+                "-skip-testing:gymemoUITests/DarkIncreasedContrastTests"
+            ]
+        );
+        assert_eq!(
+            Appearance::DarkContrast.selection(),
+            ["-only-testing:gymemoUITests/DarkIncreasedContrastTests"]
+        );
+        assert_eq!(Appearance::DarkContrast.style(), "dark");
+        assert!(Appearance::DarkContrast.increases_contrast());
+        assert!(!Appearance::Dark.increases_contrast());
+        assert_eq!(
+            Appearance::Dark.selection(),
+            ["-only-testing:gymemoUITests/DarkAppearanceTests"]
+        );
+        assert_eq!(
+            Appearance::Contrast.selection(),
+            ["-only-testing:gymemoUITests/IncreasedContrastTests"]
+        );
+        assert_eq!(Appearance::Dark.style(), "dark");
+        assert_eq!(Appearance::Contrast.style(), "light");
+        assert!(Appearance::Contrast.increases_contrast());
+        assert!(!Appearance::Light.increases_contrast());
     }
 }
