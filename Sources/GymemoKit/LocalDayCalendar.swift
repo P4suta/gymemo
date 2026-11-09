@@ -7,8 +7,10 @@ extension LocalDay {
   public init?(date: Date, timeZone: TimeZone) {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = timeZone
-    let parts = calendar.dateComponents([.year, .month, .day], from: date)
-    guard let year = parts.year, let month = parts.month, let day = parts.day else { return nil }
+    let parts = calendar.dateComponents([.era, .year, .month, .day], from: date)
+    // The calendar numbers the years before the common era upward from 1, in an era of their own.
+    guard parts.era == 1, let year = parts.year, let month = parts.month, let day = parts.day
+    else { return nil }
     self.init(year: year, month: month, day: day)
   }
 

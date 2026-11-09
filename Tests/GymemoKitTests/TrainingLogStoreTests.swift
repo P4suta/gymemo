@@ -216,6 +216,17 @@ import Testing
     #expect(LocalDay.nearest(to: end, in: zone) == .latest)
   }
 
+  @Test(arguments: [1900, 2026, 2200])
+  func hasNoDayForASupportedYearNumberBeforeTheCommonEra(year: Int) throws {
+    let utc = try #require(TimeZone(identifier: "UTC"))
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = utc
+    let instant = try #require(
+      calendar.date(from: DateComponents(era: 0, year: year, month: 6, day: 15, hour: 12)))
+    #expect(LocalDay(date: instant, timeZone: utc) == nil)
+    #expect(LocalDay.nearest(to: instant, in: utc) == .earliest)
+  }
+
   @Test func givesBackItsOwnDayAtNoonInUTC() throws {
     let utc = try #require(TimeZone(identifier: "UTC"))
     for number in LocalDay.earliest.dayNumber...LocalDay.latest.dayNumber {
