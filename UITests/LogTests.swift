@@ -103,14 +103,14 @@ final class LogTests: XCTestCase {
     let bench = app.block("Bench Press").required("the bench press section")
     XCTAssertTrue(
       bench.staticTexts["previous-session"].label.hasPrefix("Last time on Mon, Nov 2: 62.5 kg × 8"))
-    XCTAssertTrue(bench.buttons["set-1"].label.hasSuffix("Personal best"))
-    XCTAssertFalse(bench.buttons["set-2"].label.contains("Personal best"))
+    XCTAssertTrue(bench.buttons["set-1"].label.hasSuffix("Personal Best"))
+    XCTAssertFalse(bench.buttons["set-2"].label.contains("Personal Best"))
     XCTAssertEqual(bench.textFields["weight"].value as? String, "63.75")
     XCTAssertEqual(bench.textFields["reps"].value as? String, "6")
 
     bench.logSet(weight: "70", reps: "8", in: app)
     XCTAssertEqual(
       bench.buttons["set-4"].required("the new set").label,
-      "Set 4, 70 kilograms, 8 reps, Personal best")
+      "Set 4, 70 kilograms, 8 reps, Personal Best")
   }
 }

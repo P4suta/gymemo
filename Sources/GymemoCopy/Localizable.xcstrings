@@ -52,12 +52,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "替换" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取代" } } } },
     "hideKeyboard" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide keyboard" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide Keyboard" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "キーボードを閉じる" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收起键盘" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "收起鍵盤" } } } },
     "dayNotToday" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "You are viewing a day other than today" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "You are viewing a day other than today." } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日ではない日の記録です" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在查看今天以外的记录" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在查看今天以外的紀錄" } } } },
@@ -67,7 +67,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加动作，记录第一组。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增動作，記錄第一組。" } } } },
     "addExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Add exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "種目を追加" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加动作" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增動作" } } } },
@@ -77,17 +77,17 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "备注" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備註" } } } },
     "writeNote" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Write a note" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Write a Note" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "メモを書く" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "写备注" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "寫備註" } } } },
     "editNote" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit note" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Note" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "メモを直す" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑备注" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯備註" } } } },
     "logSet" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Log set" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Log Set" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットを記録" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录这一组" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記錄這一組" } } } },
@@ -132,7 +132,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "清除名称" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "清除名稱" } } } },
     "personalBest" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Personal best" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Personal Best" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "自己ベスト" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "个人最佳" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "個人最佳" } } } },
@@ -162,12 +162,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入 1 到 999 之间的整数次数。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入 1 到 999 之間的整數次數。" } } } },
     "editSet" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit set" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Set" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットを直す" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑这一组" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯這一組" } } } },
     "deleteSet" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete set" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Set" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットを削除" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这一组" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除這一組" } } } },
@@ -182,12 +182,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "备注中含有无法保存的字符。请删除粘贴的内容后重新输入。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "備註中含有無法儲存的字元。請刪除貼上的內容後重新輸入。" } } } },
     "chooseExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "種目を選ぶ" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择动作" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇動作" } } } },
     "createExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Create exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Create Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しい種目を作る" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建动作" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "建立新動作" } } } },
@@ -197,12 +197,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近使用" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最近使用" } } } },
     "newExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "New exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "New Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しい種目" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新动作" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新動作" } } } },
     "editExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "種目を直す" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑动作" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯動作" } } } },
@@ -212,17 +212,17 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "名称" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "名稱" } } } },
     "bodyPart" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Body part" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Body Part" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "部位" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "部位" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "部位" } } } },
     "showWhenChoosing" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Show when choosing an exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Show When Choosing an Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "種目を選ぶ一覧に出す" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在选择动作时显示" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在選擇動作時顯示" } } } },
     "deleteExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "種目を削除" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除动作" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除動作" } } } },
@@ -277,17 +277,17 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已隐藏" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已隱藏" } } } },
     "historyEmpty" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "No records yet." } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "No Records Yet" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録はまだありません。" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有记录。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還沒有紀錄。" } } } },
     "startToday" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Start today's log" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Today's Log" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日の記録を始める" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始今天的记录" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開始今天的紀錄" } } } },
     "logAnotherDay" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Log another day" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Log Another Day" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "日付を選んで記録" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录其他日期" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記錄其他日期" } } } },
@@ -297,12 +297,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示更早的记录" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示更早的紀錄" } } } },
     "chooseDay" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a day" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a Day" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "日付を選ぶ" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择日期" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇日期" } } } },
     "dayToLog" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Day to log" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Day to Log" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録する日" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要记录的日期" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要記錄的日期" } } } },
@@ -312,7 +312,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开所选日期的记录。不能选择今天之后的日期。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "打開所選日期的紀錄。不能選擇今天之後的日期。" } } } },
     "weeklyTrainingDays" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Training days per week" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Training Days per Week" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "週ごとのトレーニング日数" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每周训练天数" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每週訓練天數" } } } },
@@ -322,7 +322,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一周从周一到周日，统计有训练记录的天数。横轴是每周周一的日期。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一週從週一到週日，統計有訓練紀錄的天數。橫軸是每週週一的日期。" } } } },
     "progressByExercise" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Progress by exercise" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Progress by Exercise" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "種目ごとの推移" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "各动作的进展" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "各動作的進展" } } } },
@@ -337,7 +337,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预估 1RM" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "預估 1RM" } } } },
     "mostReps" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Most reps" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Most Reps" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "最高回数" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多次数" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最多次數" } } } },
@@ -347,12 +347,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录训练后，会显示个人最佳。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記錄訓練後，會顯示個人最佳。" } } } },
     "threeMonths" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "3 months" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "3 Months" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "3か月" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "3 个月" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "3 個月" } } } },
     "oneYear" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "1 year" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "1 Year" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "1年" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 年" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "1 年" } } } },
@@ -377,7 +377,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不加重量的动作会显示每天单组的最多次数。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不加重量的動作會顯示每天單組的最多次數。" } } } },
     "setsByDay" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Sets by day" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Sets by Day" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "日ごとのセット" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每日训练记录" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每日訓練紀錄" } } } },
@@ -402,12 +402,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "天数" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "天數" } } } },
     "exportAndImport" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Export and import" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Export and Import" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "書き出しと読み込み" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出与导入" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯出與匯入" } } } },
     "storageHeading" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Where records are kept" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Where Records Are Kept" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録の保存先" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录的保存位置" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄的儲存位置" } } } },
@@ -422,7 +422,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将所有动作、训练记录和备注保存为一个 JSON 文件。更换手机前请先导出。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將所有動作、訓練紀錄和備註儲存為一個 JSON 檔案。更換手機前請先匯出。" } } } },
     "exportBackup" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Export backup" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Backup" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "バックアップを書き出す" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出备份" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯出備份" } } } },
@@ -442,7 +442,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用导出的 JSON 文件内容替换当前的全部记录。替换前会先确认。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "用匯出的 JSON 檔案內容取代目前的全部紀錄。取代前會先確認。" } } } },
     "importBackup" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Import backup" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Backup" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "バックアップを読み込む" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入备份" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入備份" } } } },
@@ -517,12 +517,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重量 (kg)" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重量 (kg)" } } } },
     "saveFailed" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "The change wasn't saved" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Change Not Saved" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存できませんでした" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能保存" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "未能儲存" } } } },
     "launchFailed" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "The records couldn't be opened" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to Open Records" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録を開けませんでした" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法打开记录" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法打開紀錄" } } } },
@@ -808,7 +808,7 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "预估 1RM %@" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "預估 1RM %@" } } } },
     "mostRepsLine" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Most reps %lld" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Most Reps %lld" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "最高回数 %lld回" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多次数 %lld 次" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最多次數 %lld 次" } } } },
@@ -818,12 +818,12 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@，%2$@" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@，%2$@" } } } },
     "heaviestWeight" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Heaviest weight %@" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Heaviest Weight %@" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "最大重量 %@" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最大重量 %@" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最大重量 %@" } } } },
     "overTime" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ over time" } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ over Time" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@の推移" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@的变化" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@的變化" } } } },

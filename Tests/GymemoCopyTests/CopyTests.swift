@@ -159,7 +159,7 @@ private func placeholders(_ format: String) -> [String] {
     #expect(english.score(.oneRepMax(estimate)) == "79.2 kg")
     #expect(english.score(.reps(eight)) == "8 reps")
     #expect(english.scoreLine(.oneRepMax(estimate)) == "Estimated 1RM 79.2 kg")
-    #expect(english.scoreLine(.reps(.one)) == "Most reps 1")
+    #expect(english.scoreLine(.reps(.one)) == "Most Reps 1")
     #expect(try copy("ja", locale: "ja_JP").scoreLine(.reps(eight)) == "最高回数 8回")
     #expect(try copy("zh-Hans", locale: "zh_Hans_CN").scoreLine(.reps(eight)) == "最多次数 8 次")
     #expect(try copy("en", locale: "de_DE").score(.oneRepMax(estimate)) == "79,2 kg")
@@ -201,7 +201,7 @@ private func placeholders(_ format: String) -> [String] {
     let english = try copy("en", locale: "en_US")
     #expect(
       english.spokenSet(weight: heavy, reps: eight, number: 1, isBest: true)
-        == "Set 1, 62.5 kilograms, 8 reps, Personal best")
+        == "Set 1, 62.5 kilograms, 8 reps, Personal Best")
     #expect(
       english.spokenSet(weight: .bodyweight, reps: .one, number: 2, isBest: false)
         == "Set 2, Bodyweight, 1 rep")
@@ -265,8 +265,8 @@ private func placeholders(_ format: String) -> [String] {
     #expect(
       english.saveFailedMessage(code: 13) == "Your records are unchanged. Try again. (Code 13)")
     #expect(english.failureCode(-4) == "Code -4")
-    #expect(english.heaviest(heavy) == "Heaviest weight 62.5 kg")
-    #expect(english.progressHeading(.oneRepMax) == "Estimated 1RM over time")
+    #expect(english.heaviest(heavy) == "Heaviest Weight 62.5 kg")
+    #expect(english.progressHeading(.oneRepMax) == "Estimated 1RM over Time")
     #expect(english.noteCaption(day).hasPrefix("Note for "))
     #expect(english.lastLogged(day).hasPrefix("Last logged "))
     #expect(english.weekLabel(startingOn: day).hasPrefix("Week of "))

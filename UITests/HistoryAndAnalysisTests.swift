@@ -86,13 +86,13 @@ final class AnalysisTests: XCTestCase {
     XCTAssertTrue(app.otherElements["weekly-chart"].exists)
     let bench = app.buttons["progress-Bench Press"].required("the bench press row")
     XCTAssertTrue(bench.label.contains("Estimated 1RM 80.8 kg"))
-    XCTAssertTrue(app.buttons["progress-Pull-Up"].label.contains("Most reps 9"))
+    XCTAssertTrue(app.buttons["progress-Pull-Up"].label.contains("Most Reps 9"))
     bench.scrollAndTap(in: app)
 
     XCTAssertEqual(
       app.staticTexts["best-score"].required("the best score").label, "Estimated 1RM 80.8 kg")
     app.staticTexts["63.75 kg × 8 on Mon, Nov 9, 2026"].firstMatch.required("the best set")
-    app.staticTexts["Heaviest weight 63.75 kg"].required("the heaviest weight")
+    app.staticTexts["Heaviest Weight 63.75 kg"].required("the heaviest weight")
     app.otherElements["progress-chart"].required("the progress chart")
     XCTAssertTrue(app.buttons["range-threeMonths"].isSelected)
     app.buttons["range-all"].tap()
