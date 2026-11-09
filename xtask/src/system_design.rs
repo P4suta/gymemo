@@ -20,9 +20,14 @@ const BAR: &str = "and the system draws the background of each bar";
 const SHEET: &str = "and the system draws the background of each sheet";
 const APPEARANCE: &str = "and the app follows the system appearance";
 const GLASS: &str = "and Liquid Glass stays in the layer that the system draws";
+const HIERARCHY: &str = "and a hierarchical style takes the tint inside a button and ignores Increase Contrast, unlike Color.primary and Color.secondary";
+const TEXT: &str = "and text takes the system text styles so that it follows Dynamic Type";
+const WRAP: &str =
+    "and text wraps at every text size, because the UI tests leave clipped text to this check";
 
 /// Types that author a color, a gradient, a glass effect, or a bar appearance in code.
-const REFUSED_TYPES: [(&str, &str); 11] = [
+const REFUSED_TYPES: [(&str, &str); 12] = [
+    ("UIFont", TEXT),
     ("UIColor", COLOR),
     ("CGColor", COLOR),
     ("Gradient", COLOR),
@@ -36,8 +41,11 @@ const REFUSED_TYPES: [(&str, &str); 11] = [
     ("UIToolbarAppearance", BAR),
 ];
 
-/// Modifiers that replace what the system draws, refused wherever the code calls them.
-const REFUSED_CALLS: [(&str, &str); 8] = [
+/// Modifiers that replace what the system draws or that cut text short, refused wherever the code calls them.
+const REFUSED_CALLS: [(&str, &str); 11] = [
+    ("lineLimit", WRAP),
+    ("minimumScaleFactor", WRAP),
+    ("truncationMode", WRAP),
     ("toolbarBackground", BAR),
     ("toolbarBackgroundVisibility", BAR),
     ("toolbarColorScheme", BAR),
@@ -55,6 +63,11 @@ const REFUSED_HUES: [&str; 14] = [
     "indigo", "purple", "pink", "brown",
 ];
 
+/// The hierarchical styles, refused as members such as `.foregroundStyle(.secondary)` and `.tint(.primary)`.
+/// Each one derives from the foreground style around it, so it takes the tint inside a button.
+/// `Color.secondary` darkens when Increase Contrast is on, and the hierarchical style keeps its lightness.
+const HIERARCHICAL_STYLES: [&str; 4] = ["primary", "secondary", "tertiary", "quaternary"];
+
 /// Settings that opt the whole app out, with what each one does.
 const REFUSED_SETTINGS: [(&str, &str); 2] = [
     (
@@ -65,7 +78,9 @@ const REFUSED_SETTINGS: [(&str, &str); 2] = [
 ];
 
 /// The planted lines that the check must refuse, one for each kind of rule.
-const PLANTED: [&str; 5] = [
+const PLANTED: [&str; 7] = [
+    "Text(\"a\").foregroundStyle(.secondary)\n",
+    "Text(\"a\").font(.system(size: 17))\n",
     "Rectangle().fill(Color(red: 0.4, green: 0.3, blue: 0.9))\n",
     "Text(\"a\").foregroundStyle(.blue)\n",
     "List {}.toolbarBackground(.visible, for: .tabBar)\n",
@@ -101,6 +116,13 @@ fn refused(line: &str, at: usize) -> Option<(String, &'static str)> {
                 .chars()
                 .next_back()
                 .is_some_and(identifier);
+        if implicit && !called && HIERARCHICAL_STYLES.contains(&name) {
+            return Some((format!(".{name}"), HIERARCHY));
+        }
+        let sized = name == "system" && line[at + 1 + name.len()..].starts_with("(size");
+        if called && (sized || name == "custom") {
+            return Some((format!(".{name}"), TEXT));
+        }
         let hue = !called && REFUSED_HUES.contains(&name);
         return (hue && (implicit || on_color)).then(|| (format!(".{name}"), COLOR));
     }
@@ -183,7 +205,11 @@ mod tests {
     #[test]
     fn system_styles_pass() {
         for allowed in [
-            ".foregroundStyle(.secondary)\n",
+            ".foregroundStyle(Color.primary)\n",
+            ".tint(Color.primary)\n",
+            ".foregroundStyle(Color.secondary)\n",
+            ".font(.subheadline)\n",
+            ".font(.title3.bold())\n",
             ".foregroundStyle(.tint)\n",
             ".foregroundStyle(.red)\n",
             ".listRowBackground(Color.clear)\n",
@@ -226,6 +252,16 @@ mod tests {
             "Text(title).glassEffect()\n",
             "GlassEffectContainer { row }\n",
             "let bar = UINavigationBarAppearance()\n",
+            "Text(title).foregroundStyle(.primary)\n",
+            "Button(name, action: pick).tint(.primary)\n",
+            "Text(title).foregroundStyle(.secondary)\n",
+            "Image(systemName: symbol).foregroundStyle(.tertiary)\n",
+            "Text(title).lineLimit(1)\n",
+            "Text(title).minimumScaleFactor(0.5)\n",
+            "Text(title).truncationMode(.middle)\n",
+            "Text(title).font(.system(size: 17))\n",
+            "Text(title).font(.custom(name, size: 17))\n",
+            "let font = UIFont.systemFont(ofSize: 17)\n",
         ] {
             assert_eq!(findings(refused, "a.swift").len(), 1, "{refused}");
         }
@@ -253,7 +289,7 @@ mod tests {
 
     #[test]
     fn a_whole_tree_passes_only_without_findings() -> Result<()> {
-        let screen = "List { Text(title).foregroundStyle(.secondary) }\n";
+        let screen = "List { Text(title).foregroundStyle(Color.secondary) }\n";
         let good = tree("good", screen, "name: gymemo\n")?;
         assert!(check(&good)?.starts_with("1 screens keep to the system design"));
         let styled = tree(
