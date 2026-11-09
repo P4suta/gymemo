@@ -3,6 +3,7 @@
 mod colors;
 mod failure;
 mod logging;
+mod offline;
 mod purity;
 mod required_reasons;
 mod simulator;
@@ -14,7 +15,7 @@ use std::{env, path::Path, process::ExitCode};
 const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
-  gates                             Check the Swift sources for authored colors, effects in the core, console output, and required reason APIs
+  gates                             Check the Swift sources for authored colors, effects in the core, console output, networking, and required reason APIs
   ui-test [XCODEBUILD_ARGUMENT]...  Run the UI tests on the dedicated simulator
   help                              Print this message";
 
@@ -47,10 +48,11 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
 type Gate = fn(&Path) -> Result<String>;
 
 /// The source checks, each of which refuses its own planted violations before it passes.
-const GATES: [(&str, Gate); 4] = [
+const GATES: [(&str, Gate); 5] = [
     ("colors", colors::check),
     ("purity", purity::check),
     ("logging", logging::check),
+    ("offline", offline::check),
     ("required reasons", required_reasons::check),
 ];
 
