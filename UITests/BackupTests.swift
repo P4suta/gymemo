@@ -6,8 +6,8 @@ final class BackupTests: XCTestCase {
   func testExportsABackupAndReplacesTheLogWithIt() {
     let app = Gymemo.launch(store: "backup-roundtrip")
     let bench = app.addExercise("Bench Press")
-    bench.logSet(weight: "60", reps: "10", in: app)
-    bench.buttons["set-1"].required("the logged set")
+    bench.log(weight: "60", reps: "10")
+    bench.set(1).required("the logged set")
 
     app.open(.settings)
     app.buttons["open-backup"].required("the backup row").tap()
@@ -23,20 +23,26 @@ final class BackupTests: XCTestCase {
       return
     }
     save.tap()
-    let replace = app.buttons["Replace"].firstMatch
-    if replace.waitForExistence(timeout: 3) { replace.tap() }
-    XCTAssertEqual(
-      app.staticTexts["backup-notice"].required("the export notice").label,
-      "The file was exported.")
+    // A file from an earlier run makes the picker ask before it replaces that file.
+    // SpringBoard shows the question, so the app's own elements never include it.
+    let notice = app.any("backup-notice")
+    let replace = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Replace"]
+      .firstMatch
+    for _ in 0..<10 where !notice.waitForExistence(timeout: 2) {
+      if replace.exists { replace.tap() }
+    }
+    if !notice.exists { capture("export-picker-after-save") }
+    XCTAssertEqual(notice.required("the export notice").label, "The file was exported.")
 
     app.open(.log)
-    bench.buttons["log-set"].scrollAndTap(in: app)
-    bench.buttons["set-2"].required("the second set")
+    bench.logButton.scrollAndTap(in: app)
+    bench.set(2).required("the second set")
 
     app.open(.settings)
     app.buttons["import-backup"].required("the import button").tap()
-    let file = app.staticTexts.matching(
-      NSPredicate(format: "label BEGINSWITH %@", "gymemo-backup-2026-11-09")
+    // The picker opens a file from a tap on its cell, and a tap on the name alone leaves the picker open.
+    let file = app.cells.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "gymemo-backup-2026-11-09")
     ).firstMatch
     if !file.waitForExistence(timeout: 15) {
       let attachment = XCTAttachment(string: app.debugDescription)
@@ -48,6 +54,7 @@ final class BackupTests: XCTestCase {
       return
     }
     file.tap()
+    capture("import-picker-after-tap")
     let alert = app.alerts["Replace the current records?"].required("the confirmation")
     XCTAssertTrue(
       alert.staticTexts[
@@ -55,7 +62,7 @@ final class BackupTests: XCTestCase {
       ].exists)
     alert.buttons["Cancel"].tap()
     app.open(.log)
-    XCTAssertTrue(bench.buttons["set-2"].exists)
+    XCTAssertTrue(bench.set(2).exists)
 
     app.open(.settings)
     app.buttons["import-backup"].required("the import button").tap()
@@ -63,9 +70,9 @@ final class BackupTests: XCTestCase {
     app.alerts["Replace the current records?"].required("the confirmation").buttons["Replace"]
       .tap()
     XCTAssertEqual(
-      app.staticTexts["backup-notice"].required("the import notice").label,
+      app.any("backup-notice").required("the import notice").label,
       "The backup was imported.")
     app.open(.log)
-    bench.buttons["set-2"].requiredGone("the set that the backup doesn't hold")
+    bench.set(2).requiredGone("the set that the backup doesn't hold")
   }
 }

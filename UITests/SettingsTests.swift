@@ -13,44 +13,48 @@ final class SettingsTests: XCTestCase {
     let app = Gymemo.launch(store: "settings-exercises")
     openExercises(app)
     app.buttons["create-exercise"].tap()
-    app.textFields["exercise-name"].required("the name field")
-    app.fill("exercise-name", with: "Cable Fly")
-    XCTAssertTrue(app.buttons["body-part-chest"].isSelected)
-    app.buttons["body-part-arms"].scrollAndTap(in: app)
-    XCTAssertTrue(app.buttons["body-part-arms"].isSelected)
+    app.replaceText(of: "exercise-name", with: "Cable Fly")
+    let bodyPart = app.buttons["body-part"].required("the body part menu")
+    XCTAssertTrue(bodyPart.label.contains("Chest") || (bodyPart.value as? String) == "Chest")
+    bodyPart.tap()
+    app.buttons["Arms"].required("the body parts").tap()
     app.buttons["sheet-confirm"].tap()
-    app.buttons["manage-Cable Fly"].required("the new exercise")
-
-    app.buttons["create-exercise"].scrollAndTap(in: app)
-    app.textFields["exercise-name"].required("the name field")
-    app.fill("exercise-name", with: "Cable Fly")
-    app.buttons["sheet-confirm"].tap()
-    XCTAssertTrue(
-      app.staticTexts["problem"].required("the duplicate problem").label
-        .hasPrefix("Another exercise already has that name."))
+    app.buttons["manage-Cable Fly"].scrollAndTap(in: app)
+    app.textFields["exercise-name"].required("the editor of the new exercise")
     app.buttons["sheet-cancel"].tap()
 
+    app.buttons["create-exercise"].tap()
+    app.replaceText(of: "exercise-name", with: "Cable Fly")
+    app.buttons["sheet-confirm"].tap()
+    XCTAssertTrue(
+      app.any("problem").required("the duplicate problem").label
+        .hasPrefix("Another exercise already has that name."))
+    app.buttons["sheet-cancel"].tap()
+    app.buttons["Discard Changes"].required("the question before discarding").tap()
+
     app.buttons["manage-Cable Fly"].scrollAndTap(in: app)
-    app.textFields["exercise-name"].required("the name field")
-    app.fill("exercise-name", with: "Cable Crossover")
-    app.buttons["selectable"].scrollAndTap(in: app)
+    app.replaceText(of: "exercise-name", with: "Cable Crossover")
+    app.switches["selectable"].required("the switch").switches.firstMatch.tap()
     app.buttons["sheet-confirm"].tap()
     let renamed = app.buttons["manage-Cable Crossover"].required("the renamed exercise")
     XCTAssertTrue(renamed.label.contains("Hidden"))
 
     app.open(.log)
-    app.buttons["add-exercise"].scrollAndTap(in: app)
+    app.buttons["add-exercise"].required("the add button").tap()
     app.buttons["pick-Bench Press"].required("the picker")
+    let search = app.searchFields.firstMatch.required("the search field")
+    search.tap()
+    search.typeText("Cable")
+    app.buttons["pick-Bench Press"].requiredGone("the exercises that the search leaves out")
     XCTAssertFalse(app.buttons["pick-Cable Crossover"].exists)
-    app.buttons["sheet-cancel"].tap()
   }
 
   @MainActor
   func testDeletesAnUnusedExerciseOnlyAfterConfirmation() {
     let app = Gymemo.launch(store: "settings-delete")
     let bench = app.addExercise("Bench Press")
-    bench.logSet(weight: "60", reps: "10", in: app)
-    bench.buttons["set-1"].required("the logged set")
+    bench.log(weight: "60", reps: "10")
+    bench.set(1).required("the logged set")
     openExercises(app)
 
     app.buttons["manage-Bench Press"].scrollAndTap(in: app)
@@ -64,21 +68,25 @@ final class SettingsTests: XCTestCase {
     app.buttons["sheet-cancel"].tap()
 
     app.buttons["manage-Dips"].scrollAndTap(in: app)
-    app.buttons["delete-exercise"].required("the delete button").scrollAndTap(in: app)
-    app.buttons["Cancel"].firstMatch.required("the confirmation").tap()
+    app.buttons["delete-exercise"].required("the delete button").tap()
+    app.buttons["Delete"].required("the confirmation")
+    app.textFields["exercise-name"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      .tap()
+    app.buttons["Delete"].requiredGone("the dismissed confirmation")
+    app.hideKeyboard()
     app.buttons["sheet-cancel"].tap()
     app.buttons["manage-Dips"].required("the kept exercise")
 
     app.buttons["manage-Dips"].scrollAndTap(in: app)
-    app.buttons["delete-exercise"].required("the delete button").scrollAndTap(in: app)
-    app.buttons["Delete"].firstMatch.required("the confirmation").tap()
+    app.buttons["delete-exercise"].required("the delete button").tap()
+    app.buttons["Delete"].required("the confirmation").tap()
     app.buttons["manage-Dips"].requiredGone("the deleted exercise")
   }
 
   @MainActor
   func testShowsWhereRecordsAreKeptAndTheBackupActions() {
     let app = Gymemo.launch(store: "settings-backup", tab: "settings")
-    app.staticTexts["Where records are kept"].required("the storage heading")
+    app.staticTexts["Where Records Are Kept"].required("the storage heading")
     XCTAssertTrue(app.staticTexts["Version 1.0 (1)"].exists)
     app.buttons["open-backup"].tap()
     for action in ["export-backup", "export-csv", "import-backup"] {
