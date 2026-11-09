@@ -1,4 +1,4 @@
-# `mise x -- just mutate` changes the package sources one operator at a time and runs the package tests against each change.
+# `mise x -- just mutate` changes the package sources one operator at a time and runs the package tests on each change.
 # The experimental tier holds every operator of the tool.
 sources-path: Sources
 operator-tier: experimental

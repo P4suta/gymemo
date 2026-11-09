@@ -16,7 +16,8 @@ extension LocalDay {
 
   /// The day of `date` in `timeZone`, or the supported day nearest to it.
   public static func nearest(to date: Date, in timeZone: TimeZone) -> LocalDay {
-    // A time zone differs from UTC by at most 18 hours, so a date with no supported day lies before 1900-01-01T18:00Z or at or after 2200-12-31T06:00Z.
+    // A time zone differs from UTC by at most 18 hours.
+    // A date with no supported day then lies before 1900-01-01T18:00Z or at or after 2200-12-31T06:00Z.
     // The side of 1970 on which it lies names the nearer end of the supported days.
     LocalDay(date: date, timeZone: timeZone)
       ?? (date.timeIntervalSince1970.sign == .minus ? earliest : latest)

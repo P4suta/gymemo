@@ -36,7 +36,7 @@ final class SQLiteDatabase {
   init(url: URL) throws(StoreFailure) {
     let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
     let status = sqlite3_open_v2(url.path, &handle, flags, nil)
-    // A failed open usually still returns a connection, and that connection holds the message.
+    // SQLite returns a connection for a failed open unless it has no memory for one, and that connection holds the message.
     // Swift runs `deinit` when an initializer throws after every stored property has a value, so `deinit` closes it.
     guard status == SQLITE_OK else { throw failure(status) }
     sqlite3_busy_timeout(handle, 5_000)

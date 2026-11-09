@@ -1,7 +1,7 @@
 # The offline host of the Lean proofs, which `just proofs` runs without a network.
 ARG LEAN_VERSION=4.34.1
 
-# The release names its x86-64 archive `linux` and its ARM archive `linux_aarch64`.
+# The release names its x86-64 archive `linux` and its arm64 archive `linux_aarch64`.
 FROM scratch AS archive-amd64
 ARG LEAN_VERSION
 ADD --checksum=sha256:47bf4bbd78f70c2e9670598ab7124d92b6efb7330ff33e5fbb4030f6fd72e4e4 https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst /lean.tar.zst

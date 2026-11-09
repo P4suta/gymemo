@@ -31,8 +31,8 @@ private struct StoreLogMark {
 
   /// The lines that the store wrote on this thread since the mark, or `nil` when the log never showed both marks.
   /// The log shows an entry a moment after its call and keeps one thread's entries in order.
-  /// So this closes the mark on the same thread and reads again until the closing mark is there or `patience` runs out.
-  /// The closing mark shows up whether or not the store wrote its lines, so only a stalled log waits out `patience`.
+  /// This closes the mark on the same thread and reads again until the closing mark is there or `patience` runs out.
+  /// The closing mark shows up with or without the store's lines, so only a stalled log waits out `patience`.
   /// A short rest between two readings keeps the load on the log service low when many test processes read at once.
   func storeLines(patience: Duration = .seconds(20)) throws -> [String]? {
     Self.write(closing)
