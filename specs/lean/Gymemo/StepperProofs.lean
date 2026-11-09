@@ -5,7 +5,7 @@ import Gymemo.Stepper
 
 `Gymemo/Stepper.lean` states the arithmetic of the two steppers in `Sources/GymemoCore/Weight.swift` over the integers.
 The Swift code holds the step count to the width of the range before it multiplies and adds, because 64-bit addition stops the process on overflow.
-This file proves that holding the step count changes no result, that every result lies in its range, and that every intermediate value fits in 64 bits for any step count.
+This file proves what `held` gives, that holding the step count changes no result, that every result lies in its range, and that every intermediate value fits in 64 bits for any step count.
 -/
 
 namespace Gymemo.Stepper
@@ -32,6 +32,16 @@ private theorem held_of_above {low high value : Int} (ordered : low ≤ high)
     (over : high ≤ value) : held low high value = high := by
   unfold held
   rw [Int.max_eq_left (Int.le_trans ordered over), Int.min_eq_right over]
+
+/-- `held` gives a value inside its range as it is and the nearer bound for a value outside it, when the bounds lie in order.
+The other theorems of this file speak through `held`, so this theorem pins what they say. -/
+theorem held_spec {low high value : Int} (ordered : low ≤ high) :
+    (value < low → held low high value = low) ∧
+      (low ≤ value → value ≤ high → held low high value = value) ∧
+      (high < value → held low high value = high) :=
+  ⟨fun under => held_of_below ordered (Int.le_of_lt under),
+    fun above below => held_of_inside above below,
+    fun over => held_of_above ordered (Int.le_of_lt over)⟩
 
 /-- A move that grows with the step count gives the same held result for a step count as for that step count held between `least` and `most`, when the move by `least` lies at or below `low` and the move by `most` lies at or above `high`.
 A step count beyond `least` or `most` moves at least as far, so both sides give the same bound. -/

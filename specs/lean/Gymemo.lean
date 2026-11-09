@@ -1,6 +1,10 @@
 import Gymemo.Log
+import Gymemo.LogOrder
+import Gymemo.LogRun
 import Gymemo.LogStore
+import Gymemo.LogValid
 import Gymemo.Positions
+import Gymemo.PositionsProofs
 import Gymemo.Stepper
 import Gymemo.StepperProofs
 import Gymemo.Strength
