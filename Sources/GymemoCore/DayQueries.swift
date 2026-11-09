@@ -49,6 +49,18 @@ public struct DaySummary: Equatable, Identifiable, Sendable {
   public var id: LocalDay { day }
 }
 
+/// The recorded days of one calendar month, from newest to oldest.
+public struct HistoryMonth: Equatable, Identifiable, Sendable {
+  public let days: [DaySummary]
+
+  /// The first day of the month, or the earliest supported day for a month without days.
+  public var start: LocalDay {
+    days.first.flatMap { LocalDay(year: $0.day.year, month: $0.day.month, day: 1) } ?? .earliest
+  }
+
+  public var id: LocalDay { start }
+}
+
 public struct ExerciseGroup: Equatable, Identifiable, Sendable {
   public let bodyPart: BodyPart
   public let exercises: [Exercise]
@@ -93,6 +105,23 @@ extension TrainingLog {
         day: day, exerciseNames: sections.map(\.exercise.name),
         setCount: sections.reduce(0) { $0 + $1.sets.count }, memo: memos[day])
     }
+  }
+
+  /// The history grouped by calendar month, from the newest month to the oldest.
+  public var historyByMonth: [HistoryMonth] {
+    var months: [HistoryMonth] = []
+    var days: [DaySummary] = []
+    for summary in history {
+      if let first = days.first,
+        (first.day.year, first.day.month) != (summary.day.year, summary.day.month)
+      {
+        months.append(HistoryMonth(days: days))
+        days = []
+      }
+      days.append(summary)
+    }
+    if !days.isEmpty { months.append(HistoryMonth(days: days)) }
+    return months
   }
 
   /// The latest day and logging position of each exercise that has a set.

@@ -107,6 +107,20 @@ import Testing
     #expect(TrainingLog.empty.history.isEmpty)
   }
 
+  @Test func groupsTheHistoryByCalendarMonthFromNewestToOldest() throws {
+    var builder = try sample()
+    try builder.set(1, "2026-10-30", "60", 8)
+    try builder.set(1, "2025-11-30", "50", 8)
+    let months = builder.log.historyByMonth
+    #expect(months.map(\.start.iso) == ["2026-11-01", "2026-10-01", "2025-11-01"])
+    #expect(
+      months[0].days.map(\.day.iso) == ["2026-11-12", "2026-11-09", "2026-11-07", "2026-11-05"])
+    #expect(months[1].days.map(\.day.iso) == ["2026-10-30"])
+    #expect(months[2].days.map(\.day.iso) == ["2025-11-30"])
+    #expect(months.flatMap(\.days) == builder.log.history)
+    #expect(TrainingLog.empty.historyByMonth.isEmpty)
+  }
+
   @Test func ranksRecentlyLoggedExercisesFirstAndSkipsArchivedOnes() throws {
     var builder = try sample()
     #expect(builder.log.recentExercises(limit: 5).map(\.id) == [exerciseID(1), exerciseID(2)])
