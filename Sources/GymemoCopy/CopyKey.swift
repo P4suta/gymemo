@@ -3,6 +3,8 @@
 public enum CopyKey: String, CaseIterable, Sendable {
   case tabLog, tabHistory, tabAnalysis, tabSettings
   case cancel, save, close, delete, open, replace, hideKeyboard
+  case edit, hide, show, discardQuestion, discardChanges, keepEditing
+  case dayEmptyTitle, analysisEmptyTitle, emptyRangeTitle
   case dayNotToday, dayEmpty, addExercise, note, writeNote, editNote
   case logSet, weight, reps, kilogramUnit, repsUnit, weightSpoken
   case clearWeight, clearReps, clearName

@@ -21,6 +21,51 @@
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "設定" } } } },
+    "edit" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "編集" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯" } } } },
+    "hide" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "隠す" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐藏" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱藏" } } } },
+    "show" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Show" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "表示する" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示" } } } },
+    "discardQuestion" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard your changes?" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "変更を破棄しますか？" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要放弃所做的更改吗？" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "要放棄所做的更動嗎？" } } } },
+    "discardChanges" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Discard Changes" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "変更を破棄" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃更改" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "放棄更動" } } } },
+    "keepEditing" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Keep Editing" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "編集を続ける" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续编辑" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "繼續編輯" } } } },
+    "dayEmptyTitle" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "No Sets" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットがありません" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有记录" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還沒有紀錄" } } } },
+    "analysisEmptyTitle" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "No Progress Yet" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "推移はまだありません" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无进展" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "暫無進展" } } } },
+    "emptyRangeTitle" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "No Data" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録がありません" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "没有记录" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有紀錄" } } } },
     "cancel" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
