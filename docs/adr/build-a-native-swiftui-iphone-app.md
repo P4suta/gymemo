@@ -7,6 +7,7 @@ date: 2026-11-09
 ## Status
 
 Accepted by the owner on 2026-11-09.
+[Follow the system design](follow-the-system-design.md) replaces the iOS 18.0 floor.
 
 ## Context
 
