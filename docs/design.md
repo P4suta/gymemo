@@ -22,6 +22,7 @@ The ratios apply the contrast formula of the Web Content Accessibility Guideline
 No other system color reaches 4.5:1 on white.
 On a dark row inside a sheet, indigo reaches 4.0:1 at the default contrast and 6.5:1 with Increase Contrast.
 Destructive actions take system red through their role, and a problem shows a red symbol beside text in the label color.
+Text takes the label colors through `Color.primary` and `Color.secondary`, and the Verification section gives the reason.
 
 Text uses the system text styles, so each size follows Dynamic Type.
 A set row shows monospaced digits.
@@ -137,4 +138,42 @@ No native speaker has reviewed the Chinese text.
 
 Rows hold text that wraps instead of truncating.
 At the accessibility text sizes, a set row moves its personal record mark under the set, and a number row stacks its label, its field, and its stepper.
+At those sizes the range control becomes a menu, and each chart shows fewer dates under its axis.
 The [typography guidance](https://developer.apple.com/design/human-interface-guidelines/typography) asks for layouts that adapt to every text size.
+
+## Verification
+
+`mise x -- just check` runs the source check for the rules of this page, the package tests, and the build.
+The source check refuses a color written in code, a background on a bar or a sheet, a glass effect, and a fixed appearance.
+It also refuses a fixed font size, a modifier that cuts text short, and a hierarchical style such as `.secondary`.
+A hierarchical style derives from the style around it.
+On the iOS 27.0 simulator, `.primary` took the accent inside a button.
+With Increase Contrast, `.secondary` stayed at 4.0:1 on a white row, where `Color.secondary` reached 6.0:1.
+
+`mise x -- just ui-test` drives every screen and runs the system's accessibility audit on each one.
+The tours cover four languages in the light appearance, the largest text size in English and Japanese, and the dark appearance.
+Two more tours run with Increase Contrast, one in each appearance.
+`simctl` switches the appearance and Increase Contrast around each pass.
+
+The tours at the default contrast leave the contrast audit out.
+The system draws secondary text, section headers, and footers under 4.5:1 by default.
+Apple's Settings app got 11 contrast reports on its About screen at the default contrast and none with Increase Contrast.
+The [accessibility guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility) asks an app in that position to reach its contrast ratios with Increase Contrast.
+The same page asks for the check in both appearances.
+The two tours with Increase Contrast audit the contrast of every element that the audit names.
+
+Each remaining exclusion rests on an observation of 2026-11-09 on the iOS 27.0 simulator.
+A contrast report without an element names no view, and neither the test nor Xcode finds one.
+Settings gets such reports with Increase Contrast too.
+This app got 11 in the light appearance, and the number stayed the same when a trial build exposed every text that the app merges or hides.
+The audit reports partial Dynamic Type support for the calendar of the day picker and for some text in system styles.
+Settings gets that report for its own title.
+Text under the tab bar or the search field fails the contrast audit through the bar's material.
+The header of the set editor lies on the sheet's material under the sheet's bar and fails the contrast audit.
+A screenshot with Increase Contrast shows 5.5:1 for that header.
+The audit of clipped text runs only at the largest text size.
+At a smaller size it predicts clipping for headers and footers that the largest size shows whole.
+The audit accepts text without an element on four screens, where the system draws a chart axis, a calendar, or the screen under a sheet.
+
+No check has run on iOS 26, because the simulator runs iOS 27.0.
+No check covers Reduce Transparency or Reduce Motion, because `simctl` switches neither.
