@@ -108,7 +108,9 @@ extension Weight {
     case .failure(.empty): start = .bodyweight
     case .failure: return nil
     }
-    let moved = start.hundredths + steps * stepHundredths
+    // No more steps than the range holds hundredths count, so the sum stays far from overflow.
+    let counted = min(max(steps, -maximumHundredths), maximumHundredths)
+    let moved = start.hundredths + counted * stepHundredths
     return Weight(unchecked: min(max(moved, 0), maximumHundredths))
   }
 }
@@ -125,6 +127,8 @@ extension Reps {
       start = 0
     case .failure: return nil
     }
-    return Reps(unchecked: min(max(start + steps, 1), maximumCount))
+    // No more steps than the range holds counts, so the sum stays far from overflow.
+    let counted = min(max(steps, -maximumCount), maximumCount)
+    return Reps(unchecked: min(max(start + counted, 1), maximumCount))
   }
 }

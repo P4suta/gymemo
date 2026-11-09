@@ -23,4 +23,13 @@ import Testing
     #expect(Reps.stepped(from: "", by: -1) == nil)
     #expect(Reps.stepped(from: "x", by: 1) == nil)
   }
+
+  @Test func aStepCountOfAnySizeEndsAtTheEdgeOfTheRange() {
+    #expect(Weight.stepped(from: "60", by: .max)?.hundredths == Weight.maximumHundredths)
+    #expect(Weight.stepped(from: "60", by: .min) == .bodyweight)
+    #expect(Weight.stepped(from: "", by: .max)?.hundredths == Weight.maximumHundredths)
+    #expect(Reps.stepped(from: "8", by: .max)?.count == Reps.maximumCount)
+    #expect(Reps.stepped(from: "8", by: .min) == .one)
+    #expect(Reps.stepped(from: "", by: .max)?.count == Reps.maximumCount)
+  }
 }
