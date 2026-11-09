@@ -72,7 +72,7 @@ struct ExercisePicker: View {
       pick(exercise)
       dismiss()
     }
-    .tint(.primary)
+    .tint(Color.primary)
   }
 }
 
@@ -225,11 +225,12 @@ struct ExerciseListScreen: View {
             Button {
               edited = exercise
             } label: {
-              LabeledContent(exercise.name.text) {
-                if exercise.isArchived { Text(copy[.hidden]) }
+              HStack {
+                Text(exercise.name.text).foregroundStyle(Color.primary)
+                Spacer(minLength: 8)
+                if exercise.isArchived { Text(copy[.hidden]).foregroundStyle(Color.secondary) }
               }
             }
-            .tint(.primary)
             .accessibilityIdentifier("manage-\(exercise.name.text)")
             .swipeActions(edge: .trailing) {
               Button(toggleTitle, systemImage: toggleSymbol) { toggle(exercise) }

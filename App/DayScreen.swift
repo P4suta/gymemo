@@ -41,6 +41,7 @@ struct DayScreen: View {
         Section {
           ContentUnavailableView {
             Label(copy[.dayEmptyTitle], systemImage: "dumbbell")
+              .accessibilityIdentifier("empty-day")
           } description: {
             Text(copy[.dayEmpty])
           } actions: {
@@ -48,7 +49,6 @@ struct DayScreen: View {
               .buttonStyle(.borderedProminent)
               .accessibilityIdentifier("add-first-exercise")
           }
-          .accessibilityIdentifier("empty-day")
         }
         .listRowBackground(Color.clear)
       }
@@ -111,7 +111,7 @@ private struct ExerciseSection: View {
       if let previous {
         Text(copy.previous(previous))
           .font(.subheadline)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
           .accessibilityIdentifier("previous-session-\(name)")
       }
       ForEach(Array(sets.enumerated()), id: \.element.id) { index, set in
@@ -121,7 +121,7 @@ private struct ExerciseSection: View {
         } label: {
           SetRow(number: index + 1, set: set, isBest: isBest)
         }
-        .tint(.primary)
+        .tint(Color.primary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
           copy.spokenSet(weight: set.weight, reps: set.reps, number: index + 1, isBest: isBest)
@@ -224,7 +224,9 @@ struct SetEditor: View {
           NumberFieldRow(kind: .reps, text: $repsText, identifier: "edit-reps")
           if let problem { InlineProblem(text: problem) }
         } header: {
-          if let exercise = model.log.exercise(set.exerciseID) { Text(exercise.name.text) }
+          if let exercise = model.log.exercise(set.exerciseID) {
+            Text(exercise.name.text).accessibilityIdentifier("edit-exercise")
+          }
         }
         Section {
           Button(copy[.deleteSet], role: .destructive) {

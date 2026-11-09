@@ -24,6 +24,7 @@ struct AnalysisScreen: View {
           Section {
             ContentUnavailableView {
               Label(copy[.analysisEmptyTitle], systemImage: "chart.bar")
+                .accessibilityIdentifier("empty-analysis")
             } description: {
               Text(copy[.analysisEmpty])
             } actions: {
@@ -31,7 +32,6 @@ struct AnalysisScreen: View {
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("start-today")
             }
-            .accessibilityIdentifier("empty-analysis")
           }
           .listRowBackground(Color.clear)
         } else {
@@ -61,6 +61,7 @@ struct AnalysisScreen: View {
 /// See https://developer.apple.com/design/human-interface-guidelines/charting-data.
 private struct WeeklyBlock: View {
   let weeks: [WeekCount]
+  @Environment(\.dynamicTypeSize) private var typeSize
 
   private var headline: String {
     let latest = weeks.suffix(2).map(\.days)
@@ -69,8 +70,10 @@ private struct WeeklyBlock: View {
   }
 
   /// Every third week counted back from the current one, so the labels never touch.
+  /// At the accessibility text sizes only the current week and the one in the middle keep a label, and a label under the first bar would leave the chart.
   private var labelled: [String] {
-    weeks.enumerated().filter { ($0.offset - (weeks.count - 1)) % 3 == 0 }
+    let step = typeSize.isAccessibilitySize ? max(weeks.count / 2, 1) : 3
+    return weeks.enumerated().filter { ($0.offset - (weeks.count - 1)) % step == 0 }
       .map { copy.day($0.element.start, .axis) }
   }
 
@@ -140,10 +143,10 @@ struct ExerciseProgressScreen: View {
           if points.isEmpty {
             ContentUnavailableView {
               Label(copy[.emptyRangeTitle], systemImage: "chart.xyaxis.line")
+                .accessibilityIdentifier("empty-range")
             } description: {
               Text(copy[.emptyRange])
             }
-            .accessibilityIdentifier("empty-range")
           } else {
             ProgressChart(points: points, name: copy.scoreName(progress.kind))
           }
@@ -169,6 +172,7 @@ struct ExerciseProgressScreen: View {
   }
 
   /// The three ranges as a segmented control, or as a menu at the accessibility text sizes, where segment labels can't grow.
+  /// The section header names the menu, so the menu shows its value alone.
   @ViewBuilder
   private func rangePicker(title: String) -> some View {
     let picker = Picker(title, selection: $range) {
@@ -178,7 +182,7 @@ struct ExerciseProgressScreen: View {
     }
     .accessibilityIdentifier("range")
     if typeSize.isAccessibilitySize {
-      picker.pickerStyle(.menu)
+      picker.pickerStyle(.menu).labelsHidden()
     } else {
       picker.pickerStyle(.segmented)
     }
@@ -188,8 +192,11 @@ struct ExerciseProgressScreen: View {
 private struct ProgressChart: View {
   let points: [ProgressPoint]
   let name: String
+  @Environment(\.dynamicTypeSize) private var typeSize
 
   var body: some View {
+    // Fewer dates fit under the chart at the accessibility text sizes.
+    let dates = typeSize.isAccessibilitySize ? 2 : 4
     Chart(points) { point in
       LineMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
         .foregroundStyle(.tint)
@@ -201,7 +208,7 @@ private struct ProgressChart: View {
     }
     .chartYScale(domain: .automatic(includesZero: false))
     .chartXAxis {
-      AxisMarks(values: .automatic(desiredCount: 4)) {
+      AxisMarks(values: .automatic(desiredCount: dates)) {
         AxisGridLine()
         AxisValueLabel(format: copy.dateStyle(.axis))
       }
@@ -226,7 +233,7 @@ private struct BestRows: View {
         Text(copy.scoreLine(best.score)).font(.headline).accessibilityIdentifier("best-score")
         Text(copy.setOnDay(weight: best.best.weight, reps: best.best.reps, day: best.day))
           .font(.subheadline)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.secondary)
       }
     } else {
       Text(copy[.personalBestEmpty])

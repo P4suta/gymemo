@@ -8,7 +8,7 @@ struct PersonalBestMark: View {
   var body: some View {
     HStack(spacing: 4) {
       Image(systemName: "trophy.fill").foregroundStyle(Color.accentColor)
-      Text(copy[.personalBest]).foregroundStyle(.secondary)
+      Text(copy[.personalBest]).foregroundStyle(Color.secondary)
     }
     .font(.footnote)
     .accessibilityElement(children: .combine)
@@ -30,8 +30,8 @@ struct SetRow: View {
       : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
     layout {
       HStack(alignment: .firstTextBaseline, spacing: 12) {
-        Text(number.formatted(.number.locale(copy.locale))).foregroundStyle(.secondary)
-        Text(copy.set(set)).foregroundStyle(.primary)
+        Text(number.formatted(.number.locale(copy.locale))).foregroundStyle(Color.secondary)
+        Text(copy.set(set)).foregroundStyle(Color.primary)
       }
       .monospacedDigit()
       if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
@@ -74,7 +74,7 @@ struct NumberFieldRow: View {
           .accessibilityLabel(kind == .weight ? copy[.weightSpoken] : copy[.reps])
           .accessibilityIdentifier(identifier)
         if kind == .weight {
-          Text(copy[.kilogramUnit]).foregroundStyle(.secondary).accessibilityHidden(true)
+          Text(copy[.kilogramUnit]).foregroundStyle(Color.secondary).accessibilityHidden(true)
         }
         if isFocused && !text.isEmpty {
           Button {
@@ -85,7 +85,7 @@ struct NumberFieldRow: View {
               .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
-          .foregroundStyle(.tertiary)
+          .foregroundStyle(Color.secondary)
           .accessibilityLabel(kind == .weight ? copy[.clearWeight] : copy[.clearReps])
           .accessibilityIdentifier("clear-\(identifier)")
         }
@@ -116,7 +116,7 @@ struct InlineProblem: View {
 
   var body: some View {
     Label {
-      Text(text).foregroundStyle(.primary)
+      Text(text).foregroundStyle(Color.primary)
     } icon: {
       Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
     }
@@ -132,7 +132,7 @@ struct NoticeRow: View {
 
   var body: some View {
     Label {
-      Text(text).foregroundStyle(.primary)
+      Text(text).foregroundStyle(Color.primary)
     } icon: {
       if isFailure {
         Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
@@ -153,10 +153,10 @@ struct StackedRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
-      if let overline { Text(overline).font(.subheadline).foregroundStyle(.secondary) }
-      Text(title).font(isEmphasized ? .headline : .body).foregroundStyle(.primary)
-      if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
-      if let caption { Text(caption).font(.subheadline).foregroundStyle(.secondary) }
+      if let overline { Text(overline).font(.subheadline).foregroundStyle(Color.secondary) }
+      Text(title).font(isEmphasized ? .headline : .body).foregroundStyle(Color.primary)
+      if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(Color.secondary) }
+      if let caption { Text(caption).font(.subheadline).foregroundStyle(Color.secondary) }
     }
   }
 }
@@ -211,7 +211,8 @@ private struct SheetToolbar: ViewModifier {
             copy[.discardQuestion], isPresented: $isAskingToDiscard, titleVisibility: .visible
           ) {
             Button(copy[.discardChanges], role: .destructive) { dismiss() }
-            Button(copy[.keepEditing], role: .cancel) {}
+            // An anchored confirmation shows no button with the cancel role, so this choice takes no role.
+            Button(copy[.keepEditing]) {}
           }
         }
         ToolbarItem(placement: .confirmationAction) {

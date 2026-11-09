@@ -29,12 +29,12 @@ struct HistoryScreen: View {
         if months.isEmpty {
           ContentUnavailableView {
             Label(copy[.historyEmpty], systemImage: "clock")
+              .accessibilityIdentifier("empty-history")
           } actions: {
             Button(copy[.startToday], action: openLog)
               .buttonStyle(.borderedProminent)
               .accessibilityIdentifier("start-today")
           }
-          .accessibilityIdentifier("empty-history")
         }
       }
       .navigationTitle(copy[.tabHistory])
