@@ -15,7 +15,7 @@ Ten years of training is about 52,000 sets by estimate.
 
 ## Decision
 
-Keep one SQLite file in Application Support through the system library.
+Keep one SQLite file in `Application Support` through the system library.
 Each operation writes its rows in one `BEGIN IMMEDIATE` transaction, which SQLite documents as [atomic and durable](https://www.sqlite.org/transactional.html).
 Every connection sets `foreign_keys` on and `synchronous` to `EXTRA`, as the [pragma reference](https://www.sqlite.org/pragma.html) advises for durability.
 `user_version` numbers the schema, and the store refuses an unknown number.
@@ -23,8 +23,8 @@ Every connection sets `foreign_keys` on and `synchronous` to `EXTRA`, as the [pr
 
 ## Alternatives
 
-SwiftData needs the least code, and it manages mutable model objects in a context, against the immutable core.
-One JSON file rewritten per change is simplest, and it rewrites megabytes for each set at that size.
+SwiftData needs the least code, and it manages mutable model objects in a context, which conflicts with the immutable core.
+One JSON file rewritten per change needs little code, and it rewrites megabytes for each set at that size.
 
 ## Consequences
 

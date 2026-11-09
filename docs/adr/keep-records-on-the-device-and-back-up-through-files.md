@@ -23,7 +23,7 @@ Settings also writes a CSV file under [RFC 4180](https://www.rfc-editor.org/rfc/
 
 ## Alternatives
 
-Cloud sync would copy the log automatically, and it needs an account and a server.
+Sync through a server would copy the log automatically, and it needs an account.
 Without an export, the log ends with the phone.
 
 ## Consequences
