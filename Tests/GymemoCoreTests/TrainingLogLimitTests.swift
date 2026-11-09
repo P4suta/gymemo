@@ -4,7 +4,7 @@ import Testing
 
 /// Indexing a million sets takes about a second, so the suite builds the full log once and every test reads it.
 /// A failed expectation describes the values that it compared, and describing a full log takes longer than a mutation run waits for a test.
-/// Each expectation therefore compares a count that the test read from the log beforehand.
+/// Each expectation compares a count that the test read from the log beforehand.
 @Suite struct TrainingLogLimitTests {
   /// One exercise more than a log holds.
   private static let exerciseRows: Result<[Exercise], any Error> = Result {
@@ -80,5 +80,16 @@ import Testing
     let almostFull = try full.applying(.deleteSet(id: setID(0)))
     let refilled = almostFull.apply(oneMore).map(\.log.sets.count)
     #expect(refilled == .success(1_000_000))
+  }
+
+  @Test func refusesASetOfNoExerciseAndARepeatedSetForThoseReasonsWhenFull() throws {
+    let full = try Self.logFullOfSets.get()
+    let stray = LoggedSet(
+      id: setID(1_000_000), exerciseID: exerciseID(9), day: .earliest, weight: .bodyweight,
+      reps: .one)
+    let strayRefused = full.apply(logging(stray)).map(\.log.sets.count)
+    #expect(strayRefused == .failure(.unknownExercise))
+    let repeatRefused = full.apply(logging(Self.set(0))).map(\.log.sets.count)
+    #expect(repeatRefused == .failure(.duplicateIdentifier))
   }
 }

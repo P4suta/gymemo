@@ -55,6 +55,10 @@ screenshots:
 mutate *args:
     swift-mutation-testing run . "$@"
 
+# Writes the Lean vectors from the Swift results.
+gen:
+    GYMEMO_WRITE_VECTORS=1 swift test --filter LeanVectorsTests
+
 # Runs the package tests under the address and thread sanitizers.
 sanitize:
     swift test --sanitize=address

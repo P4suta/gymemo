@@ -3,9 +3,12 @@ import Gymemo.LogOrder
 import Gymemo.LogRun
 import Gymemo.LogStore
 import Gymemo.LogValid
+import Gymemo.LogVectors
 import Gymemo.Positions
 import Gymemo.PositionsProofs
 import Gymemo.Stepper
 import Gymemo.StepperProofs
+import Gymemo.StepperVectors
 import Gymemo.Strength
 import Gymemo.StrengthProofs
+import Gymemo.StrengthVectors
