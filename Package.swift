@@ -1,10 +1,10 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
   name: "Gymemo",
   defaultLocalization: "en",
-  platforms: [.iOS(.v18), .macOS(.v15)],
+  platforms: [.iOS(.v26), .macOS(.v15)],
   products: [
     .library(name: "GymemoCore", targets: ["GymemoCore"]),
     .library(name: "GymemoKit", targets: ["GymemoKit"]),
