@@ -4,7 +4,7 @@ use crate::failure::{Context, Failure, Result, ensure};
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 const DEVICE_NAME: &str = "gymemo checks";
@@ -314,9 +314,34 @@ pub fn app(root: &Path, arguments: &[String]) -> Result<()> {
             ])
             .args(arguments),
     )?;
-    run(Command::new("open").args(["-a", "Simulator"]))?;
-    println!("PASS app: gymemo runs on the simulator {DEVICE_NAME}");
+    match window() {
+        Some(application) => {
+            println!(
+                "PASS app: gymemo runs on the simulator {DEVICE_NAME}, and {application} is open"
+            );
+        }
+        None => println!(
+            "PASS app: gymemo runs on the simulator {DEVICE_NAME}, and no app for its window opened"
+        ),
+    }
     Ok(())
+}
+
+/// Opens the app that holds the simulator's window and returns its name.
+/// Xcode 27.2 holds Device Hub and no Simulator app, and the launch succeeds without either one.
+fn window() -> Option<&'static str> {
+    const APPLICATIONS: [(&str, [&str; 2]); 2] = [
+        ("Simulator", ["-a", "Simulator"]),
+        ("Device Hub", ["-b", "com.apple.dt.Devices"]),
+    ];
+    APPLICATIONS.into_iter().find_map(|(name, arguments)| {
+        let opened = Command::new("open")
+            .args(arguments)
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success());
+        opened.then_some(name)
+    })
 }
 
 /// Exports the screenshots that the latest UI test run attached, into a new directory for each appearance.
