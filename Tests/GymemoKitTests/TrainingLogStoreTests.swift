@@ -197,6 +197,25 @@ import Testing
     #expect(LocalDay.nearest(to: .distantFuture, in: tokyo) == .latest)
   }
 
+  @Test(arguments: [-64_800, -46_800, -43_201, -43_200, 0, 50_400, 64_800])
+  func choosesTheNearerEndJustOutsideTheSupportedYears(secondsFromGMT: Int) throws {
+    let zone = try #require(TimeZone(secondsFromGMT: secondsFromGMT))
+    let offset = TimeInterval(secondsFromGMT)
+    // The supported days start and end at these instants on a clock that runs this far ahead of UTC.
+    let start = LocalDay.earliest.noonUTC.addingTimeInterval(-43_200 - offset)
+    let end = LocalDay.latest.noonUTC.addingTimeInterval(43_200 - offset)
+    #expect(LocalDay.nearest(to: start.addingTimeInterval(-1), in: zone) == .earliest)
+    #expect(LocalDay.nearest(to: start, in: zone) == .earliest)
+    #expect(
+      LocalDay.nearest(to: start.addingTimeInterval(86_400), in: zone)
+        == LocalDay.earliest.adding(days: 1))
+    #expect(
+      LocalDay.nearest(to: end.addingTimeInterval(-86_401), in: zone)
+        == LocalDay.latest.adding(days: -1))
+    #expect(LocalDay.nearest(to: end.addingTimeInterval(-1), in: zone) == .latest)
+    #expect(LocalDay.nearest(to: end, in: zone) == .latest)
+  }
+
   @Test func givesBackItsOwnDayAtNoonInUTC() throws {
     let utc = try #require(TimeZone(identifier: "UTC"))
     for number in LocalDay.earliest.dayNumber...LocalDay.latest.dayNumber {
