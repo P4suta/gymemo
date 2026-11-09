@@ -1,0 +1,6 @@
+# The theorems about the log's rules, in Lean 4 core without Mathlib or any other dependency.
+name = "gymemo"
+defaultTargets = ["Gymemo"]
+
+[[lean_lib]]
+name = "Gymemo"

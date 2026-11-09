@@ -4,5 +4,6 @@
 /gymemo.xcodeproj/
 /Signing.local.xcconfig
 /.swift-mutation-testing-cache/
+/specs/lean/.lake/
 /.mise.local.toml
 .DS_Store
