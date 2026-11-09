@@ -12,6 +12,11 @@ extension LocalDay {
     self.init(year: year, month: month, day: day)
   }
 
+  /// The day of `date` in `timeZone`, or the supported day nearest to it.
+  public static func nearest(to date: Date, in timeZone: TimeZone) -> LocalDay {
+    LocalDay(date: date, timeZone: timeZone) ?? (date < earliest.noonUTC ? earliest : latest)
+  }
+
   /// Noon of this day in UTC, for a date formatter or a date picker that also works in UTC.
   /// A local time zone can skip a whole day, and UTC never does.
   public var noonUTC: Date {

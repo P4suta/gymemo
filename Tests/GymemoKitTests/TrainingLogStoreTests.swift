@@ -189,6 +189,14 @@ import Testing
     #expect(LocalDay(date: .distantFuture, timeZone: utc) == nil)
   }
 
+  @Test func keepsTheDeviceDayInsideTheSupportedYears() throws {
+    let instant = try #require(ISO8601DateFormatter().date(from: "2026-11-09T15:30:00Z"))
+    let tokyo = try #require(TimeZone(identifier: "Asia/Tokyo"))
+    #expect(LocalDay.nearest(to: instant, in: tokyo).iso == "2026-11-10")
+    #expect(LocalDay.nearest(to: .distantPast, in: tokyo) == .earliest)
+    #expect(LocalDay.nearest(to: .distantFuture, in: tokyo) == .latest)
+  }
+
   @Test func givesBackItsOwnDayAtNoonInUTC() throws {
     let utc = try #require(TimeZone(identifier: "UTC"))
     for number in LocalDay.earliest.dayNumber...LocalDay.latest.dayNumber {

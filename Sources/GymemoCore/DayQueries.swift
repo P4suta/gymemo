@@ -12,10 +12,32 @@ public struct Session: Equatable, Identifiable, Sendable {
   public var id: LocalDay { day }
 }
 
-/// The weight and repetitions to offer before the lifter types anything.
+public enum SetEntryRefusal: Error, Equatable, Sendable {
+  case weight(WeightRefusal)
+  case reps(RepsRefusal)
+}
+
+/// The weight and repetitions of a set that the lifter is about to log.
 public struct SetEntry: Equatable, Sendable {
   public let weight: Weight
   public let reps: Reps
+
+  public init(weight: Weight, reps: Reps) {
+    self.weight = weight
+    self.reps = reps
+  }
+
+  /// Reads the two inputs of a set, where an empty weight means the body alone.
+  public static func parse(weight: String, reps: String) -> Result<SetEntry, SetEntryRefusal> {
+    let load: Result<Weight, WeightRefusal> =
+      switch Weight.parse(weight) {
+      case .failure(.empty): .success(.bodyweight)
+      case let other: other
+      }
+    return load.mapError(SetEntryRefusal.weight).flatMap { weight in
+      Reps.parse(reps).mapError(SetEntryRefusal.reps).map { SetEntry(weight: weight, reps: $0) }
+    }
+  }
 }
 
 public struct DaySummary: Equatable, Identifiable, Sendable {

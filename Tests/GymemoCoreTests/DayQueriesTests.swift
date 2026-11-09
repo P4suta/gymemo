@@ -2,6 +2,23 @@ import GymemoCore
 import GymemoTestSupport
 import Testing
 
+@Suite struct SetEntryTests {
+  @Test func readsAnEmptyWeightAsTheBodyAlone() {
+    #expect(SetEntry.parse(weight: "", reps: "10").map(\.weight) == .success(.bodyweight))
+    #expect(SetEntry.parse(weight: "  ", reps: " 12 ").map(\.reps.count) == .success(12))
+    #expect(SetEntry.parse(weight: "62.5", reps: "8").map(\.weight.text) == .success("62.5"))
+    #expect(SetEntry.parse(weight: "62.5", reps: "8").map(\.reps.count) == .success(8))
+  }
+
+  @Test func namesTheInputItRefuses() {
+    #expect(SetEntry.parse(weight: "abc", reps: "8") == .failure(.weight(.notANumber)))
+    #expect(SetEntry.parse(weight: "1000", reps: "8") == .failure(.weight(.outOfRange)))
+    #expect(SetEntry.parse(weight: "60", reps: "") == .failure(.reps(.empty)))
+    #expect(SetEntry.parse(weight: "60", reps: "0") == .failure(.reps(.outOfRange)))
+    #expect(SetEntry.parse(weight: "abc", reps: "") == .failure(.weight(.notANumber)))
+  }
+}
+
 @Suite struct DayQueriesTests {
   private func sample() throws -> LogBuilder {
     var builder = LogBuilder()
