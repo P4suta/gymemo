@@ -30,6 +30,15 @@ impl Failure {
     pub fn code(&self) -> u8 {
         self.code
     }
+
+    /// This failure with `later` reported after it, under the exit code of this failure.
+    /// A cleanup that fails after a step failed reports both this way, and the step stays the first line.
+    pub fn followed_by(self, later: &Failure) -> Self {
+        Self {
+            message: format!("{}\n{}", self.message, later.message),
+            code: self.code,
+        }
+    }
 }
 
 impl fmt::Display for Failure {
@@ -57,5 +66,68 @@ pub fn ensure(condition: bool, message: impl FnOnce() -> String) -> Result<()> {
         Ok(())
     } else {
         Err(Failure::new(message()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failure_shows_its_message_and_exits_with_1_unless_it_carries_another_code() {
+        let refused = Failure::new("The check refused");
+        assert_eq!(refused.to_string(), "The check refused");
+        assert_eq!(refused.code(), 1);
+        let child = Failure::exit(String::from("xcodebuild failed"), 65);
+        assert_eq!(child.to_string(), "xcodebuild failed");
+        assert_eq!(child.code(), 65);
+        assert_eq!(Failure::exit("stopped", 0).code(), 0);
+    }
+
+    #[test]
+    fn two_failures_are_equal_only_with_the_same_message_and_the_same_code() {
+        assert_eq!(Failure::new("a"), Failure::exit("a", 1));
+        assert_ne!(Failure::new("a"), Failure::new("b"));
+        assert_ne!(Failure::new("a"), Failure::exit("a", 2));
+    }
+
+    #[test]
+    fn a_later_failure_follows_the_first_one_under_the_first_exit_code() {
+        let tests = Failure::exit("The tests failed", 65);
+        let cleanup = Failure::exit("The cleanup failed", 2);
+        assert_eq!(
+            tests.followed_by(&cleanup),
+            Failure::exit("The tests failed\nThe cleanup failed", 65)
+        );
+        assert_eq!(
+            cleanup.followed_by(&Failure::new("x")),
+            Failure::exit("The cleanup failed\nx", 2)
+        );
+    }
+
+    #[test]
+    fn context_names_the_operation_before_the_cause_and_leaves_success_alone() {
+        let failed: std::result::Result<u8, &str> = Err("no permission");
+        assert_eq!(
+            failed.context(|| "Read the file".to_owned()),
+            Err(Failure::new("Read the file: no permission"))
+        );
+        let read: std::result::Result<u8, &str> = Ok(7);
+        assert_eq!(
+            read.context(|| unreachable!("success names no operation")),
+            Ok(7)
+        );
+    }
+
+    #[test]
+    fn ensure_refuses_with_its_message_only_when_the_condition_fails() {
+        assert_eq!(
+            ensure(false, || "The list is empty".to_owned()),
+            Err(Failure::new("The list is empty"))
+        );
+        assert_eq!(
+            ensure(true, || unreachable!("a held condition writes no message")),
+            Ok(())
+        );
     }
 }
