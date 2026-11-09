@@ -1,0 +1,10 @@
+[tools]
+rust = { version = "1.99.1", profile = "minimal", components = [
+  "clippy",
+  "rustfmt",
+] }
+just = "1.59.0"
+gitleaks = "8.30.1"
+xcodegen = "2.46.0"
+swiftlint = "0.65.1"
+"github:ericodx/swift-mutation-testing" = "1.6.4"

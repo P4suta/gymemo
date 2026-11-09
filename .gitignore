@@ -1,0 +1,8 @@
+/.build/
+/DerivedData/
+/target/
+/gymemo.xcodeproj/
+/Signing.local.xcconfig
+/.swift-mutation-testing-cache/
+/.mise.local.toml
+.DS_Store
