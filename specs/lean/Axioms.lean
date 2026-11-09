@@ -1,36 +1,27 @@
 import Gymemo
+import Lean
 
-/-! The axioms each theorem rests on, which `just proofs` holds to the standard three. -/
+/-!
+# The axioms under the theorems
 
-#print axioms Gymemo.Log.empty_valid
-#print axioms Gymemo.Log.apply_valid
-#print axioms Gymemo.Log.applied_valid
-#print axioms Gymemo.Log.make_none_iff_valid
-#print axioms Gymemo.Log.unchanged_log
-#print axioms Gymemo.Log.apply_rebuilds
-#print axioms Gymemo.Log.stored_eq_applied
-#print axioms Gymemo.Log.apply_keeps_exercise_order
-#print axioms Gymemo.Log.apply_keeps_set_order
-#print axioms Gymemo.Log.apply_keeps_other_rows
-#print axioms Gymemo.Log.positions_apply_eq
-#print axioms Gymemo.Log.positions_store_eq
-#print axioms Gymemo.Log.positions_make_eq
-#print axioms Gymemo.Log.positions_rebuilds
-#print axioms Gymemo.Log.positions_apply_valid
-#print axioms Gymemo.Log.stored_applied
-#print axioms Gymemo.Log.outcomes_applied
-#print axioms Gymemo.Log.recorded_rebuild
-#print axioms Gymemo.Log.positions_outcomes_eq
-#print axioms Gymemo.Stepper.held_spec
-#print axioms Gymemo.Stepper.weightStepped_eq
-#print axioms Gymemo.Stepper.weightStepped_range
-#print axioms Gymemo.Stepper.weightStepped_fits
-#print axioms Gymemo.Stepper.repsStepped_eq
-#print axioms Gymemo.Stepper.repsStepped_range
-#print axioms Gymemo.Stepper.repsStepped_fits
-#print axioms Gymemo.Strength.units_epley
-#print axioms Gymemo.Strength.units_single
-#print axioms Gymemo.Strength.units_lt_of_weight_lt
-#print axioms Gymemo.Strength.units_lt_of_reps_lt
-#print axioms Gymemo.Strength.tenths_nearest
-#print axioms Gymemo.Strength.units_bound
+This file prints every theorem of the `Gymemo` modules with the axioms that it rests on.
+The first line counts the theorems, and each further line names one theorem and its axioms.
+`just proofs` reads the lines and refuses an axiom beyond `propext`, `Classical.choice`, and `Quot.sound`.
+It also refuses the run when a theorem of the sources has no line here.
+-/
+
+open Lean Elab Command
+
+run_cmd do
+  let env ← getEnv
+  let theorems := env.constants.fold (init := #[]) fun found name info =>
+    match info, env.getModuleIdxFor? name with
+    | .thmInfo _, some index =>
+      if (`Gymemo).isPrefixOf env.header.moduleNames[index]! then found.push name else found
+    | _, _ => found
+  let ordered := theorems.qsort fun first second => first.toString < second.toString
+  IO.println s!"theorems {ordered.size}"
+  for name in ordered do
+    let axioms ← liftCoreM (collectAxioms name)
+    let sorted := axioms.qsort fun first second => first.toString < second.toString
+    IO.println s!"theorem {name} axioms {" ".intercalate (sorted.toList.map toString)}"
