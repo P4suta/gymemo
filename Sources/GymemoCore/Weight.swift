@@ -94,3 +94,37 @@ public struct Reps: Hashable, Comparable, Sendable {
     return .success(reps)
   }
 }
+
+extension Weight {
+  /// One step of a weight stepper, 2.5 kg.
+  public static let stepHundredths = 250
+
+  /// The weight that a stepper reaches from the text of a weight field, held between bodyweight and the heaviest weight.
+  /// An empty field counts as bodyweight, and a text that isn't a weight gives nil.
+  public static func stepped(from text: String, by steps: Int) -> Weight? {
+    let start: Weight
+    switch parse(text) {
+    case .success(let weight): start = weight
+    case .failure(.empty): start = .bodyweight
+    case .failure: return nil
+    }
+    let moved = start.hundredths + steps * stepHundredths
+    return Weight(unchecked: min(max(moved, 0), maximumHundredths))
+  }
+}
+
+extension Reps {
+  /// The repetitions that a stepper reaches from the text of a repetitions field, held between one and the largest count.
+  /// An empty field steps up to one, and a text that isn't a count gives nil.
+  public static func stepped(from text: String, by steps: Int) -> Reps? {
+    let start: Int
+    switch parse(text) {
+    case .success(let reps): start = reps.count
+    case .failure(.empty):
+      guard steps > 0 else { return nil }
+      start = 0
+    case .failure: return nil
+    }
+    return Reps(unchecked: min(max(start + steps, 1), maximumCount))
+  }
+}
