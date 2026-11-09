@@ -19,6 +19,24 @@ import Testing
   }
 }
 
+@Suite struct MemoPreviewTests {
+  private func preview(_ text: String, limit: Int = 10) throws -> String {
+    try #require(try Memo.parse(text).get()).preview(limit: limit)
+  }
+
+  @Test func showsAShortSingleLineWhole() throws {
+    #expect(try preview("Felt good") == "Felt good")
+    #expect(try preview("1234567890") == "1234567890")
+  }
+
+  @Test func marksTextThatItLeavesOut() throws {
+    #expect(try preview("12345678901") == "1234567890…")
+    #expect(try preview("Felt good\nSecond line") == "Felt good…")
+    #expect(try preview("あいうえおかきくけこさ", limit: 5) == "あいうえお…")
+    #expect(try preview("First\n\nThird", limit: 0) == "…")
+  }
+}
+
 @Suite struct DayQueriesTests {
   private func sample() throws -> LogBuilder {
     var builder = LogBuilder()

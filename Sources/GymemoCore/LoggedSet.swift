@@ -36,6 +36,13 @@ public struct Memo: Hashable, Sendable {
 
   public let text: String
 
+  /// The first line cut to `limit` characters, with an ellipsis when the memo holds more.
+  public func preview(limit: Int) -> String {
+    let line = text.prefix { !$0.isNewline }
+    let shown = line.prefix(max(limit, 0))
+    return shown.count == text.count ? String(shown) : shown + "…"
+  }
+
   /// Reads a memo, where a successful `nil` means that the text holds nothing to keep.
   public static func parse(_ text: String) -> Result<Memo?, MemoRefusal> {
     let lines = text.replacingOccurrences(of: "\r\n", with: "\n")

@@ -1,4 +1,5 @@
 import Combine
+import GymemoCopy
 import GymemoCore
 import GymemoKit
 import SwiftUI
@@ -30,25 +31,19 @@ struct RootView: View {
   var body: some View {
     @Bindable var model = model
     TabView(selection: $tab) {
-      Tab("記録", systemImage: "square.and.pencil", value: RootTab.log) {
+      Tab(copy[.tabLog], systemImage: "square.and.pencil", value: RootTab.log) {
         NavigationStack {
           DayScreen(day: model.today).id(model.today)
         }
       }
-      Tab("履歴", systemImage: "calendar", value: RootTab.history) {
-        NavigationStack {
-          HistoryScreen { tab = .log }
-        }
+      Tab(copy[.tabHistory], systemImage: "calendar", value: RootTab.history) {
+        HistoryScreen { tab = .log }
       }
-      Tab("分析", systemImage: "chart.xyaxis.line", value: RootTab.analysis) {
-        NavigationStack {
-          AnalysisScreen { tab = .log }
-        }
+      Tab(copy[.tabAnalysis], systemImage: "chart.xyaxis.line", value: RootTab.analysis) {
+        AnalysisScreen { tab = .log }
       }
-      Tab("設定", systemImage: "gearshape", value: RootTab.settings) {
-        NavigationStack {
-          SettingsScreen()
-        }
+      Tab(copy[.tabSettings], systemImage: "gearshape", value: RootTab.settings) {
+        SettingsScreen()
       }
     }
     .onChange(of: scenePhase) { _, phase in
@@ -58,12 +53,12 @@ struct RootView: View {
       model.refreshToday()
     }
     .alert(
-      "保存できませんでした", isPresented: Binding(isPresent: $model.storeFailure),
+      copy[.saveFailed], isPresented: Binding(isPresent: $model.storeFailure),
       presenting: model.storeFailure
     ) { _ in
-      Button("閉じる", role: .cancel) {}
+      Button(copy[.close], role: .cancel) {}
     } message: { failure in
-      Text("記録は変わっていません。もう一度試してください。（コード \(failure.code)）")
+      Text(copy.saveFailedMessage(code: failure.code))
     }
   }
 }
@@ -85,11 +80,9 @@ struct LaunchFailureScreen: View {
   private var explanation: String {
     switch failure {
     case .store(.unsupportedSchema(let version)) where version > TrainingLogStore.schemaVersion:
-      "新しいバージョンのアプリで作られた記録です。アプリを更新してから開いてください。"
-    case .location:
-      "記録を保存する場所を用意できませんでした。iPhoneの空き容量を確かめてから、もう一度開いてください。"
-    case .store:
-      "記録のファイルは消していません。アプリを終了して、もう一度開いてください。"
+      copy[.launchNewer]
+    case .location: copy[.launchLocation]
+    case .store: copy[.launchStore]
     }
   }
 
@@ -102,11 +95,11 @@ struct LaunchFailureScreen: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Label("記録を開けませんでした", systemImage: "exclamationmark.triangle")
+      Label(copy[.launchFailed], systemImage: "exclamationmark.triangle")
         .font(.title2.bold())
         .accessibilityAddTraits(.isHeader)
       Text(explanation)
-      Text("コード \(code)").font(.subheadline.monospacedDigit())
+      Text(copy.failureCode(code)).font(.subheadline)
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

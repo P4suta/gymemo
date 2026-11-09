@@ -36,6 +36,8 @@ targets:
         product: GymemoCore
       - package: Gymemo
         product: GymemoKit
+      - package: Gymemo
+        product: GymemoCopy
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo
@@ -47,8 +49,8 @@ targets:
         CFBundleDisplayName: gymemo
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundleDevelopmentRegion: ja
-        CFBundleLocalizations: [ja]
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ja, zh-Hans, zh-Hant]
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground

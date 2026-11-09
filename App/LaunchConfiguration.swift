@@ -1,4 +1,5 @@
 import Foundation
+import GymemoCopy
 import GymemoCore
 import GymemoKit
 
@@ -62,7 +63,7 @@ struct LaunchConfiguration: Sendable {
     #if DEBUG
       if usesSampleLog { return SampleLog.make(endingOn: currentDay()) }
     #endif
-    return .starter
+    return TrainingLog.starter(named: copy.starterName)
   }
 
   func storeURL() throws(LaunchFailure) -> URL {

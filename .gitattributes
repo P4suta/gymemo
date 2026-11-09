@@ -1,0 +1,4 @@
+# The String Catalog and the tests that quote it hold Simplified and Traditional Chinese text.
+Sources/GymemoCopy/Localizable.xcstrings dotguard-lang=off
+Tests/GymemoCopyTests/CopyTests.swift dotguard-lang=off
+UITests/ScreenshotTests.swift dotguard-lang=off

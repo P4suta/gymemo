@@ -13,10 +13,12 @@ public struct OneRepMax: Hashable, Comparable, Sendable {
 
   public var kilograms: Double { Double(units) / 3000 }
 
+  /// Tenths of a kilogram, rounded half up.
+  public var tenths: Int { (units + 150) / 300 }
+
   /// Kilograms rounded half up to one decimal, such as `79.2`.
   public var text: String {
-    let tenths = (units + 150) / 300
-    return tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
+    tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
   }
 
   public static func < (left: OneRepMax, right: OneRepMax) -> Bool {

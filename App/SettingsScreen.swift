@@ -1,3 +1,4 @@
+import GymemoCopy
 import GymemoCore
 import SwiftUI
 import UniformTypeIdentifiers
@@ -10,9 +11,9 @@ private enum SettingsRoute: Hashable {
 struct SettingsScreen: View {
   private var version: String {
     let info = Bundle.main.infoDictionary
-    let marketing = info?["CFBundleShortVersionString"] as? String ?? ""
-    let build = info?["CFBundleVersion"] as? String ?? ""
-    return "バージョン \(marketing)（\(build)）"
+    return copy.version(
+      marketing: info?["CFBundleShortVersionString"] as? String ?? "",
+      build: info?["CFBundleVersion"] as? String ?? "")
   }
 
   var body: some View {
@@ -20,25 +21,27 @@ struct SettingsScreen: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
           NavigationLink(value: SettingsRoute.exercises) {
-            LinkRow { Label("種目の管理", systemImage: "dumbbell") }
+            LinkRow { Label(copy[.exercises], systemImage: "dumbbell") }
           }
           .buttonStyle(.plain)
+          .accessibilityIdentifier("open-exercises")
           NavigationLink(value: SettingsRoute.backup) {
-            LinkRow { Label("書き出しと読み込み", systemImage: "externaldrive") }
+            LinkRow { Label(copy[.exportAndImport], systemImage: "externaldrive") }
           }
           .buttonStyle(.plain)
+          .accessibilityIdentifier("open-backup")
           VStack(alignment: .leading, spacing: 8) {
-            GroupHeading(text: "記録の保存先", icon: "iphone")
-            Text("記録はiPhoneの中だけに保存します。通信はしません。機種を変える前に、バックアップを書き出してください。")
+            GroupHeading(text: copy[.storageHeading], icon: "iphone")
+            Text(copy[.storageText]).fixedSize(horizontal: false, vertical: true)
+            Text(version).font(.subheadline)
               .fixedSize(horizontal: false, vertical: true)
-            Text(version).font(.subheadline.monospacedDigit())
           }
           .padding(.top, 32)
         }
         .padding(16)
       }
-      .background(.surface)
-      .navigationTitle("設定")
+      .screenSurface()
+      .navigationTitle(copy[.tabSettings])
       .navigationDestination(for: SettingsRoute.self) { route in
         switch route {
         case .exercises: ExerciseListScreen()
@@ -85,12 +88,6 @@ struct BackupScreen: View {
     let name: String
   }
 
-  private static let csvLabels = CSVLabels(
-    day: "日付", exercise: "種目", bodyPart: "部位", set: "セット", weight: "重量(kg)", reps: "回数",
-    bodyParts: Dictionary(
-      BodyPart.allCases.map { ($0, Format.bodyPart($0)) }, uniquingKeysWith: { first, _ in first })
-  )
-
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
@@ -101,8 +98,8 @@ struct BackupScreen: View {
             .accessibilityIdentifier("backup-notice")
         }
         section(
-          title: "バックアップを書き出す", icon: "square.and.arrow.up",
-          text: "すべての種目、セット、メモを1つのJSONファイルに保存します。機種を変える前に書き出してください。"
+          title: copy[.exportBackup], icon: "square.and.arrow.up", text: copy[.exportBackupText],
+          identifier: "export-backup"
         ) {
           export = Export(
             document: ExportDocument(data: Backup.write(model.log)), type: .json,
@@ -110,25 +107,25 @@ struct BackupScreen: View {
         }
         Rule()
         section(
-          title: "CSVを書き出す", icon: "tablecells",
-          text: "表計算アプリで開けるCSVファイルに、セットを1行ずつ保存します。CSVからは読み込めません。"
+          title: copy[.exportCSV], icon: "tablecells", text: copy[.exportCSVText],
+          identifier: "export-csv"
         ) {
           export = Export(
-            document: ExportDocument(data: CSVExport.write(model.log, labels: Self.csvLabels)),
+            document: ExportDocument(data: CSVExport.write(model.log, labels: copy.csvLabels)),
             type: .commaSeparatedText, name: "gymemo-\(model.today.iso)")
         }
         Rule()
         section(
-          title: "バックアップを読み込む", icon: "square.and.arrow.down",
-          text: "書き出したJSONファイルの内容で、今の記録をすべて置き換えます。置き換える前に確認します。"
+          title: copy[.importBackup], icon: "square.and.arrow.down", text: copy[.importBackupText],
+          identifier: "import-backup"
         ) {
           isImporting = true
         }
       }
       .padding(16)
     }
-    .background(.surface)
-    .navigationTitle("書き出しと読み込み")
+    .screenSurface()
+    .navigationTitle(copy[.exportAndImport])
     .navigationBarTitleDisplayMode(.inline)
     .fileExporter(
       isPresented: Binding(isPresent: $export), document: export?.document,
@@ -136,30 +133,27 @@ struct BackupScreen: View {
     ) { result in
       notice =
         switch result {
-        case .success: "ファイルを書き出しました。"
-        case .failure: "ファイルを書き出せませんでした。保存先を変えて、もう一度試してください。"
+        case .success: copy[.exported]
+        case .failure: copy[.exportFailed]
         }
     }
     .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
       read(result)
     }
     .alert(
-      "今の記録を置き換えますか", isPresented: Binding(isPresent: $replacement),
-      presenting: replacement
+      copy[.replaceQuestion], isPresented: Binding(isPresent: $replacement), presenting: replacement
     ) { log in
-      Button("置き換える", role: .destructive) {
-        if model.perform(.replaceAll(log)) == .done { notice = "バックアップを読み込みました。" }
+      Button(copy[.replace], role: .destructive) {
+        if model.perform(.replaceAll(log)) == .done { notice = copy[.imported] }
       }
-      Button("キャンセル", role: .cancel) {}
+      Button(copy[.cancel], role: .cancel) {}
     } message: { log in
-      Text(
-        "今の\(model.log.sets.count)セットを消して、バックアップの\(log.sets.count)セットに置き換えます。置き換えた後は元に戻せません。"
-      )
+      Text(copy.replaceMessage(current: model.log.sets.count, incoming: log.sets.count))
     }
   }
 
   private func section(
-    title: String, icon: String, text: String, action: @escaping () -> Void
+    title: String, icon: String, text: String, identifier: String, action: @escaping () -> Void
   ) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(text).fixedSize(horizontal: false, vertical: true)
@@ -167,23 +161,23 @@ struct BackupScreen: View {
         Label(title, systemImage: icon)
       }
       .buttonStyle(MonoButtonStyle())
+      .accessibilityIdentifier(identifier)
     }
   }
 
   private func read(_ result: Result<URL, any Error>) {
-    let unreadable = "ファイルを開けませんでした。gymemoが書き出したJSONファイルを選んでください。"
     guard case .success(let url) = result, url.startAccessingSecurityScopedResource() else {
-      notice = unreadable
+      notice = copy[.fileUnreadable]
       return
     }
     defer { url.stopAccessingSecurityScopedResource() }
     let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
     guard size.map({ $0 <= Backup.maximumBytes }) ?? true else {
-      notice = Messages.backup(.tooLarge)
+      notice = copy.problem(backup: .tooLarge)
       return
     }
     guard let data = try? Data(contentsOf: url) else {
-      notice = unreadable
+      notice = copy[.fileUnreadable]
       return
     }
     switch Backup.read(data) {
@@ -191,7 +185,7 @@ struct BackupScreen: View {
       notice = nil
       replacement = log
     case .failure(let refusal):
-      notice = Messages.backup(refusal)
+      notice = copy.problem(backup: refusal)
     }
   }
 }

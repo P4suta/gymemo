@@ -200,15 +200,39 @@ import Testing
 }
 
 @Suite struct StarterLogTests {
-  @Test func offersCommonExercisesAndNoSets() {
-    let starter = TrainingLog.starter
-    #expect(starter.exercises.count == 25)
+  @Test func offersCommonExercisesUnderTheGivenNamesAndNoSets() {
+    let starter = TrainingLog.starter { "\($0)" }
+    #expect(StarterExercise.allCases.count == 25)
+    #expect(starter.exercises.map(\.name.text) == StarterExercise.allCases.map { "\($0)" })
+    #expect(starter.exercises.map(\.id) == StarterExercise.allCases.map(\.id))
+    #expect(starter.exercises.map(\.bodyPart) == StarterExercise.allCases.map(\.bodyPart))
+    #expect(Set(StarterExercise.allCases.map(\.id)).count == 25)
     #expect(starter.sets.isEmpty)
     #expect(starter.memos.isEmpty)
     #expect(Set(starter.exercises.map(\.bodyPart)) == Set(BodyPart.allCases).subtracting([.other]))
     #expect(starter.exercises.allSatisfy { !$0.isArchived })
-    #expect(starter.exercises.first?.name.text == "ベンチプレス")
+    #expect(starter.exercise(StarterExercise.squat.id)?.name.text == "squat")
     #expect(
       TrainingLog.make(exercises: starter.exercises, sets: [], memos: [:]) == .success(starter))
+  }
+
+  @Test func leavesOutAnExerciseWhoseNameTheLogRefuses() {
+    let partial = TrainingLog.starter { exercise in
+      switch exercise {
+      case .squat: " "
+      case .dips: "benchPress"
+      default: "\(exercise)"
+      }
+    }
+    #expect(partial.exercises.count == 23)
+    #expect(partial.exercise(StarterExercise.squat.id) == nil)
+    #expect(partial.exercise(StarterExercise.dips.id) == nil)
+  }
+
+  @Test func exposesTheRoundedEstimateInTenths() throws {
+    let estimate = try #require(
+      OneRepMax.estimate(weight: try kilograms("62.5"), reps: try reps(8)))
+    #expect(estimate.tenths == 792)
+    #expect(estimate.text == "79.2")
   }
 }

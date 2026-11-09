@@ -1,3 +1,4 @@
+import GymemoCopy
 import GymemoCore
 import GymemoKit
 import SwiftUI
@@ -10,7 +11,7 @@ struct LinkRow<Content: View>: View {
     HStack(spacing: 12) {
       content()
       Spacer(minLength: 8)
-      Image(systemName: "chevron.right")
+      Image(systemName: "chevron.right").accessibilityHidden(true)
     }
     .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
     .padding(.vertical, 4)
@@ -25,41 +26,58 @@ struct HistoryScreen: View {
   @Environment(AppModel.self) private var model
   @State private var path: [LocalDay] = []
   @State private var isPickingDay = false
+  @State private var shownDays = pageSize
+
+  private static let pageSize = 20
 
   var body: some View {
     let history = model.log.history
     NavigationStack(path: $path) {
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
           if history.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
-              Text("記録はまだありません。").accessibilityIdentifier("empty-history")
+              Text(copy[.historyEmpty]).accessibilityIdentifier("empty-history")
               Button(action: openLog) {
-                Label("今日の記録を始める", systemImage: "square.and.pencil")
+                Label(copy[.startToday], systemImage: "square.and.pencil")
               }
               .buttonStyle(MonoButtonStyle(prominent: true))
+              .accessibilityIdentifier("start-today")
             }
             .padding(.bottom, 24)
           }
           Button {
             isPickingDay = true
           } label: {
-            Label("日付を選んで記録", systemImage: "calendar.badge.plus")
+            Label(copy[.logAnotherDay], systemImage: "calendar.badge.plus")
           }
           .buttonStyle(MonoButtonStyle())
           .padding(.bottom, 16)
-          ForEach(history) { summary in
+          .accessibilityIdentifier("log-another-day")
+          // The list draws every shown row at once, so each row keeps its size at every text size.
+          // It shows the newest days first and adds older ones on request, which bounds that work.
+          ForEach(history.prefix(shownDays)) { summary in
             NavigationLink(value: summary.day) {
               LinkRow { DayRow(summary: summary) }
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("day-\(summary.day.iso)")
           }
+          if history.count > shownDays {
+            Button {
+              shownDays += Self.pageSize
+            } label: {
+              Label(copy[.showOlderDays], systemImage: "chevron.down")
+            }
+            .buttonStyle(MonoButtonStyle())
+            .padding(.top, 16)
+            .accessibilityIdentifier("show-older-days")
+          }
         }
         .padding(16)
       }
-      .background(.surface)
-      .navigationTitle("履歴")
+      .screenSurface()
+      .navigationTitle(copy[.tabHistory])
       .navigationDestination(for: LocalDay.self) { day in
         DayScreen(day: day)
       }
@@ -78,14 +96,19 @@ private struct DayRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Label(Format.longDay(summary.day), systemImage: "calendar").font(.body.weight(.bold))
+      Label(copy.day(summary.day, .long), systemImage: "calendar").font(.body.weight(.bold))
       if summary.setCount > 0 {
-        Text("\(summary.exerciseNames.map(\.text).joined(separator: "、"))　\(summary.setCount)セット")
+        Text(
+          copy.historyRow(
+            exercises: summary.exerciseNames.map(\.text), setCount: summary.setCount)
+        )
+        .font(.subheadline)
+        .multilineTextAlignment(.leading)
+      }
+      if let note = summary.memo {
+        Label(note.preview(limit: 60), systemImage: "note.text")
           .font(.subheadline)
           .multilineTextAlignment(.leading)
-      }
-      if let memo = summary.memo {
-        Label(memo.text, systemImage: "note.text").font(.subheadline).lineLimit(1)
       }
     }
   }
@@ -97,12 +120,6 @@ private struct DayPicker: View {
   let open: (LocalDay) -> Void
   @State private var date: Date
 
-  private static let calendar: Calendar = {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = .gmt
-    return calendar
-  }()
-
   init(today: LocalDay, open: @escaping (LocalDay) -> Void) {
     self.today = today
     self.open = open
@@ -110,18 +127,19 @@ private struct DayPicker: View {
   }
 
   var body: some View {
-    SheetFrame(title: "日付を選ぶ", confirmTitle: "開く", confirmIcon: "arrow.right") {
+    SheetFrame(title: copy[.chooseDay], confirmTitle: copy[.open], confirmIcon: "arrow.right") {
       open(LocalDay.nearest(to: date, in: .gmt))
     } content: {
       DatePicker(
-        "記録する日", selection: $date, in: LocalDay.earliest.noonUTC...today.noonUTC,
+        copy[.dayToLog], selection: $date, in: LocalDay.earliest.noonUTC...today.noonUTC,
         displayedComponents: .date
       )
       .datePickerStyle(.graphical)
       .environment(\.timeZone, .gmt)
-      .environment(\.calendar, Self.calendar)
-      .environment(\.locale, Locale(identifier: "ja_JP"))
-      Text("選んだ日の記録を開きます。今日より先の日は選べません。").font(.subheadline)
+      .environment(\.calendar, copy.calendar)
+      .environment(\.locale, copy.locale)
+      .accessibilityIdentifier("day-picker")
+      Text(copy[.chooseDayHint]).font(.subheadline)
     }
   }
 }

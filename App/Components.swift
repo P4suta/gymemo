@@ -18,6 +18,40 @@ struct MonoButtonStyle: ButtonStyle {
   }
 }
 
+extension View {
+  /// The surface behind a screen's content, with a solid surface behind the system bars.
+  /// Scrolled content never shows through a bar, so no text sits behind a translucent layer.
+  /// The tab bar floats over the screen, so the content ends at a rule above it and only the surface lies behind it.
+  func screenSurface() -> some View {
+    VStack(spacing: 0) {
+      self
+      Rule()
+    }
+    .background(.surface)
+    .toolbarBackground(.surface, for: .navigationBar)
+    .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+  }
+}
+
+extension View {
+  /// Adds a button above the keyboard that puts it away, because the number pads have no return key.
+  func keyboardDismissal() -> some View {
+    toolbar {
+      ToolbarItemGroup(placement: .keyboard) {
+        Spacer()
+        Button {
+          UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        } label: {
+          Label(copy[.hideKeyboard], systemImage: "keyboard.chevron.compact.down")
+            .labelStyle(.titleAndIcon)
+        }
+        .accessibilityIdentifier("hide-keyboard")
+      }
+    }
+  }
+}
+
 /// A row that acts as one button across its whole width, with a solid rule below it.
 struct RowButton<Label: View>: View {
   let action: () -> Void
@@ -107,16 +141,20 @@ struct CheckRow: View {
     } label: {
       Label(text, systemImage: isOn ? "checkmark.square" : "square")
     }
-    .accessibilityValue(isOn ? "オン" : "オフ")
+    .accessibilityValue(isOn ? copy[.on] : copy[.off])
   }
 }
 
-/// A one-line input with its label above it and its unit after it, inside a solid frame.
+/// A one-line input inside a solid frame, with its label above it, its unit after it, and a button that clears it.
+/// The text field guidance asks for a clear button at the trailing end of a field.
+/// See https://developer.apple.com/design/human-interface-guidelines/text-fields.
 struct LabeledField: View {
   let label: String
   let icon: String
-  let unit: String
+  var unit: String?
   let spokenLabel: String
+  let clearLabel: String
+  let identifier: String
   @Binding var text: String
   let keyboard: UIKeyboardType
 
@@ -126,12 +164,27 @@ struct LabeledField: View {
       HStack(spacing: 8) {
         TextField("", text: $text)
           .keyboardType(keyboard)
-          .font(.title3.monospacedDigit())
-          .multilineTextAlignment(.trailing)
+          .font(unit == nil ? .title3 : .title3.monospacedDigit())
+          .multilineTextAlignment(unit == nil ? .leading : .trailing)
           .accessibilityLabel(spokenLabel)
-        Text(unit).accessibilityHidden(true)
+          .accessibilityIdentifier(identifier)
+        if let unit { Text(unit).accessibilityHidden(true) }
+        if !text.isEmpty {
+          Button {
+            text = ""
+          } label: {
+            Image(systemName: "xmark.circle")
+              .font(.title3)
+              .frame(minWidth: 44, minHeight: 44)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(clearLabel)
+          .accessibilityIdentifier("clear-\(identifier)")
+        }
       }
-      .padding(.horizontal, 12)
+      .padding(.leading, 12)
+      .padding(.trailing, text.isEmpty ? 12 : 0)
       .frame(minHeight: 48)
       .overlay { Rectangle().stroke(.ink, lineWidth: 1) }
     }
@@ -159,18 +212,21 @@ struct SheetFrame<Content: View>: View {
       .background(.surface)
       .navigationTitle(title)
       .navigationBarTitleDisplayMode(.inline)
+      .keyboardDismissal()
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button {
             dismiss()
           } label: {
-            Label("キャンセル", systemImage: "xmark").labelStyle(.titleAndIcon)
+            Label(copy[.cancel], systemImage: "xmark").labelStyle(.titleAndIcon)
           }
+          .accessibilityIdentifier("sheet-cancel")
         }
         ToolbarItem(placement: .confirmationAction) {
           Button(action: confirm) {
             Label(confirmTitle, systemImage: confirmIcon).labelStyle(.titleAndIcon)
           }
+          .accessibilityIdentifier("sheet-confirm")
         }
       }
     }

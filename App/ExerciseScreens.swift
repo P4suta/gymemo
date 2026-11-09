@@ -1,3 +1,4 @@
+import GymemoCopy
 import GymemoCore
 import SwiftUI
 
@@ -12,16 +13,17 @@ struct ExercisePicker: View {
     let recent = model.log.recentExercises(limit: 5)
     NavigationStack {
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
           Button {
             isCreating = true
           } label: {
-            Label("新しい種目を作る", systemImage: "plus")
+            Label(copy[.createExercise], systemImage: "plus")
           }
           .buttonStyle(MonoButtonStyle())
           .padding(.bottom, 20)
+          .accessibilityIdentifier("create-exercise")
           if !recent.isEmpty {
-            GroupHeading(text: "最近の種目", icon: "clock").padding(.bottom, 4)
+            GroupHeading(text: copy[.recentExercises], icon: "clock").padding(.bottom, 4)
             // A recent exercise also appears under its body part, so the two rows need different identities.
             ForEach(recent, id: \.name) { exercise in
               row(exercise).accessibilityIdentifier("recent-\(exercise.name.text)")
@@ -29,7 +31,7 @@ struct ExercisePicker: View {
           }
           ForEach(model.log.selectableExercises) { group in
             GroupHeading(
-              text: Format.bodyPart(group.bodyPart), icon: "figure.strengthtraining.traditional"
+              text: copy.bodyPart(group.bodyPart), icon: "figure.strengthtraining.traditional"
             )
             .padding(.top, 24)
             .padding(.bottom, 4)
@@ -41,15 +43,16 @@ struct ExercisePicker: View {
         .padding(16)
       }
       .background(.surface)
-      .navigationTitle("種目を選ぶ")
+      .navigationTitle(copy[.chooseExercise])
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button {
             dismiss()
           } label: {
-            Label("キャンセル", systemImage: "xmark").labelStyle(.titleAndIcon)
+            Label(copy[.cancel], systemImage: "xmark").labelStyle(.titleAndIcon)
           }
+          .accessibilityIdentifier("sheet-cancel")
         }
       }
       .sheet(isPresented: $isCreating) {
@@ -96,28 +99,27 @@ struct ExerciseEditor: View {
 
   var body: some View {
     SheetFrame(
-      title: exercise == nil ? "新しい種目" : "種目を直す", confirmTitle: "保存", confirmIcon: "checkmark",
-      confirm: save
+      title: exercise == nil ? copy[.newExercise] : copy[.editExercise], confirmTitle: copy[.save],
+      confirmIcon: "checkmark", confirm: save
     ) {
       VStack(alignment: .leading, spacing: 4) {
-        Label("名前", systemImage: "dumbbell").font(.subheadline.weight(.semibold))
-        TextField("", text: $name)
-          .font(.title3)
-          .padding(.horizontal, 12)
-          .frame(minHeight: 48)
-          .overlay { Rectangle().stroke(.ink, lineWidth: 1) }
-          .accessibilityLabel("名前")
-          .accessibilityIdentifier("exercise-name")
+        LabeledField(
+          label: copy[.name], icon: "dumbbell", spokenLabel: copy[.name],
+          clearLabel: copy[.clearName], identifier: "exercise-name", text: $name,
+          keyboard: .default)
         if let problem { InlineProblem(text: problem) }
       }
       VStack(alignment: .leading, spacing: 0) {
-        GroupHeading(text: "部位", icon: "figure.strengthtraining.traditional").padding(.bottom, 4)
+        GroupHeading(text: copy[.bodyPart], icon: "figure.strengthtraining.traditional")
+          .padding(.bottom, 4)
         ForEach(BodyPart.allCases, id: \.self) { part in
-          ChoiceRow(text: Format.bodyPart(part), isSelected: part == bodyPart) { bodyPart = part }
+          ChoiceRow(text: copy.bodyPart(part), isSelected: part == bodyPart) { bodyPart = part }
+            .accessibilityIdentifier("body-part-\(part.rawValue)")
         }
       }
       if let exercise {
-        CheckRow(text: "種目を選ぶ一覧に出す", isOn: $isSelectable)
+        CheckRow(text: copy[.showWhenChoosing], isOn: $isSelectable)
+          .accessibilityIdentifier("selectable")
         deletion(of: exercise)
       }
     }
@@ -129,20 +131,21 @@ struct ExerciseEditor: View {
       Button {
         isConfirmingDelete = true
       } label: {
-        Label("種目を削除", systemImage: "trash")
+        Label(copy[.deleteExercise], systemImage: "trash")
       }
       .buttonStyle(MonoButtonStyle())
+      .accessibilityIdentifier("delete-exercise")
       .confirmationDialog(
-        "「\(exercise.name.text)」を削除しますか", isPresented: $isConfirmingDelete,
+        copy.deleteQuestion(exercise.name), isPresented: $isConfirmingDelete,
         titleVisibility: .visible
       ) {
-        Button("削除", role: .destructive) {
+        Button(copy[.delete], role: .destructive) {
           if model.perform(.deleteExercise(id: exercise.id)) != .notStored { dismiss() }
         }
-        Button("キャンセル", role: .cancel) {}
+        Button(copy[.cancel], role: .cancel) {}
       }
     } else {
-      Label(Messages.exercise(.exerciseHasSets), systemImage: "info.circle")
+      Label(copy.problem(exercise: .exerciseHasSets), systemImage: "info.circle")
         .font(.subheadline)
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -170,7 +173,7 @@ struct ExerciseEditor: View {
     case .done:
       return true
     case .refused(let refusal):
-      problem = Messages.exercise(refusal)
+      problem = copy.problem(exercise: refusal)
       return false
     case .notStored:
       return false
@@ -186,16 +189,17 @@ struct ExerciseListScreen: View {
 
   var body: some View {
     ScrollView {
-      LazyVStack(alignment: .leading, spacing: 0) {
+      VStack(alignment: .leading, spacing: 0) {
         Button {
           isCreating = true
         } label: {
-          Label("新しい種目を作る", systemImage: "plus")
+          Label(copy[.createExercise], systemImage: "plus")
         }
         .buttonStyle(MonoButtonStyle())
+        .accessibilityIdentifier("create-exercise")
         ForEach(model.log.exercisesByBodyPart) { group in
           GroupHeading(
-            text: Format.bodyPart(group.bodyPart), icon: "figure.strengthtraining.traditional"
+            text: copy.bodyPart(group.bodyPart), icon: "figure.strengthtraining.traditional"
           )
           .padding(.top, 24)
           .padding(.bottom, 4)
@@ -205,7 +209,7 @@ struct ExerciseListScreen: View {
             } label: {
               HStack(spacing: 12) {
                 Label(exercise.name.text, systemImage: "dumbbell")
-                if exercise.isArchived { Badge(text: "一覧に出さない", icon: "eye.slash") }
+                if exercise.isArchived { Badge(text: copy[.hidden], icon: "eye.slash") }
                 Spacer(minLength: 8)
                 Image(systemName: "pencil")
               }
@@ -216,8 +220,8 @@ struct ExerciseListScreen: View {
       }
       .padding(16)
     }
-    .background(.surface)
-    .navigationTitle("種目の管理")
+    .screenSurface()
+    .navigationTitle(copy[.exercises])
     .navigationBarTitleDisplayMode(.inline)
     .sheet(item: $edited) { exercise in
       ExerciseEditor(exercise: exercise)
