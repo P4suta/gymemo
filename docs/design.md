@@ -176,4 +176,5 @@ At a smaller size it predicts clipping for headers and footers that the largest 
 The audit accepts text without an element on four screens, where the system draws a chart axis, a calendar, or the screen under a sheet.
 
 No check has run on iOS 26, because the simulator runs iOS 27.0.
-No check covers Reduce Transparency or Reduce Motion, because `simctl` switches neither.
+No automated check covers Reduce Transparency or Reduce Motion, because `simctl` switches neither.
+One look at the Log tab with the simulator's Reduce Transparency preference showed opaque bars and readable content.
