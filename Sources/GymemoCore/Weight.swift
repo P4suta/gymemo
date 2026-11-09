@@ -30,7 +30,7 @@ public struct Weight: Hashable, Comparable, Sendable {
     let fraction = hundredths % 100
     if fraction == 0 { return "\(whole)" }
     if fraction % 10 == 0 { return "\(whole).\(fraction / 10)" }
-    return "\(whole).\(fraction < 10 ? "0" : "")\(fraction)"
+    return "\(whole).\(fraction / 10)\(fraction % 10)"
   }
 
   public static func < (left: Weight, right: Weight) -> Bool {

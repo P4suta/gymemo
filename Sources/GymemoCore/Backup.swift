@@ -48,7 +48,8 @@ public enum Backup {
     let text: String
   }
 
-  /// Writes one row on each line, in the log's own order, so equal logs give equal bytes.
+  /// Writes one row on each line in a fixed order, so equal logs give equal bytes.
+  /// Exercises and sets keep the log's own order, and memos go in ascending order of their days.
   public static func write(_ log: TrainingLog) -> Data {
     let exercises = log.exercises.map { exercise in
       """
@@ -62,8 +63,8 @@ public enum Backup {
       "day":\(quoted(set.day.iso)),"weightKg":\(quoted(set.weight.text)),"reps":\(set.reps.count)}
       """
     }
-    let memos = log.memos.sorted { $0.key < $1.key }.map { day, memo in
-      "{\"day\":\(quoted(day.iso)),\"text\":\(quoted(memo.text))}"
+    let memos = log.memos.keys.sorted().compactMap { day in
+      log.memos[day].map { "{\"day\":\(quoted(day.iso)),\"text\":\(quoted($0.text))}" }
     }
     let text = """
       {"format":\(quoted(format)),"formatVersion":\(formatVersion),
@@ -119,7 +120,8 @@ public enum Backup {
     rows.isEmpty ? "" : "\n" + rows.joined(separator: ",\n") + "\n"
   }
 
-  /// A JSON string literal, which escapes the quote, the backslash, and every control character.
+  /// A JSON string literal, which escapes the quote, the backslash, the line feed, and the tab.
+  /// The log's names hold no control character and its memos hold no other one, so nothing else needs an escape.
   private static func quoted(_ text: String) -> String {
     var literal = String.UnicodeScalarView()
     literal.append("\"")
@@ -129,10 +131,6 @@ public enum Backup {
       case "\\": literal.append(contentsOf: "\\\\".unicodeScalars)
       case "\n": literal.append(contentsOf: "\\n".unicodeScalars)
       case "\t": literal.append(contentsOf: "\\t".unicodeScalars)
-      case _ where scalar.value < 0x20:
-        let digits = String(scalar.value, radix: 16)
-        literal.append(
-          contentsOf: ("\\u" + (digits.count == 1 ? "000" : "00") + digits).unicodeScalars)
       default: literal.append(scalar)
       }
     }

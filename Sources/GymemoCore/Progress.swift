@@ -15,7 +15,7 @@ public struct ExerciseProgress: Equatable, Sendable {
   public let points: [ProgressPoint]
   /// The highest point, and the earliest one when several tie.
   public let best: ProgressPoint?
-  /// The set with the most added weight, then the most repetitions, then the earliest day.
+  /// The set with the most added weight, then the most repetitions, then the earliest day, then the first logged.
   public let heaviest: LoggedSet?
   /// Every day of the exercise from newest to oldest.
   public let sessions: [Session]
@@ -56,12 +56,12 @@ extension TrainingLog {
       if let known = bestOfDay[set.day], !score.beats(known.score) { continue }
       bestOfDay[set.day] = ProgressPoint(day: set.day, best: set, score: score)
     }
-    let points = bestOfDay.values.sorted { $0.day < $1.day }
+    let days = setsOfDay.keys.sorted()
+    let points = days.compactMap { bestOfDay[$0] }
     var best: ProgressPoint?
     for point in points where best.map({ point.score.beats($0.score) }) ?? true {
       best = point
     }
-    let days = setsOfDay.keys.sorted()
     var heaviest: LoggedSet?
     for set in days.flatMap({ setsOfDay[$0] ?? [] }) where !set.weight.isBodyweight {
       if let known = heaviest, (set.weight, set.reps) <= (known.weight, known.reps) { continue }

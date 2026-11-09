@@ -99,7 +99,7 @@ extension TrainingLog {
 
   /// Every day that holds a set or a memo, from newest to oldest.
   public var history: [DaySummary] {
-    trainingDays.union(memos.keys).sorted(by: >).map { day in
+    trainingDays.union(memos.keys).sorted().reversed().map { day in
       let sections = sections(on: day)
       return DaySummary(
         day: day, exerciseNames: sections.map(\.exercise.name),
@@ -124,22 +124,19 @@ extension TrainingLog {
     return months
   }
 
-  /// The latest day and logging position of each exercise that has a set.
-  var latestUse: [ExerciseID: (day: LocalDay, position: Int)] {
-    var latest: [ExerciseID: (day: LocalDay, position: Int)] = [:]
-    for (position, set) in sets.enumerated() {
-      if let known = latest[set.exerciseID], known.day > set.day { continue }
-      latest[set.exerciseID] = (set.day, position)
+  /// The exercises that have a set, from the most recently trained.
+  /// An exercise ranks by the last day that holds one of its sets, and then by its last set of that day in logging order.
+  var exercisesByLatestUse: [(exercise: Exercise, day: LocalDay)] {
+    var seen: Set<ExerciseID> = []
+    var latest: [(exercise: Exercise, day: LocalDay)] = []
+    for day in trainingDays.sorted().reversed() {
+      for set in sets(on: day).reversed() {
+        guard seen.insert(set.exerciseID).inserted, let exercise = exercise(set.exerciseID)
+        else { continue }
+        latest.append((exercise, day))
+      }
     }
     return latest
-  }
-
-  /// The exercises that have a set, from the most recently trained.
-  var exercisesByLatestUse: [(exercise: Exercise, day: LocalDay)] {
-    latestUse.sorted { left, right in
-      (left.value.day, left.value.position) > (right.value.day, right.value.position)
-    }
-    .compactMap { entry in exercise(entry.key).map { ($0, entry.value.day) } }
   }
 
   /// The selectable exercises that the lifter trained most recently.
