@@ -50,6 +50,11 @@ app *args: generate
 screenshots:
     cargo run --locked -p xtask -- screenshots
 
+# Mutates the package sources and reports each change that the package tests miss.
+[positional-arguments]
+mutate *args:
+    swift-mutation-testing run . "$@"
+
 # Runs the package tests under the address and thread sanitizers.
 sanitize:
     swift test --sanitize=address
