@@ -1,6 +1,8 @@
 //! Repository checks and simulator runs for gymemo.
 
 mod colors;
+#[cfg(test)]
+mod contrast;
 mod failure;
 mod literals;
 mod logging;
