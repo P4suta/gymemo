@@ -1,0 +1,10 @@
+name = "gymemo"
+summary = "Log weight training sets on an iPhone and see your progress, with no ads, account, or network"
+install = """
+mise trust
+mise install
+mise x -- just check"""
+usage = """
+mise x -- just app -gymemo-sample"""
+copyright = "Yasunobu"
+license = "MIT OR Apache-2.0"
