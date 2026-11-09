@@ -16,6 +16,7 @@ const RUNTIME: &str = "com.apple.CoreSimulator.SimRuntime.iOS-27-0";
 const RUNTIME_SECTION: &str = "iOS 27.0";
 const PROJECT: &str = "gymemo.xcodeproj";
 const SCHEME: &str = "gymemo";
+const BUNDLE_IDENTIFIER: &str = "com.p4suta.gymemo";
 const RESULTS: &str = "target/ui-test";
 const SCREENSHOTS: &str = "target/screenshots";
 /// The test class that runs only while the simulator shows the dark appearance.
@@ -227,6 +228,56 @@ pub fn ui_test(root: &Path, only: Option<Appearance>, arguments: &[String]) -> R
     // The simulator returns to the light appearance, and a failure to return never hides a test failure.
     let restored = set_appearance(&device, Appearance::Light);
     outcome.and(restored)
+}
+
+/// Runs `command` with its output on the terminal, and fails with its exit code.
+fn run(command: &mut Command) -> Result<()> {
+    let described = format!("{command:?}");
+    let status = command.status().context(|| format!("Start {described}"))?;
+    if status.success() {
+        return Ok(());
+    }
+    let code = status
+        .code()
+        .and_then(|code| u8::try_from(code).ok())
+        .unwrap_or(1);
+    Err(Failure::exit(
+        format!("{described} failed with {status}"),
+        code,
+    ))
+}
+
+/// Builds the app, installs it on the dedicated simulator, and opens it there.
+/// `arguments` go to the app as launch arguments.
+pub fn app(root: &Path, arguments: &[String]) -> Result<()> {
+    let device = device()?;
+    output(Command::new("xcrun").args(["simctl", "bootstatus", &device, "-b"]))?;
+    run(Command::new("xcodebuild")
+        .current_dir(root)
+        .args(["build", "-project", PROJECT, "-scheme", SCHEME])
+        .arg("-destination")
+        .arg(format!("platform=iOS Simulator,id={device}"))
+        .args(["-derivedDataPath", "DerivedData", "-quiet"]))?;
+    let bundle = root.join("DerivedData/Build/Products/Debug-iphonesimulator/gymemo.app");
+    output(
+        Command::new("xcrun")
+            .args(["simctl", "install", &device])
+            .arg(&bundle),
+    )?;
+    output(
+        Command::new("xcrun")
+            .args([
+                "simctl",
+                "launch",
+                "--terminate-running-process",
+                &device,
+                BUNDLE_IDENTIFIER,
+            ])
+            .args(arguments),
+    )?;
+    run(Command::new("open").args(["-a", "Simulator"]))?;
+    println!("PASS app: gymemo runs on the simulator {DEVICE_NAME}");
+    Ok(())
 }
 
 /// Exports the screenshots that the latest UI test run attached, into a new directory for each appearance.

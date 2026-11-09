@@ -41,6 +41,11 @@ check: lint gates test build
 ui-test *args: generate
     cargo run --locked -p xtask -- ui-test "$@"
 
+# Builds the app and opens it on the dedicated simulator, passing arguments to the app.
+[positional-arguments]
+app *args: generate
+    cargo run --locked -p xtask -- app "$@"
+
 # Exports the screenshots that the latest UI test run kept.
 screenshots:
     cargo run --locked -p xtask -- screenshots

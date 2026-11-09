@@ -2,6 +2,7 @@
 
 mod colors;
 mod failure;
+mod literals;
 mod logging;
 mod offline;
 mod purity;
@@ -16,10 +17,11 @@ use std::{env, path::Path, process::ExitCode};
 const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
-  gates                             Check the Swift sources for authored colors, effects in the core, console output, networking, and required reason APIs
+  gates                             Check the Swift sources for authored colors, text outside the catalog, effects in the core, console output, networking, and required reason APIs
   ui-test [--only light|dark] [XCODEBUILD_ARGUMENT]...
                                     Run the UI tests on the dedicated simulator, in the light appearance and then in the dark one
   screenshots                       Export the screenshots of the latest UI test run into a new directory
+  app [LAUNCH_ARGUMENT]...          Build the app and open it on the dedicated simulator
   help                              Print this message";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -30,6 +32,7 @@ enum Task {
         arguments: Vec<String>,
     },
     Screenshots,
+    App(Vec<String>),
     Help,
 }
 
@@ -73,6 +76,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         "gates" => alone("gates", Task::Gates, arguments),
         "screenshots" => alone("screenshots", Task::Screenshots, arguments),
         "ui-test" => ui_test(arguments),
+        "app" => Ok(Task::App(arguments.collect())),
         "help" | "--help" | "-h" => Ok(Task::Help),
         unknown => Err(Failure::new(format!(
             "Unknown command {unknown}\n\n{USAGE}"
@@ -83,8 +87,9 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
 type Gate = fn(&Path) -> Result<String>;
 
 /// The source checks, each of which refuses its own planted violations before it passes.
-const GATES: [(&str, Gate); 5] = [
+const GATES: [(&str, Gate); 6] = [
     ("colors", colors::check),
+    ("literals", literals::check),
     ("purity", purity::check),
     ("logging", logging::check),
     ("offline", offline::check),
@@ -114,6 +119,7 @@ fn main() -> ExitCode {
         Task::Gates => gates(&root),
         Task::UiTest { only, arguments } => simulator::ui_test(&root, only, &arguments),
         Task::Screenshots => simulator::screenshots(&root).map(|_| ()),
+        Task::App(arguments) => simulator::app(&root, &arguments),
         Task::Help => {
             println!("{USAGE}");
             Ok(())
@@ -140,6 +146,10 @@ mod tests {
     fn each_command_parses_and_anything_else_is_refused() {
         assert_eq!(task(&["gates"]), Ok(Task::Gates));
         assert_eq!(task(&["screenshots"]), Ok(Task::Screenshots));
+        assert_eq!(
+            task(&["app", "-gymemo-sample"]),
+            Ok(Task::App(vec!["-gymemo-sample".to_owned()]))
+        );
         assert!(task(&["screenshots", "extra"]).is_err());
         assert_eq!(
             task(&["ui-test", "-only-testing:gymemoUITests/LogTests"]),
