@@ -113,4 +113,155 @@ import Testing
       try database.execute("INSERT INTO child (parent) VALUES (?)", [.text("absent")])
     }
   }
+
+  @Test func readsTextUpToItsByteLimitAndRefusesLongerText() throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("limit.sqlite"))
+    // The three characters take nine bytes.
+    let nineBytes = "ベンチ"
+    #expect(
+      try database.query("SELECT ?", [.text(nineBytes)]) { row throws(StoreFailure) in
+        try row.text(0, maximumBytes: 9)
+      } == [nineBytes])
+    #expect(throws: StoreFailure.textTooLarge) {
+      try database.query("SELECT ?", [.text(nineBytes)]) { row throws(StoreFailure) in
+        try row.text(0, maximumBytes: 8)
+      }
+    }
+    let mebibyte = 1_048_576
+    let longest = String(repeating: "a", count: mebibyte)
+    #expect(
+      try database.query("SELECT ?", [.text(longest)]) { row throws(StoreFailure) in
+        try row.text(0).utf8.count
+      } == [mebibyte])
+    #expect(throws: StoreFailure.textTooLarge) {
+      try database.query("SELECT ?", [.text(longest + "a")]) { row throws(StoreFailure) in
+        try row.text(0)
+      }
+    }
+  }
+
+  @Test func bindsEachValueWithItsOwnType() throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("types.sqlite"))
+    let values: [SQLValue] = [.text(""), .text("a"), .integer(0), .null]
+    let types = try values.map { value in
+      try database.query("SELECT typeof(?)", [value]) { row throws(StoreFailure) in
+        try row.text(0)
+      }
+    }
+    #expect(types == [["text"], ["text"], ["integer"], ["null"]])
+    try database.execute("CREATE TABLE item (name TEXT, amount INTEGER)")
+    try database.batch(
+      "INSERT INTO item (name, amount) VALUES (?, ?)", [[.text(""), .null], [.null, .integer(0)]])
+    #expect(
+      try database.query("SELECT typeof(name) || ' ' || typeof(amount) FROM item ORDER BY rowid") {
+        row throws(StoreFailure) in try row.text(0)
+      } == ["text null", "null integer"])
+  }
+
+  @Test func setsABusyTimeoutOfFiveSeconds() throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("busy.sqlite"))
+    #expect(try database.query("PRAGMA busy_timeout") { row in row.integer(0) } == [5000])
+  }
+
+  @Test func reportsWhyAFileDoesNotOpen() throws {
+    let directory = try TemporaryDirectory()
+    #expect(throws: StoreFailure.sqlite(code: 14, message: "unable to open database file")) {
+      try SQLiteDatabase(url: directory.file("missing/unopenable.sqlite"))
+    }
+  }
+
+  @Test func aClosedConnectionRefusesEveryStatement() throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("closed.sqlite"))
+    try database.execute("CREATE TABLE item (name TEXT NOT NULL)")
+    try database.close()
+    let refusedQuery = #expect(throws: StoreFailure.self) {
+      try database.query("SELECT count(*) FROM item") { row in row.integer(0) }
+    }
+    #expect(refusedQuery?.code == 21)
+    let refusedBatch = #expect(throws: StoreFailure.self) {
+      try database.batch("INSERT INTO item (name) VALUES (?)", [[.text("late")]])
+    }
+    #expect(refusedBatch?.code == 21)
+    try database.close()
+    let reopened = try SQLiteDatabase(url: directory.file("closed.sqlite"))
+    #expect(try reopened.query("SELECT count(*) FROM item") { row in row.integer(0) } == [0])
+  }
+
+  @Test func refusesToCloseWhileAStatementStillRuns() throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("running.sqlite"))
+    let refusal = #expect(throws: StoreFailure.self) {
+      try database.query("SELECT 1") { _ throws(StoreFailure) in try database.close() }
+    }
+    #expect(refusal?.code == 5)
+    #expect(try database.query("SELECT 2") { row in row.integer(0) } == [2])
+    try database.close()
+  }
+
+  /// One way in which a query or a batch ends.
+  enum Ending: CaseIterable {
+    case queryReturns, queryIsNotSQL, queryLacksAValue, queryBreaksAConstraint, queryRefusesARow
+    case batchReturns, batchIsNotSQL, batchLacksAValue, batchBreaksAConstraint
+  }
+
+  @Test(arguments: Ending.allCases)
+  func releasesItsStatementHoweverTheWorkEnds(ending: Ending) throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("release.sqlite"))
+    try database.execute("CREATE TABLE item (name TEXT NOT NULL UNIQUE)")
+    let insert = "INSERT INTO item (name) VALUES (?)"
+    try database.execute(insert, [.text("taken")])
+    let taken = StoreFailure.sqlite(code: 19, message: "UNIQUE constraint failed: item.name")
+    switch ending {
+    case .queryReturns:
+      #expect(
+        try database.query("SELECT name FROM item") { row throws(StoreFailure) in
+          try row.text(0)
+        } == ["taken"])
+    case .queryIsNotSQL:
+      let refusal = #expect(throws: StoreFailure.self) { try database.execute("SELEC 1") }
+      #expect(refusal?.code == 1)
+    case .batchIsNotSQL:
+      let refusal = #expect(throws: StoreFailure.self) { try database.batch("INSER 1", [[]]) }
+      #expect(refusal?.code == 1)
+    case .queryLacksAValue:
+      #expect(throws: StoreFailure.parameterCount) { try database.execute(insert) }
+    case .queryBreaksAConstraint:
+      #expect(throws: taken) { try database.execute(insert, [.text("taken")]) }
+    case .queryRefusesARow:
+      #expect(throws: StoreFailure.corruptRow(table: "planted")) {
+        try database.query("SELECT name FROM item") { _ throws(StoreFailure) -> String in
+          throw .corruptRow(table: "planted")
+        }
+      }
+    case .batchReturns:
+      try database.batch(insert, [[.text("first")], [.text("second")]])
+    case .batchLacksAValue:
+      #expect(throws: StoreFailure.parameterCount) {
+        try database.batch(insert, [[.text("first")], []])
+      }
+    case .batchBreaksAConstraint:
+      #expect(throws: taken) { try database.batch(insert, [[.text("first")], [.text("taken")]]) }
+    }
+    try database.close()
+  }
+
+  @Test func aBatchRunsAStatementThatReturnsRowsToItsEnd() throws {
+    let directory = try TemporaryDirectory()
+    let database = try SQLiteDatabase(url: directory.file("returning.sqlite"))
+    try database.execute("CREATE TABLE item (name TEXT NOT NULL)")
+    try database.batch(
+      "INSERT INTO item (name) VALUES (?) RETURNING name", [[.text("first")], [.text("second")]])
+    try database.batch(
+      "UPDATE item SET name = name || ? RETURNING name", [[.text("!")], [.text("?")]])
+    #expect(
+      try database.query("SELECT name FROM item ORDER BY rowid") { row throws(StoreFailure) in
+        try row.text(0)
+      } == ["first!?", "second!?"])
+    try database.close()
+  }
 }

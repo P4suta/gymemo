@@ -36,12 +36,9 @@ final class SQLiteDatabase {
   init(url: URL) throws(StoreFailure) {
     let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
     let status = sqlite3_open_v2(url.path, &handle, flags, nil)
-    guard status == SQLITE_OK else {
-      let failure = failure(status)
-      sqlite3_close_v2(handle)
-      handle = nil
-      throw failure
-    }
+    // A failed open usually still returns a connection, and that connection holds the message.
+    // Swift runs `deinit` when an initializer throws after every stored property has a value, so `deinit` closes it.
+    guard status == SQLITE_OK else { throw failure(status) }
     sqlite3_busy_timeout(handle, 5_000)
     // SQLite leaves foreign key enforcement off for each new connection.
     // See https://www.sqlite.org/pragma.html#pragma_foreign_keys.
@@ -64,12 +61,8 @@ final class SQLiteDatabase {
     defer { sqlite3_finalize(statement) }
     try bind(values, to: statement)
     var rows: [Value] = []
-    while true {
-      let step = sqlite3_step(statement)
-      if step == SQLITE_DONE { return rows }
-      guard step == SQLITE_ROW else { throw failure(step) }
-      rows.append(try row(SQLiteRow(statement: statement)))
-    }
+    try run(statement) { current throws(StoreFailure) in rows.append(try row(current)) }
+    return rows
   }
 
   func execute(_ sql: String, _ values: [SQLValue] = []) throws(StoreFailure) {
@@ -82,11 +75,8 @@ final class SQLiteDatabase {
     defer { sqlite3_finalize(statement) }
     for values in rows {
       sqlite3_reset(statement)
-      sqlite3_clear_bindings(statement)
       try bind(values, to: statement)
-      var step = sqlite3_step(statement)
-      while step == SQLITE_ROW { step = sqlite3_step(statement) }
-      guard step == SQLITE_DONE else { throw failure(step) }
+      try run(statement) { _ in }
     }
   }
 
@@ -113,13 +103,25 @@ final class SQLiteDatabase {
   private func prepare(_ sql: String) throws(StoreFailure) -> OpaquePointer {
     var prepared: OpaquePointer?
     let status = sqlite3_prepare_v2(handle, sql, -1, &prepared, nil)
-    guard status == SQLITE_OK, let statement = prepared else {
-      sqlite3_finalize(prepared)
-      throw failure(status)
-    }
+    // SQLite leaves no statement behind when it reports an error, so this failure has none to release.
+    guard status == SQLITE_OK, let statement = prepared else { throw failure(status) }
     return statement
   }
 
+  /// Steps `statement` to its end and gives each of its rows to `row`.
+  private func run(
+    _ statement: OpaquePointer, row: (SQLiteRow) throws(StoreFailure) -> Void
+  ) throws(StoreFailure) {
+    while true {
+      switch sqlite3_step(statement) {
+      case SQLITE_ROW: try row(SQLiteRow(statement: statement))
+      case SQLITE_DONE: return
+      case let code: throw failure(code)
+      }
+    }
+  }
+
+  /// Once this returns, every parameter of `statement` holds its value from `values`, so a statement that runs again keeps none of its earlier values.
   private func bind(_ values: [SQLValue], to statement: OpaquePointer) throws(StoreFailure) {
     guard sqlite3_bind_parameter_count(statement) == values.count else {
       throw .parameterCount
@@ -133,7 +135,7 @@ final class SQLiteDatabase {
         // SQLite copies the bytes, so the string's own UTF-8 storage needs no C string copy.
         // An empty string may have no storage, and a null pointer would bind NULL instead of empty text.
         status = text.withUTF8 { bytes in
-          guard let base = bytes.baseAddress, count > 0 else {
+          guard let base = bytes.baseAddress else {
             return sqlite3_bind_text(statement, position, "", 0, gymemo_sqlite_transient())
           }
           return base.withMemoryRebound(to: CChar.self, capacity: bytes.count) {
