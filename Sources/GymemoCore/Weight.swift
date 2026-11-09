@@ -66,11 +66,16 @@ public enum RepsRefusal: Error, Equatable, Sendable {
 /// The number of repetitions in one set, from 1 to 999.
 public struct Reps: Hashable, Comparable, Sendable {
   public static let maximumCount = 999
+  public static let one = Reps(unchecked: 1)
 
   public let count: Int
 
   public init?(_ count: Int) {
     guard (1...Self.maximumCount).contains(count) else { return nil }
+    self.count = count
+  }
+
+  private init(unchecked count: Int) {
     self.count = count
   }
 
