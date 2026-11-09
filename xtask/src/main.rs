@@ -1,6 +1,5 @@
 //! Repository checks and simulator runs for gymemo.
 
-mod colors;
 #[cfg(test)]
 mod contrast;
 mod failure;
@@ -11,7 +10,6 @@ mod purity;
 mod required_reasons;
 mod simulator;
 mod swift_source;
-#[cfg(test)]
 mod system_design;
 
 use failure::{Failure, Result, ensure};
@@ -21,7 +19,7 @@ use std::{env, path::Path, process::ExitCode};
 const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
-  gates                             Check the Swift sources for authored colors, text outside the catalog, effects in the core, console output, networking, and required reason APIs
+  gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
   ui-test [--only light|dark] [XCODEBUILD_ARGUMENT]...
                                     Run the UI tests on the dedicated simulator, in the light appearance and then in the dark one
   screenshots                       Export the screenshots of the latest UI test run into a new directory
@@ -92,7 +90,7 @@ type Gate = fn(&Path) -> Result<String>;
 
 /// The source checks, each of which refuses its own planted violations before it passes.
 const GATES: [(&str, Gate); 6] = [
-    ("colors", colors::check),
+    ("system design", system_design::check),
     ("literals", literals::check),
     ("purity", purity::check),
     ("logging", logging::check),

@@ -9,6 +9,8 @@ private enum SettingsRoute: Hashable {
 }
 
 struct SettingsScreen: View {
+  @Environment(AppModel.self) private var model
+
   private var version: String {
     let info = Bundle.main.infoDictionary
     return copy.version(
@@ -17,30 +19,27 @@ struct SettingsScreen: View {
   }
 
   var body: some View {
+    let count = model.log.exercisesByBodyPart.reduce(0) { $0 + $1.exercises.count }
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
+      List {
+        Section {
           NavigationLink(value: SettingsRoute.exercises) {
-            LinkRow { Label(copy[.exercises], systemImage: "dumbbell") }
+            LabeledContent(copy[.exercises]) {
+              Text(count.formatted(.number.locale(copy.locale)))
+            }
           }
-          .buttonStyle(.plain)
           .accessibilityIdentifier("open-exercises")
-          NavigationLink(value: SettingsRoute.backup) {
-            LinkRow { Label(copy[.exportAndImport], systemImage: "externaldrive") }
-          }
-          .buttonStyle(.plain)
-          .accessibilityIdentifier("open-backup")
-          VStack(alignment: .leading, spacing: 8) {
-            GroupHeading(text: copy[.storageHeading], icon: "iphone")
-            Text(copy[.storageText]).fixedSize(horizontal: false, vertical: true)
-            Text(version).font(.subheadline)
-              .fixedSize(horizontal: false, vertical: true)
-          }
-          .padding(.top, 32)
+          NavigationLink(copy[.exportAndImport], value: SettingsRoute.backup)
+            .accessibilityIdentifier("open-backup")
         }
-        .padding(16)
+        Section {
+          Text(copy[.storageText])
+        } header: {
+          Text(copy[.storageHeading])
+        } footer: {
+          Text(version)
+        }
       }
-      .screenSurface()
       .navigationTitle(copy[.tabSettings])
       .navigationDestination(for: SettingsRoute.self) { route in
         switch route {
@@ -80,7 +79,7 @@ struct BackupScreen: View {
   @State private var export: Export?
   @State private var isImporting = false
   @State private var replacement: TrainingLog?
-  @State private var notice: String?
+  @State private var notice: Notice?
 
   private struct Export {
     let document: ExportDocument
@@ -88,43 +87,46 @@ struct BackupScreen: View {
     let name: String
   }
 
+  private struct Notice {
+    let text: String
+    let isFailure: Bool
+  }
+
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 24) {
-        if let notice {
-          Label(notice, systemImage: "info.circle")
-            .font(.body.weight(.semibold))
-            .fixedSize(horizontal: false, vertical: true)
+    List {
+      if let notice {
+        Section {
+          NoticeRow(text: notice.text, isFailure: notice.isFailure)
             .accessibilityIdentifier("backup-notice")
         }
-        section(
-          title: copy[.exportBackup], icon: "square.and.arrow.up", text: copy[.exportBackupText],
-          identifier: "export-backup"
-        ) {
+      }
+      Section {
+        Button(copy[.exportBackup], systemImage: "square.and.arrow.up") {
           export = Export(
             document: ExportDocument(data: Backup.write(model.log)), type: .json,
             name: "gymemo-backup-\(model.today.iso)")
         }
-        Rule()
-        section(
-          title: copy[.exportCSV], icon: "tablecells", text: copy[.exportCSVText],
-          identifier: "export-csv"
-        ) {
+        .accessibilityIdentifier("export-backup")
+      } footer: {
+        Text(copy[.exportBackupText])
+      }
+      Section {
+        Button(copy[.exportCSV], systemImage: "tablecells") {
           export = Export(
             document: ExportDocument(data: CSVExport.write(model.log, labels: copy.csvLabels)),
             type: .commaSeparatedText, name: "gymemo-\(model.today.iso)")
         }
-        Rule()
-        section(
-          title: copy[.importBackup], icon: "square.and.arrow.down", text: copy[.importBackupText],
-          identifier: "import-backup"
-        ) {
-          isImporting = true
-        }
+        .accessibilityIdentifier("export-csv")
+      } footer: {
+        Text(copy[.exportCSVText])
       }
-      .padding(16)
+      Section {
+        Button(copy[.importBackup], systemImage: "square.and.arrow.down") { isImporting = true }
+          .accessibilityIdentifier("import-backup")
+      } footer: {
+        Text(copy[.importBackupText])
+      }
     }
-    .screenSurface()
     .navigationTitle(copy[.exportAndImport])
     .navigationBarTitleDisplayMode(.inline)
     .fileExporter(
@@ -133,8 +135,8 @@ struct BackupScreen: View {
     ) { result in
       notice =
         switch result {
-        case .success: copy[.exported]
-        case .failure: copy[.exportFailed]
+        case .success: Notice(text: copy[.exported], isFailure: false)
+        case .failure: Notice(text: copy[.exportFailed], isFailure: true)
         }
     }
     .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
@@ -144,7 +146,9 @@ struct BackupScreen: View {
       copy[.replaceQuestion], isPresented: Binding(isPresent: $replacement), presenting: replacement
     ) { log in
       Button(copy[.replace], role: .destructive) {
-        if model.perform(.replaceAll(log)) == .done { notice = copy[.imported] }
+        if model.perform(.replaceAll(log)) == .done {
+          notice = Notice(text: copy[.imported], isFailure: false)
+        }
       }
       Button(copy[.cancel], role: .cancel) {}
     } message: { log in
@@ -152,32 +156,23 @@ struct BackupScreen: View {
     }
   }
 
-  private func section(
-    title: String, icon: String, text: String, identifier: String, action: @escaping () -> Void
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text(text).fixedSize(horizontal: false, vertical: true)
-      Button(action: action) {
-        Label(title, systemImage: icon)
-      }
-      .buttonStyle(MonoButtonStyle())
-      .accessibilityIdentifier(identifier)
-    }
+  private func fail(_ text: String) {
+    notice = Notice(text: text, isFailure: true)
   }
 
   private func read(_ result: Result<URL, any Error>) {
     guard case .success(let url) = result, url.startAccessingSecurityScopedResource() else {
-      notice = copy[.fileUnreadable]
+      fail(copy[.fileUnreadable])
       return
     }
     defer { url.stopAccessingSecurityScopedResource() }
     let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
     guard size.map({ $0 <= Backup.maximumBytes }) ?? true else {
-      notice = copy.problem(backup: .tooLarge)
+      fail(copy.problem(backup: .tooLarge))
       return
     }
     guard let data = try? Data(contentsOf: url) else {
-      notice = copy[.fileUnreadable]
+      fail(copy[.fileUnreadable])
       return
     }
     switch Backup.read(data) {
@@ -185,7 +180,7 @@ struct BackupScreen: View {
       notice = nil
       replacement = log
     case .failure(let refusal):
-      notice = copy.problem(backup: refusal)
+      fail(copy.problem(backup: refusal))
     }
   }
 }

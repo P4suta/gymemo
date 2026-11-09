@@ -271,6 +271,11 @@ mod tests {
     }
 
     #[test]
+    fn the_shipped_screens_pass() -> Result<()> {
+        check(&Path::new(env!("CARGO_MANIFEST_DIR")).join("..")).map(|_| ())
+    }
+
+    #[test]
     fn settings_that_opt_out_fail() {
         assert!(opt_outs("IPHONEOS_DEPLOYMENT_TARGET: \"26.0\"\n", "project.yml").is_empty());
         assert_eq!(

@@ -12,35 +12,42 @@ struct AnalysisScreen: View {
   var body: some View {
     let summaries = model.log.exerciseSummaries
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
+      List {
+        Section {
           WeeklyBlock(weeks: model.log.weeklyTrainingDays(through: model.today, weeks: 12))
-            .padding(.bottom, 24)
-          Rule()
-          GroupHeading(text: copy[.progressByExercise], icon: "chart.xyaxis.line")
-            .padding(.top, 24)
-            .padding(.bottom, 8)
-          if summaries.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
-              Text(copy[.analysisEmpty]).accessibilityIdentifier("empty-analysis")
-              Button(action: openLog) {
-                Label(copy[.startToday], systemImage: "square.and.pencil")
-              }
-              .buttonStyle(MonoButtonStyle(prominent: true))
-              .accessibilityIdentifier("start-today")
+        } header: {
+          Text(copy[.weeklyTrainingDays])
+        } footer: {
+          Text(copy[.weeklyCaption])
+        }
+        if summaries.isEmpty {
+          Section {
+            ContentUnavailableView {
+              Label(copy[.analysisEmptyTitle], systemImage: "chart.bar")
+            } description: {
+              Text(copy[.analysisEmpty])
+            } actions: {
+              Button(copy[.startToday], action: openLog)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("start-today")
             }
+            .accessibilityIdentifier("empty-analysis")
           }
-          ForEach(summaries) { summary in
-            NavigationLink(value: summary.exercise.id) {
-              LinkRow { SummaryRow(summary: summary) }
+          .listRowBackground(Color.clear)
+        } else {
+          Section(copy[.progressByExercise]) {
+            ForEach(summaries) { summary in
+              NavigationLink(value: summary.exercise.id) {
+                StackedRow(
+                  title: summary.exercise.name.text,
+                  subtitle: summary.best.map { copy.scoreLine($0.score) },
+                  caption: copy.lastLogged(summary.lastDay))
+              }
+              .accessibilityIdentifier("progress-\(summary.exercise.name.text)")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("progress-\(summary.exercise.name.text)")
           }
         }
-        .padding(16)
       }
-      .screenSurface()
       .navigationTitle(copy[.tabAnalysis])
       .navigationDestination(for: ExerciseID.self) { id in
         ExerciseProgressScreen(exerciseID: id)
@@ -49,21 +56,9 @@ struct AnalysisScreen: View {
   }
 }
 
-private struct SummaryRow: View {
-  let summary: ExerciseSummary
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Label(summary.exercise.name.text, systemImage: "dumbbell").font(.body.weight(.bold))
-      if let best = summary.best {
-        Text(copy.scoreLine(best.score)).font(.subheadline)
-      }
-      Text(copy.lastLogged(summary.lastDay)).font(.subheadline)
-    }
-  }
-}
-
-/// A bar for each of the last weeks, with the two latest weeks also written out.
+/// A bar for each of the last weeks, under a sentence that states the two newest values.
+/// The charting guidance asks for descriptive text beside a chart.
+/// See https://developer.apple.com/design/human-interface-guidelines/charting-data.
 private struct WeeklyBlock: View {
   let weeks: [WeekCount]
 
@@ -80,43 +75,30 @@ private struct WeeklyBlock: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      GroupHeading(text: copy[.weeklyTrainingDays], icon: "calendar")
-      Text(headline).font(.title2.bold()).accessibilityIdentifier("weekly-headline")
-      Chart {
-        ForEach(weeks) { week in
-          BarMark(
-            x: .value(copy[.axisWeekStart], copy.day(week.start, .axis)),
-            y: .value(copy[.axisDays], week.days), width: .ratio(0.6)
-          )
-          .foregroundStyle(.ink)
-          .accessibilityLabel(copy.weekLabel(startingOn: week.start))
-          .accessibilityValue(copy.dayCount(week.days))
-        }
-        RuleMark(y: .value(copy[.axisDays], 0))
-          .foregroundStyle(.ink)
-          .lineStyle(StrokeStyle(lineWidth: 1))
-          .accessibilityHidden(true)
+    VStack(alignment: .leading, spacing: 12) {
+      Text(headline).font(.title3.bold()).accessibilityIdentifier("weekly-headline")
+      Chart(weeks) { week in
+        BarMark(
+          x: .value(copy[.axisWeekStart], copy.day(week.start, .axis)),
+          y: .value(copy[.axisDays], week.days), width: .ratio(0.6)
+        )
+        .foregroundStyle(.tint)
+        .accessibilityLabel(copy.weekLabel(startingOn: week.start))
+        .accessibilityValue(copy.dayCount(week.days))
       }
       .chartYScale(domain: 0...7)
-      .chartYAxis {
-        AxisMarks(position: .leading, values: [0, 1, 2, 3, 4, 5, 6, 7]) {
-          AxisValueLabel().foregroundStyle(.ink)
-        }
-      }
       .chartXAxis {
         AxisMarks { value in
           if let label = value.as(String.self), labelled.contains(label) {
-            AxisValueLabel().foregroundStyle(.ink)
+            AxisGridLine()
+            AxisValueLabel()
           }
         }
       }
-      .frame(height: 200)
+      .frame(height: 180)
       .accessibilityIdentifier("weekly-chart")
-      Text(copy[.weeklyCaption])
-        .font(.subheadline)
-        .fixedSize(horizontal: false, vertical: true)
     }
+    .padding(.vertical, 4)
   }
 }
 
@@ -146,58 +128,59 @@ private enum ProgressRange: String, CaseIterable {
 struct ExerciseProgressScreen: View {
   let exerciseID: ExerciseID
   @Environment(AppModel.self) private var model
-  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.dynamicTypeSize) private var typeSize
   @State private var range = ProgressRange.threeMonths
 
   var body: some View {
-    ScrollView {
+    List {
       if let progress = model.log.progress(of: exerciseID) {
-        VStack(alignment: .leading, spacing: 24) {
-          BestBlock(progress: progress)
-          Rule()
-          chartBlock(progress)
-          Rule()
-          SessionsBlock(sessions: progress.sessions)
+        Section {
+          rangePicker(title: copy.progressHeading(progress.kind))
+          let points = progress.points(since: range.start(from: model.today))
+          if points.isEmpty {
+            ContentUnavailableView {
+              Label(copy[.emptyRangeTitle], systemImage: "chart.xyaxis.line")
+            } description: {
+              Text(copy[.emptyRange])
+            }
+            .accessibilityIdentifier("empty-range")
+          } else {
+            ProgressChart(points: points, name: copy.scoreName(progress.kind))
+          }
+        } header: {
+          Text(copy.progressHeading(progress.kind))
+        } footer: {
+          Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
         }
-        .padding(16)
+        Section(copy[.personalBest]) {
+          BestRows(progress: progress)
+        }
+        Section(copy[.setsByDay]) {
+          ForEach(progress.sessions) { session in
+            StackedRow(overline: copy.day(session.day, .long), title: copy.sets(session.sets))
+          }
+        }
       } else {
-        Text(copy[.exerciseMissing]).padding(16)
+        Text(copy[.exerciseMissing])
       }
     }
-    .screenSurface()
     .navigationTitle(model.log.exercise(exerciseID)?.name.text ?? copy[.tabAnalysis])
     .navigationBarTitleDisplayMode(.inline)
   }
 
+  /// The three ranges as a segmented control, or as a menu at the accessibility text sizes, where segment labels can't grow.
   @ViewBuilder
-  private func chartBlock(_ progress: ExerciseProgress) -> some View {
-    let points = progress.points(since: range.start(from: model.today))
-    VStack(alignment: .leading, spacing: 12) {
-      GroupHeading(text: copy.progressHeading(progress.kind), icon: "chart.xyaxis.line")
-      // At the accessibility sizes the three periods stack, so each label stays on one line.
-      let layout =
-        dynamicTypeSize.isAccessibilitySize
-        ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
-      layout {
-        ForEach(ProgressRange.allCases, id: \.self) { option in
-          Button {
-            range = option
-          } label: {
-            Label(option.title, systemImage: "calendar")
-          }
-          .buttonStyle(MonoButtonStyle(prominent: option == range))
-          .accessibilityAddTraits(option == range ? .isSelected : [])
-          .accessibilityIdentifier("range-\(option.rawValue)")
-        }
+  private func rangePicker(title: String) -> some View {
+    let picker = Picker(title, selection: $range) {
+      ForEach(ProgressRange.allCases, id: \.self) { option in
+        Text(option.title).tag(option)
       }
-      if points.isEmpty {
-        Text(copy[.emptyRange]).accessibilityIdentifier("empty-range")
-      } else {
-        ProgressChart(points: points, name: copy.scoreName(progress.kind))
-      }
-      Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
-        .font(.subheadline)
-        .fixedSize(horizontal: false, vertical: true)
+    }
+    .accessibilityIdentifier("range")
+    if typeSize.isAccessibilitySize {
+      picker.pickerStyle(.menu)
+    } else {
+      picker.pickerStyle(.segmented)
     }
   }
 }
@@ -209,73 +192,50 @@ private struct ProgressChart: View {
   var body: some View {
     Chart(points) { point in
       LineMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
-        .foregroundStyle(.ink)
-        .lineStyle(StrokeStyle(lineWidth: 2))
+        .foregroundStyle(.tint)
         .accessibilityHidden(true)
       PointMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
-        .foregroundStyle(.ink)
-        .symbolSize(64)
+        .foregroundStyle(.tint)
         .accessibilityLabel(copy.day(point.day, .long))
         .accessibilityValue(copy.score(point.score))
     }
     .chartYScale(domain: .automatic(includesZero: false))
     .chartXAxis {
       AxisMarks(values: .automatic(desiredCount: 4)) {
-        AxisValueLabel(format: copy.dateStyle(.axis)).foregroundStyle(.ink)
+        AxisGridLine()
+        AxisValueLabel(format: copy.dateStyle(.axis))
       }
     }
     .chartYAxis {
-      AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) {
-        AxisValueLabel().foregroundStyle(.ink)
-      }
+      AxisMarks(values: .automatic(desiredCount: 4))
     }
     .environment(\.timeZone, .gmt)
     .environment(\.calendar, copy.calendar)
-    .frame(height: 220)
+    .frame(height: 200)
+    .padding(.vertical, 4)
     .accessibilityIdentifier("progress-chart")
   }
 }
 
-private struct BestBlock: View {
+private struct BestRows: View {
   let progress: ExerciseProgress
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      GroupHeading(text: copy[.personalBest], icon: "trophy")
-      if let best = progress.best {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(copy.scoreLine(best.score))
-            .font(.title2.bold())
-            .accessibilityIdentifier("best-score")
-          Text(copy.setOnDay(weight: best.best.weight, reps: best.best.reps, day: best.day))
-            .font(.subheadline)
-        }
-      } else {
-        Text(copy[.personalBestEmpty])
+    if let best = progress.best {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(copy.scoreLine(best.score)).font(.headline).accessibilityIdentifier("best-score")
+        Text(copy.setOnDay(weight: best.best.weight, reps: best.best.reps, day: best.day))
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
       }
-      if let heaviest = progress.heaviest {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(copy.heaviest(heaviest.weight)).font(.title3.bold())
-          Text(copy.setOnDay(weight: heaviest.weight, reps: heaviest.reps, day: heaviest.day))
-            .font(.subheadline)
-        }
-      }
+    } else {
+      Text(copy[.personalBestEmpty])
     }
-  }
-}
-
-private struct SessionsBlock: View {
-  let sessions: [Session]
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      GroupHeading(text: copy[.setsByDay], icon: "list.bullet")
-      ForEach(sessions) { session in
-        VStack(alignment: .leading, spacing: 2) {
-          Text(copy.day(session.day, .long)).font(.subheadline.weight(.bold))
-          Text(copy.sets(session.sets)).fixedSize(horizontal: false, vertical: true)
-        }
-      }
+    if let heaviest = progress.heaviest {
+      StackedRow(
+        title: copy.heaviest(heaviest.weight),
+        subtitle: copy.setOnDay(weight: heaviest.weight, reps: heaviest.reps, day: heaviest.day),
+        isEmphasized: true)
     }
   }
 }

@@ -1,237 +1,223 @@
+import GymemoCopy
+import GymemoCore
 import SwiftUI
 
-/// A full-width button drawn with the two palette colors, filled when prominent or pressed.
-struct MonoButtonStyle: ButtonStyle {
-  var prominent = false
-
-  func makeBody(configuration: Configuration) -> some View {
-    let filled = prominent != configuration.isPressed
-    configuration.label
-      .font(.body.weight(.semibold))
-      .fixedSize(horizontal: false, vertical: true)
-      .frame(maxWidth: .infinity, minHeight: 44)
-      .padding(.horizontal, 12)
-      .foregroundStyle(filled ? .surface : .ink)
-      .background(filled ? .ink : .surface)
-      .overlay { Rectangle().stroke(.ink, lineWidth: 2) }
-      .contentShape(Rectangle())
-  }
-}
-
-extension View {
-  /// The surface behind a screen's content, with a solid surface behind the system bars.
-  /// Scrolled content never shows through a bar, so no text sits behind a translucent layer.
-  /// The tab bar floats over the screen, so the content ends at a rule above it and only the surface lies behind it.
-  func screenSurface() -> some View {
-    VStack(spacing: 0) {
-      self
-      Rule()
+/// The trophy and the words that mark a personal best.
+/// The words carry the meaning, and the accent color only draws the eye.
+struct PersonalBestMark: View {
+  var body: some View {
+    HStack(spacing: 4) {
+      Image(systemName: "trophy.fill").foregroundStyle(Color.accentColor)
+      Text(copy[.personalBest]).foregroundStyle(.secondary)
     }
-    .background(.surface)
-    .toolbarBackground(.surface, for: .navigationBar)
-    .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+    .font(.footnote)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+/// One logged set: its number, its load and repetitions, and the mark of a personal best.
+/// At the accessibility text sizes the mark moves below the set, so the set wraps across the full width.
+struct SetRow: View {
+  let number: Int
+  let set: LoggedSet
+  let isBest: Bool
+  @Environment(\.dynamicTypeSize) private var typeSize
+
+  var body: some View {
+    let layout =
+      typeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+    layout {
+      HStack(alignment: .firstTextBaseline, spacing: 12) {
+        Text(number.formatted(.number.locale(copy.locale))).foregroundStyle(.secondary)
+        Text(copy.set(set)).foregroundStyle(.primary)
+      }
+      .monospacedDigit()
+      if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
+      if isBest { PersonalBestMark() }
+    }
+  }
+}
+
+/// The value that a number row edits.
+enum NumberKind {
+  case weight, reps
+}
+
+/// A labeled number field with its unit and a stepper.
+/// The stepper changes the value without the keyboard: 2.5 kg for a weight and one for repetitions.
+/// At the accessibility text sizes the label, the field, and the stepper stack, so no number is clipped.
+struct NumberFieldRow: View {
+  let kind: NumberKind
+  @Binding var text: String
+  let identifier: String
+  @FocusState private var isFocused: Bool
+  @Environment(\.dynamicTypeSize) private var typeSize
+
+  private var title: String { kind == .weight ? copy[.weight] : copy[.reps] }
+
+  var body: some View {
+    let isLarge = typeSize.isAccessibilitySize
+    let layout =
+      isLarge
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+      : AnyLayout(HStackLayout(spacing: 12))
+    layout {
+      Text(title)
+      HStack(spacing: 4) {
+        TextField(title, text: $text, prompt: Text(kind == .weight ? copy[.bodyweight] : ""))
+          .keyboardType(kind == .weight ? .decimalPad : .numberPad)
+          .multilineTextAlignment(isLarge ? .leading : .trailing)
+          .monospacedDigit()
+          .focused($isFocused)
+          .accessibilityLabel(kind == .weight ? copy[.weightSpoken] : copy[.reps])
+          .accessibilityIdentifier(identifier)
+        if kind == .weight {
+          Text(copy[.kilogramUnit]).foregroundStyle(.secondary).accessibilityHidden(true)
+        }
+        if isFocused && !text.isEmpty {
+          Button {
+            text = ""
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .frame(minWidth: 32, minHeight: 44)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(.tertiary)
+          .accessibilityLabel(kind == .weight ? copy[.clearWeight] : copy[.clearReps])
+          .accessibilityIdentifier("clear-\(identifier)")
+        }
+      }
+      Stepper(title, onIncrement: { step(1) }, onDecrement: { step(-1) })
+        .labelsHidden()
+        .accessibilityIdentifier("step-\(identifier)")
+    }
+  }
+
+  private func step(_ steps: Int) {
+    switch kind {
+    case .weight:
+      guard let weight = Weight.stepped(from: text, by: steps) else { return }
+      text = weight.isBodyweight ? "" : copy.weightField(weight)
+    case .reps:
+      guard let reps = Reps.stepped(from: text, by: steps) else { return }
+      text = "\(reps.count)"
+    }
+  }
+}
+
+/// What is wrong with an input and how to fix it, in a row under the fields.
+/// The symbol is red, and the message stays in the label color so that it reads at any contrast.
+struct InlineProblem: View {
+  let text: String
+  var identifier = "problem"
+
+  var body: some View {
+    Label {
+      Text(text).foregroundStyle(.primary)
+    } icon: {
+      Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
+    }
+    .font(.footnote)
+    .accessibilityIdentifier(identifier)
+  }
+}
+
+/// The result of an action, with a symbol that states success or failure.
+struct NoticeRow: View {
+  let text: String
+  let isFailure: Bool
+
+  var body: some View {
+    Label {
+      Text(text).foregroundStyle(.primary)
+    } icon: {
+      if isFailure {
+        Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red)
+      } else {
+        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
+      }
+    }
+  }
+}
+
+/// Lines of text that wrap instead of truncating: an optional line above, a title, and up to two lines below.
+struct StackedRow: View {
+  var overline: String?
+  let title: String
+  var subtitle: String?
+  var caption: String?
+  var isEmphasized = false
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      if let overline { Text(overline).font(.subheadline).foregroundStyle(.secondary) }
+      Text(title).font(isEmphasized ? .headline : .body).foregroundStyle(.primary)
+      if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
+      if let caption { Text(caption).font(.subheadline).foregroundStyle(.secondary) }
+    }
   }
 }
 
 extension View {
-  /// Adds a button above the keyboard that puts it away, because the number pads have no return key.
+  /// Adds a button over the keyboard that puts it away, because the number pads have no return key.
+  /// A standard toolbar there takes the system material.
   func keyboardDismissal() -> some View {
     toolbar {
       ToolbarItemGroup(placement: .keyboard) {
         Spacer()
-        Button {
+        Button(copy[.hideKeyboard], systemImage: "keyboard.chevron.compact.down") {
           UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        } label: {
-          Label(copy[.hideKeyboard], systemImage: "keyboard.chevron.compact.down")
-            .labelStyle(.titleAndIcon)
         }
         .accessibilityIdentifier("hide-keyboard")
       }
     }
   }
-}
 
-/// A row that acts as one button across its whole width, with a solid rule below it.
-struct RowButton<Label: View>: View {
-  let action: () -> Void
-  @ViewBuilder let label: () -> Label
-
-  var body: some View {
-    Button(action: action) {
-      label()
-        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-    .overlay(alignment: .bottom) { Rule() }
+  /// The toolbar of a sheet: a cancel button, one confirming button, and a question before unsaved changes are discarded.
+  /// The sheet guidance puts Cancel at the leading edge and the confirming action at the trailing edge.
+  /// See https://developer.apple.com/design/human-interface-guidelines/sheets.
+  func sheetToolbar(
+    title: String, confirmTitle: String, isDirty: Bool, confirm: @escaping () -> Void
+  ) -> some View {
+    modifier(
+      SheetToolbar(title: title, confirmTitle: confirmTitle, isDirty: isDirty, confirm: confirm))
   }
 }
 
-/// A solid line that separates two groups.
-struct Rule: View {
-  var body: some View {
-    Rectangle().fill(.ink).frame(height: 1).accessibilityHidden(true)
-  }
-}
-
-/// The heading of a group of rows or values.
-struct GroupHeading: View {
-  let text: String
-  let icon: String
-
-  var body: some View {
-    Label(text, systemImage: icon)
-      .font(.headline)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .accessibilityAddTraits(.isHeader)
-  }
-}
-
-/// A short state word in a solid frame, such as a personal best.
-struct Badge: View {
-  let text: String
-  let icon: String
-
-  var body: some View {
-    Label(text, systemImage: icon)
-      .font(.footnote.weight(.bold))
-      .padding(.horizontal, 6)
-      .padding(.vertical, 2)
-      .overlay { Rectangle().stroke(.ink, lineWidth: 1) }
-  }
-}
-
-/// What is wrong with an input and how to fix it, shown next to the input.
-struct InlineProblem: View {
-  let text: String
-
-  var body: some View {
-    Label(text, systemImage: "exclamationmark.triangle")
-      .font(.subheadline.weight(.semibold))
-      .fixedSize(horizontal: false, vertical: true)
-      .accessibilityIdentifier("problem")
-  }
-}
-
-/// One option of a single choice, marked by a filled circle when selected.
-struct ChoiceRow: View {
-  let text: String
-  let isSelected: Bool
-  let action: () -> Void
-
-  var body: some View {
-    RowButton(action: action) {
-      Label(text, systemImage: isSelected ? "largecircle.fill.circle" : "circle")
-        .fontWeight(isSelected ? .bold : .regular)
-    }
-    .accessibilityAddTraits(isSelected ? .isSelected : [])
-  }
-}
-
-/// A setting that is on or off, marked by a checked square when on.
-struct CheckRow: View {
-  let text: String
-  @Binding var isOn: Bool
-
-  var body: some View {
-    RowButton {
-      isOn.toggle()
-    } label: {
-      Label(text, systemImage: isOn ? "checkmark.square" : "square")
-    }
-    .accessibilityValue(isOn ? copy[.on] : copy[.off])
-  }
-}
-
-/// A one-line input inside a solid frame, with its label above it, its unit after it, and a button that clears it.
-/// The text field guidance asks for a clear button at the trailing end of a field.
-/// See https://developer.apple.com/design/human-interface-guidelines/text-fields.
-struct LabeledField: View {
-  let label: String
-  let icon: String
-  var unit: String?
-  let spokenLabel: String
-  let clearLabel: String
-  let identifier: String
-  @Binding var text: String
-  let keyboard: UIKeyboardType
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Label(label, systemImage: icon).font(.subheadline.weight(.semibold))
-      HStack(spacing: 8) {
-        TextField("", text: $text)
-          .keyboardType(keyboard)
-          .font(unit == nil ? .title3 : .title3.monospacedDigit())
-          .multilineTextAlignment(unit == nil ? .leading : .trailing)
-          .accessibilityLabel(spokenLabel)
-          .accessibilityIdentifier(identifier)
-        if let unit { Text(unit).accessibilityHidden(true) }
-        if !text.isEmpty {
-          Button {
-            text = ""
-          } label: {
-            Image(systemName: "xmark.circle")
-              .font(.title3)
-              .frame(minWidth: 44, minHeight: 44)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-          .accessibilityLabel(clearLabel)
-          .accessibilityIdentifier("clear-\(identifier)")
-        }
-      }
-      .padding(.leading, 12)
-      .padding(.trailing, text.isEmpty ? 12 : 0)
-      .frame(minHeight: 48)
-      .overlay { Rectangle().stroke(.ink, lineWidth: 1) }
-    }
-  }
-}
-
-/// The frame of every sheet: a title, a cancel button, and one confirming action.
-struct SheetFrame<Content: View>: View {
+private struct SheetToolbar: ViewModifier {
   let title: String
   let confirmTitle: String
-  let confirmIcon: String
+  let isDirty: Bool
   let confirm: () -> Void
-  @ViewBuilder let content: () -> Content
   @Environment(\.dismiss) private var dismiss
+  @State private var isAskingToDiscard = false
 
-  var body: some View {
-    NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-          content()
-        }
-        .padding(16)
-      }
-      .scrollDismissesKeyboard(.interactively)
-      .background(.surface)
+  func body(content: Content) -> some View {
+    content
       .navigationTitle(title)
       .navigationBarTitleDisplayMode(.inline)
-      .keyboardDismissal()
+      .interactiveDismissDisabled(isDirty)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button {
-            dismiss()
-          } label: {
-            Label(copy[.cancel], systemImage: "xmark").labelStyle(.titleAndIcon)
+          Button(copy[.cancel], systemImage: "xmark", role: .cancel) {
+            if isDirty { isAskingToDiscard = true } else { dismiss() }
           }
           .accessibilityIdentifier("sheet-cancel")
+          .confirmationDialog(
+            copy[.discardQuestion], isPresented: $isAskingToDiscard, titleVisibility: .visible
+          ) {
+            Button(copy[.discardChanges], role: .destructive) { dismiss() }
+            Button(copy[.keepEditing], role: .cancel) {}
+          }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button(action: confirm) {
-            Label(confirmTitle, systemImage: confirmIcon).labelStyle(.titleAndIcon)
-          }
-          .accessibilityIdentifier("sheet-confirm")
+          Button(confirmTitle, systemImage: "checkmark", role: .confirm, action: confirm)
+            .accessibilityIdentifier("sheet-confirm")
         }
       }
-    }
-    .presentationBackground(.surface)
-    .tint(.ink)
-    .foregroundStyle(.ink)
   }
 }

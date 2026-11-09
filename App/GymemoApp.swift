@@ -10,15 +10,10 @@ struct GymemoApp: App {
 
   var body: some Scene {
     WindowGroup {
-      Group {
-        switch launch {
-        case .ready(let model): RootView().environment(model)
-        case .failed(let failure): LaunchFailureScreen(failure: failure)
-        }
+      switch launch {
+      case .ready(let model): RootView().environment(model)
+      case .failed(let failure): LaunchFailureScreen(failure: failure)
       }
-      .tint(.ink)
-      .foregroundStyle(.ink)
-      .background(.surface)
     }
   }
 }
@@ -31,18 +26,18 @@ struct RootView: View {
   var body: some View {
     @Bindable var model = model
     TabView(selection: $tab) {
-      Tab(copy[.tabLog], systemImage: "square.and.pencil", value: RootTab.log) {
+      Tab(copy[.tabLog], systemImage: "dumbbell.fill", value: RootTab.log) {
         NavigationStack {
           DayScreen(day: model.today).id(model.today)
         }
       }
-      Tab(copy[.tabHistory], systemImage: "calendar", value: RootTab.history) {
+      Tab(copy[.tabHistory], systemImage: "clock.fill", value: RootTab.history) {
         HistoryScreen { tab = .log }
       }
-      Tab(copy[.tabAnalysis], systemImage: "chart.xyaxis.line", value: RootTab.analysis) {
+      Tab(copy[.tabAnalysis], systemImage: "chart.bar.fill", value: RootTab.analysis) {
         AnalysisScreen { tab = .log }
       }
-      Tab(copy[.tabSettings], systemImage: "gearshape", value: RootTab.settings) {
+      Tab(copy[.tabSettings], systemImage: "gearshape.fill", value: RootTab.settings) {
         SettingsScreen()
       }
     }
@@ -56,7 +51,7 @@ struct RootView: View {
       copy[.saveFailed], isPresented: Binding(isPresent: $model.storeFailure),
       presenting: model.storeFailure
     ) { _ in
-      Button(copy[.close], role: .cancel) {}
+      // The system adds its own confirming button to an alert without actions.
     } message: { failure in
       Text(copy.saveFailedMessage(code: failure.code))
     }
@@ -94,15 +89,11 @@ struct LaunchFailureScreen: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
+    ContentUnavailableView {
       Label(copy[.launchFailed], systemImage: "exclamationmark.triangle")
-        .font(.title2.bold())
-        .accessibilityAddTraits(.isHeader)
+    } description: {
       Text(explanation)
-      Text(copy.failureCode(code)).font(.subheadline)
+      Text(copy.failureCode(code))
     }
-    .padding(24)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(.surface)
   }
 }

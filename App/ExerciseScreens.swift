@@ -7,79 +7,90 @@ struct ExercisePicker: View {
   let pick: (Exercise) -> Void
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  @State private var query = ""
   @State private var isCreating = false
 
+  private func matches(_ exercise: Exercise) -> Bool {
+    query.isEmpty || exercise.name.text.localizedStandardContains(query)
+  }
+
   var body: some View {
-    let recent = model.log.recentExercises(limit: 5)
+    let recent = query.isEmpty ? model.log.recentExercises(limit: 5) : []
+    let groups = model.log.selectableExercises
+    let hasMatch = groups.contains { $0.exercises.contains(where: matches) }
     NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
-          Button {
-            isCreating = true
-          } label: {
-            Label(copy[.createExercise], systemImage: "plus")
-          }
-          .buttonStyle(MonoButtonStyle())
-          .padding(.bottom, 20)
-          .accessibilityIdentifier("create-exercise")
-          if !recent.isEmpty {
-            GroupHeading(text: copy[.recentExercises], icon: "clock").padding(.bottom, 4)
+      List {
+        if !recent.isEmpty {
+          Section(copy[.recentExercises]) {
             // A recent exercise also appears under its body part, so the two rows need different identities.
             ForEach(recent, id: \.name) { exercise in
               row(exercise).accessibilityIdentifier("recent-\(exercise.name.text)")
             }
           }
-          ForEach(model.log.selectableExercises) { group in
-            GroupHeading(
-              text: copy.bodyPart(group.bodyPart), icon: "figure.strengthtraining.traditional"
-            )
-            .padding(.top, 24)
-            .padding(.bottom, 4)
-            ForEach(group.exercises) { exercise in
-              row(exercise).accessibilityIdentifier("pick-\(exercise.name.text)")
+        }
+        ForEach(groups) { group in
+          let found = group.exercises.filter(matches)
+          if !found.isEmpty {
+            Section(copy.bodyPart(group.bodyPart)) {
+              ForEach(found) { exercise in
+                row(exercise).accessibilityIdentifier("pick-\(exercise.name.text)")
+              }
             }
           }
         }
-        .padding(16)
       }
-      .background(.surface)
+      .overlay {
+        if !hasMatch { ContentUnavailableView.search(text: query) }
+      }
+      .searchable(text: $query)
       .navigationTitle(copy[.chooseExercise])
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button {
-            dismiss()
-          } label: {
-            Label(copy[.cancel], systemImage: "xmark").labelStyle(.titleAndIcon)
-          }
-          .accessibilityIdentifier("sheet-cancel")
+          Button(copy[.cancel], systemImage: "xmark", role: .cancel) { dismiss() }
+            .accessibilityIdentifier("sheet-cancel")
         }
+        ToolbarItem(placement: .primaryAction) {
+          Button(copy[.newExercise], systemImage: "plus") { isCreating = true }
+            .accessibilityIdentifier("create-exercise")
+        }
+        // The search guidance places search at the bottom of the screen on an iPhone when there is room.
+        // See https://developer.apple.com/design/human-interface-guidelines/search-fields.
+        DefaultToolbarItem(kind: .search, placement: .bottomBar)
       }
-      .sheet(isPresented: $isCreating) {
-        ExerciseEditor(exercise: nil) { created in
+      .navigationDestination(isPresented: $isCreating) {
+        ExerciseForm(exercise: nil, isPushed: true) { created in
           pick(created)
           dismiss()
         }
       }
     }
-    .presentationBackground(.surface)
-    .tint(.ink)
-    .foregroundStyle(.ink)
   }
 
   private func row(_ exercise: Exercise) -> some View {
-    RowButton {
+    Button(exercise.name.text) {
       pick(exercise)
       dismiss()
-    } label: {
-      Label(exercise.name.text, systemImage: "dumbbell")
+    }
+    .tint(.primary)
+  }
+}
+
+/// A sheet that creates an exercise, or changes the name, body part, and visibility of an existing one.
+struct ExerciseEditor: View {
+  let exercise: Exercise?
+
+  var body: some View {
+    NavigationStack {
+      ExerciseForm(exercise: exercise, isPushed: false)
     }
   }
 }
 
-/// Creates an exercise, or changes the name, body part, and visibility of an existing one.
-struct ExerciseEditor: View {
+/// The fields of an exercise, inside a sheet of its own or pushed inside the exercise picker.
+struct ExerciseForm: View {
   let exercise: Exercise?
+  let isPushed: Bool
   var created: (Exercise) -> Void = { _ in }
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
@@ -89,65 +100,82 @@ struct ExerciseEditor: View {
   @State private var problem: String?
   @State private var isConfirmingDelete = false
 
-  init(exercise: Exercise?, created: @escaping (Exercise) -> Void = { _ in }) {
+  init(exercise: Exercise?, isPushed: Bool, created: @escaping (Exercise) -> Void = { _ in }) {
     self.exercise = exercise
+    self.isPushed = isPushed
     self.created = created
     _name = State(initialValue: exercise?.name.text ?? "")
     _bodyPart = State(initialValue: exercise?.bodyPart ?? .chest)
     _isSelectable = State(initialValue: !(exercise?.isArchived ?? false))
   }
 
+  private var title: String { exercise == nil ? copy[.newExercise] : copy[.editExercise] }
+
+  private var isDirty: Bool {
+    name != (exercise?.name.text ?? "") || bodyPart != (exercise?.bodyPart ?? .chest)
+      || isSelectable == (exercise?.isArchived ?? false)
+  }
+
   var body: some View {
-    SheetFrame(
-      title: exercise == nil ? copy[.newExercise] : copy[.editExercise], confirmTitle: copy[.save],
-      confirmIcon: "checkmark", confirm: save
-    ) {
-      VStack(alignment: .leading, spacing: 4) {
-        LabeledField(
-          label: copy[.name], icon: "dumbbell", spokenLabel: copy[.name],
-          clearLabel: copy[.clearName], identifier: "exercise-name", text: $name,
-          keyboard: .default)
+    let form = Form {
+      Section {
+        TextField(copy[.name], text: $name)
+          .accessibilityIdentifier("exercise-name")
         if let problem { InlineProblem(text: problem) }
-      }
-      VStack(alignment: .leading, spacing: 0) {
-        GroupHeading(text: copy[.bodyPart], icon: "figure.strengthtraining.traditional")
-          .padding(.bottom, 4)
-        ForEach(BodyPart.allCases, id: \.self) { part in
-          ChoiceRow(text: copy.bodyPart(part), isSelected: part == bodyPart) { bodyPart = part }
-            .accessibilityIdentifier("body-part-\(part.rawValue)")
+        Picker(copy[.bodyPart], selection: $bodyPart) {
+          ForEach(BodyPart.allCases, id: \.self) { part in
+            Text(copy.bodyPart(part)).tag(part)
+          }
         }
+        .pickerStyle(.menu)
+        .accessibilityIdentifier("body-part")
       }
       if let exercise {
-        CheckRow(text: copy[.showWhenChoosing], isOn: $isSelectable)
-          .accessibilityIdentifier("selectable")
+        Section {
+          Toggle(copy[.showWhenChoosing], isOn: $isSelectable)
+            .accessibilityIdentifier("selectable")
+        }
         deletion(of: exercise)
       }
+    }
+    if isPushed {
+      form
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+          ToolbarItem(placement: .confirmationAction) {
+            Button(copy[.save], systemImage: "checkmark", role: .confirm, action: save)
+              .accessibilityIdentifier("sheet-confirm")
+          }
+        }
+    } else {
+      form.sheetToolbar(title: title, confirmTitle: copy[.save], isDirty: isDirty, confirm: save)
     }
   }
 
   @ViewBuilder
   private func deletion(of exercise: Exercise) -> some View {
     if model.log.sets(of: exercise.id).isEmpty {
-      Button {
-        isConfirmingDelete = true
-      } label: {
-        Label(copy[.deleteExercise], systemImage: "trash")
-      }
-      .buttonStyle(MonoButtonStyle())
-      .accessibilityIdentifier("delete-exercise")
-      .confirmationDialog(
-        copy.deleteQuestion(exercise.name), isPresented: $isConfirmingDelete,
-        titleVisibility: .visible
-      ) {
-        Button(copy[.delete], role: .destructive) {
-          if model.perform(.deleteExercise(id: exercise.id)) != .notStored { dismiss() }
-        }
-        Button(copy[.cancel], role: .cancel) {}
+      Section {
+        Button(copy[.deleteExercise], role: .destructive) { isConfirmingDelete = true }
+          .accessibilityIdentifier("delete-exercise")
+          // The confirmation opens from the button behind it, as the adoption guide asks.
+          // See https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass.
+          .confirmationDialog(
+            copy.deleteQuestion(exercise.name), isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+          ) {
+            Button(copy[.delete], role: .destructive) {
+              if model.perform(.deleteExercise(id: exercise.id)) != .notStored { dismiss() }
+            }
+            Button(copy[.cancel], role: .cancel) {}
+          }
       }
     } else {
-      Label(copy.problem(exercise: .exerciseHasSets), systemImage: "info.circle")
-        .font(.subheadline)
-        .fixedSize(horizontal: false, vertical: true)
+      Section {
+      } footer: {
+        Text(copy.problem(exercise: .exerciseHasSets))
+      }
     }
   }
 
@@ -163,7 +191,7 @@ struct ExerciseEditor: View {
         return
       }
       if let added = model.log.exercise(id) { created(added) }
-      dismiss()
+      if !isPushed { dismiss() }
     }
   }
 
@@ -188,46 +216,49 @@ struct ExerciseListScreen: View {
   @State private var isCreating = false
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 0) {
-        Button {
-          isCreating = true
-        } label: {
-          Label(copy[.createExercise], systemImage: "plus")
-        }
-        .buttonStyle(MonoButtonStyle())
-        .accessibilityIdentifier("create-exercise")
-        ForEach(model.log.exercisesByBodyPart) { group in
-          GroupHeading(
-            text: copy.bodyPart(group.bodyPart), icon: "figure.strengthtraining.traditional"
-          )
-          .padding(.top, 24)
-          .padding(.bottom, 4)
+    List {
+      ForEach(model.log.exercisesByBodyPart) { group in
+        Section(copy.bodyPart(group.bodyPart)) {
           ForEach(group.exercises) { exercise in
-            RowButton {
+            let toggleTitle = exercise.isArchived ? copy[.show] : copy[.hide]
+            let toggleSymbol = exercise.isArchived ? "eye" : "eye.slash"
+            Button {
               edited = exercise
             } label: {
-              HStack(spacing: 12) {
-                Label(exercise.name.text, systemImage: "dumbbell")
-                if exercise.isArchived { Badge(text: copy[.hidden], icon: "eye.slash") }
-                Spacer(minLength: 8)
-                Image(systemName: "pencil")
+              LabeledContent(exercise.name.text) {
+                if exercise.isArchived { Text(copy[.hidden]) }
               }
             }
+            .tint(.primary)
             .accessibilityIdentifier("manage-\(exercise.name.text)")
+            .swipeActions(edge: .trailing) {
+              Button(toggleTitle, systemImage: toggleSymbol) { toggle(exercise) }
+            }
+            .contextMenu {
+              Button(toggleTitle, systemImage: toggleSymbol) { toggle(exercise) }
+              Button(copy[.editExercise], systemImage: "pencil") { edited = exercise }
+            }
           }
         }
       }
-      .padding(16)
     }
-    .screenSurface()
     .navigationTitle(copy[.exercises])
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button(copy[.newExercise], systemImage: "plus") { isCreating = true }
+          .accessibilityIdentifier("create-exercise")
+      }
+    }
     .sheet(item: $edited) { exercise in
       ExerciseEditor(exercise: exercise)
     }
     .sheet(isPresented: $isCreating) {
       ExerciseEditor(exercise: nil)
     }
+  }
+
+  private func toggle(_ exercise: Exercise) {
+    model.perform(.setExerciseArchived(id: exercise.id, isArchived: !exercise.isArchived))
   }
 }

@@ -186,7 +186,9 @@ private func placeholders(_ format: String) -> [String] {
     #expect(!english.day(day, .short).contains("2026"))
     #expect(english.day(day, .short).contains("Nov"))
     #expect(english.day(day, .axis) == "11/9")
+    #expect(english.day(day, .month) == "November 2026")
     let japanese = try copy("ja", locale: "ja_JP")
+    #expect(japanese.day(day, .month) == "2026年11月")
     #expect(japanese.day(day, .long).contains("2026年11月9日"))
     #expect(japanese.day(day, .long).contains("月"))
     #expect(japanese.day(day, .axis) == "11/9")
@@ -267,7 +269,6 @@ private func placeholders(_ format: String) -> [String] {
     #expect(english.failureCode(-4) == "Code -4")
     #expect(english.heaviest(heavy) == "Heaviest Weight 62.5 kg")
     #expect(english.progressHeading(.oneRepMax) == "Estimated 1RM over Time")
-    #expect(english.noteCaption(day).hasPrefix("Note for "))
     #expect(english.lastLogged(day).hasPrefix("Last logged "))
     #expect(english.weekLabel(startingOn: day).hasPrefix("Week of "))
     #expect(

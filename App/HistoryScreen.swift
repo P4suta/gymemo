@@ -3,81 +3,47 @@ import GymemoCore
 import GymemoKit
 import SwiftUI
 
-/// The label of a row that opens another screen.
-struct LinkRow<Content: View>: View {
-  @ViewBuilder let content: () -> Content
-
-  var body: some View {
-    HStack(spacing: 12) {
-      content()
-      Spacer(minLength: 8)
-      Image(systemName: "chevron.right").accessibilityHidden(true)
-    }
-    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-    .padding(.vertical, 4)
-    .contentShape(Rectangle())
-    .overlay(alignment: .bottom) { Rule() }
-  }
-}
-
-/// Every recorded day from newest to oldest.
+/// Every recorded day from newest to oldest, under a header for each month.
 struct HistoryScreen: View {
   let openLog: () -> Void
   @Environment(AppModel.self) private var model
   @State private var path: [LocalDay] = []
   @State private var isPickingDay = false
-  @State private var shownDays = pageSize
-
-  private static let pageSize = 20
 
   var body: some View {
-    let history = model.log.history
+    let months = model.log.historyByMonth
     NavigationStack(path: $path) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 0) {
-          if history.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
-              Text(copy[.historyEmpty]).accessibilityIdentifier("empty-history")
-              Button(action: openLog) {
-                Label(copy[.startToday], systemImage: "square.and.pencil")
+      List {
+        ForEach(months) { month in
+          Section(copy.day(month.start, .month)) {
+            ForEach(month.days) { summary in
+              NavigationLink(value: summary.day) {
+                DayRow(summary: summary)
               }
-              .buttonStyle(MonoButtonStyle(prominent: true))
-              .accessibilityIdentifier("start-today")
+              .accessibilityIdentifier("day-\(summary.day.iso)")
             }
-            .padding(.bottom, 24)
-          }
-          Button {
-            isPickingDay = true
-          } label: {
-            Label(copy[.logAnotherDay], systemImage: "calendar.badge.plus")
-          }
-          .buttonStyle(MonoButtonStyle())
-          .padding(.bottom, 16)
-          .accessibilityIdentifier("log-another-day")
-          // The list draws every shown row at once, so each row keeps its size at every text size.
-          // It shows the newest days first and adds older ones on request, which bounds that work.
-          ForEach(history.prefix(shownDays)) { summary in
-            NavigationLink(value: summary.day) {
-              LinkRow { DayRow(summary: summary) }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("day-\(summary.day.iso)")
-          }
-          if history.count > shownDays {
-            Button {
-              shownDays += Self.pageSize
-            } label: {
-              Label(copy[.showOlderDays], systemImage: "chevron.down")
-            }
-            .buttonStyle(MonoButtonStyle())
-            .padding(.top, 16)
-            .accessibilityIdentifier("show-older-days")
           }
         }
-        .padding(16)
       }
-      .screenSurface()
+      .overlay {
+        if months.isEmpty {
+          ContentUnavailableView {
+            Label(copy[.historyEmpty], systemImage: "clock")
+          } actions: {
+            Button(copy[.startToday], action: openLog)
+              .buttonStyle(.borderedProminent)
+              .accessibilityIdentifier("start-today")
+          }
+          .accessibilityIdentifier("empty-history")
+        }
+      }
       .navigationTitle(copy[.tabHistory])
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          Button(copy[.logAnotherDay], systemImage: "calendar.badge.plus") { isPickingDay = true }
+            .accessibilityIdentifier("log-another-day")
+        }
+      }
       .navigationDestination(for: LocalDay.self) { day in
         DayScreen(day: day)
       }
@@ -95,22 +61,12 @@ private struct DayRow: View {
   let summary: DaySummary
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Label(copy.day(summary.day, .long), systemImage: "calendar").font(.body.weight(.bold))
-      if summary.setCount > 0 {
-        Text(
-          copy.historyRow(
-            exercises: summary.exerciseNames.map(\.text), setCount: summary.setCount)
-        )
-        .font(.subheadline)
-        .multilineTextAlignment(.leading)
-      }
-      if let note = summary.memo {
-        Label(note.preview(limit: 60), systemImage: "note.text")
-          .font(.subheadline)
-          .multilineTextAlignment(.leading)
-      }
-    }
+    StackedRow(
+      title: copy.day(summary.day, .long),
+      subtitle: summary.setCount > 0
+        ? copy.historyRow(exercises: summary.exerciseNames.map(\.text), setCount: summary.setCount)
+        : nil,
+      caption: summary.memo?.preview(limit: 60), isEmphasized: true)
   }
 }
 
@@ -127,19 +83,25 @@ private struct DayPicker: View {
   }
 
   var body: some View {
-    SheetFrame(title: copy[.chooseDay], confirmTitle: copy[.open], confirmIcon: "arrow.right") {
-      open(LocalDay.nearest(to: date, in: .gmt))
-    } content: {
-      DatePicker(
-        copy[.dayToLog], selection: $date, in: LocalDay.earliest.noonUTC...today.noonUTC,
-        displayedComponents: .date
-      )
-      .datePickerStyle(.graphical)
-      .environment(\.timeZone, .gmt)
-      .environment(\.calendar, copy.calendar)
-      .environment(\.locale, copy.locale)
-      .accessibilityIdentifier("day-picker")
-      Text(copy[.chooseDayHint]).font(.subheadline)
+    NavigationStack {
+      Form {
+        Section {
+          DatePicker(
+            copy[.dayToLog], selection: $date, in: LocalDay.earliest.noonUTC...today.noonUTC,
+            displayedComponents: .date
+          )
+          .datePickerStyle(.graphical)
+          .environment(\.timeZone, .gmt)
+          .environment(\.calendar, copy.calendar)
+          .environment(\.locale, copy.locale)
+          .accessibilityIdentifier("day-picker")
+        } footer: {
+          Text(copy[.chooseDayHint])
+        }
+      }
+      .sheetToolbar(title: copy[.chooseDay], confirmTitle: copy[.open], isDirty: false) {
+        open(LocalDay.nearest(to: date, in: .gmt))
+      }
     }
   }
 }

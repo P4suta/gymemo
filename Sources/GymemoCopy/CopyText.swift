@@ -10,6 +10,8 @@ public enum DayStyle: Sendable {
   case short
   /// The month and day as numbers, for a chart axis.
   case axis
+  /// The month and year, for the header of a month in the history.
+  case month
 }
 
 extension Copy {
@@ -36,6 +38,7 @@ extension Copy {
     case .long: base.year().month(.abbreviated).day().weekday(.abbreviated)
     case .short: base.month(.abbreviated).day().weekday(.abbreviated)
     case .axis: base.month(.defaultDigits).day()
+    case .month: base.year().month(.wide)
     }
   }
 
@@ -155,10 +158,6 @@ extension Copy {
 
   public func progressHeading(_ kind: ScoreKind) -> String {
     format(.overTime, scoreName(kind))
-  }
-
-  public func noteCaption(_ day: LocalDay) -> String {
-    format(.noteCaption, self.day(day, .long))
   }
 
   public func deleteQuestion(_ name: ExerciseName) -> String {
