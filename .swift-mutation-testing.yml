@@ -3,4 +3,6 @@
 sources-path: Sources
 operator-tier: experimental
 testing-framework: swift-testing
-timeout: 30
+# The package tests finish within 5 seconds, and the gate calls a timeout inconclusive.
+# The limit leaves room for a busy machine, so only a change that keeps the tests from ending reaches it.
+timeout: 90
