@@ -1,61 +1,122 @@
 # Interface design
 
-gymemo has four tabs, named Log, History, Analysis, and Settings.
+gymemo follows Apple's system design with Liquid Glass.
+The [Figma file](https://www.figma.com/design/Hid7RVq16U5SizfgMTQRZB/) holds the design system and every screen, built on Apple's iOS and iPadOS 27 kit.
 Each rule names the Apple page that it applies, read on 2026-11-09, or carries the label of a judgment.
 
-## Structure
+## Foundations
 
-The four tabs carry one-word labels and icons, and an empty tab stays visible with guidance inside it.
-The [tab bar guidance](https://developer.apple.com/design/human-interface-guidelines/tab-bars) asks for labels, for single words where possible, and for tabs that stay visible when their content is unavailable.
+The app builds every screen from standard SwiftUI components.
+The [adoption guide](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass) says that standard components take the Liquid Glass material when the app builds with the current SDK.
+The system draws the tab bar, the toolbars, the sheets, the menus, each `alert`, and the bar over the keyboard.
+The app adds no glass effect and no background to a bar or a sheet.
+The [materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials) keeps Liquid Glass out of the content layer and asks apps to use the effect sparingly.
+The content sits in inset grouped lists and forms on the grouped background.
 
-The Log tab offers choices before typing.
-The lifter picks an exercise from a list, and the weight and repetitions start from the previous set.
-The [data entry guidance](https://developer.apple.com/design/human-interface-guidelines/entering-data) asks for choices instead of text entry and for reasonable default values.
-The weight field shows the decimal pad and the repetitions field shows the number pad, and each field has a visible label.
-A field that holds text ends with a button that clears it.
-The [text field guidance](https://developer.apple.com/design/human-interface-guidelines/text-fields) asks for the keyboard type that fits the content and for a clear button at the trailing end.
+Every color is a system color, and the one accent is system indigo.
+The accent marks the confirming button of a sheet, the selected tab, the rows that act, the charts, and the symbol of a personal record.
+The [color guidance](https://developer.apple.com/design/human-interface-guidelines/color) asks apps to use color sparingly and to color the background of a primary action.
+It also asks apps to prefer system colors, which adapt to both appearances and to Increase Contrast.
+As text, system indigo reaches 5.1:1 on white and 4.8:1 on a dark row.
+The ratios apply the contrast formula of the Web Content Accessibility Guidelines to the values in the same page.
+No other system color reaches 4.5:1 on white.
+On a dark row inside a sheet, indigo reaches 4.0:1 at the default contrast and 6.5:1 with Increase Contrast.
+Destructive actions take system red through their role, and a problem shows a red symbol beside text in the label color.
 
-The History tab shows the 20 newest days and adds older days on request.
-Its rows and the rows of the other lists draw at once instead of on demand, so each row keeps its size at every text size.
+Text uses the system text styles, so each size follows Dynamic Type.
+A set row shows monospaced digits.
+The app sets no row height, corner radius, or margin of its own.
+The [layout guidance](https://developer.apple.com/design/human-interface-guidelines/layout) asks for standard spacing and for shapes that match their containers.
+SF Symbols name each action.
+A toolbar item shows its symbol and speaks its title, as the [toolbar guidance](https://developer.apple.com/design/human-interface-guidelines/toolbars) asks.
 
-A problem with an input appears beside the fields and says how to fix it.
-The [writing guidance](https://developer.apple.com/design/human-interface-guidelines/writing) asks for errors next to the field, for verbs on buttons, and for a next step on a blank screen.
-Buttons always respond, because a button that ignores taps would draw a faded state that the visual rules exclude.
+Logging a set plays the success haptic, and a refused tap plays the error haptic.
+The [haptics guidance](https://developer.apple.com/design/human-interface-guidelines/playing-haptics) reserves success for a completed task and asks apps to avoid overuse.
+The app adds no animation of its own to frequent actions.
+
+## Tabs
+
+The four tabs are Log, History, Analysis, and Settings, with the symbols `dumbbell.fill`, `clock.fill`, `chart.bar.fill`, and `gearshape.fill`.
+The [tab bar guidance](https://developer.apple.com/design/human-interface-guidelines/tab-bars) asks for labels of one word, filled symbols, and tabs that stay visible when their content is empty.
+The tab bar keeps its full size while the lifter scrolls.
+The choice is a judgment: every tab stays one tap away during a workout.
+Each tab opens on a large title, and a pushed screen shows an inline title, as the toolbar guidance asks.
+
+## Log
+
+The Log tab shows today's sets with the date as the subtitle.
+One toolbar item with the `plus` symbol adds an exercise.
+Each exercise is a section with a prominent header.
+The section lists the previous session, each logged set, a weight row, a repetitions row, and a row that logs the set.
+The fields start from the last set, so one tap logs the same set again.
+The [data entry guidance](https://developer.apple.com/design/human-interface-guidelines/entering-data) asks for choices instead of typing and for sensible defaults.
+The weight row shows the decimal pad and the repetitions row shows the number pad.
+The [text field guidance](https://developer.apple.com/design/human-interface-guidelines/text-fields) asks for the keyboard that fits the content.
+Each row can pair its field with a stepper, which the [stepper guidance](https://developer.apple.com/design/human-interface-guidelines/steppers) suggests beside a text field.
+The weight steps by 2.5 kg and the repetitions step by one.
+The pads have no return key, so a standard toolbar over the keyboard holds one button that puts the keyboard away.
+An empty weight shows the prompt Bodyweight and logs a bodyweight set.
+
+A set row opens the set editor on a tap.
+Its `swipeActions` offer Delete and Edit, and its `contextMenu` offers the same two actions.
+The adoption guide asks that the two sets of actions match.
+A problem with an input appears in a row under the fields and says how to fix it.
+The [writing guidance](https://developer.apple.com/design/human-interface-guidelines/writing) asks for errors next to the field and for a next step on a blank screen.
+The row that logs a set always responds, and a tap with a missing value shows the problem.
+The data entry guidance prefers a button that waits for required data, and the app departs from it so that the lifter learns what's missing.
+A day without sets shows an empty state with one filled button that adds an exercise.
+A note section holds the day's note and a row that edits it.
+
+## Sheets
+
+The exercise picker, the set editor, the note editor, the day picker, and the exercise editor are sheets.
+Each sheet has a button with the `xmark` symbol at the leading edge and a filled button with the `checkmark` symbol at the trailing edge.
+The [sheet guidance](https://developer.apple.com/design/human-interface-guidelines/sheets) puts Cancel at the leading edge and Done at the trailing edge.
+The toolbar guidance reserves the prominent style for one key action at the trailing side.
+The set editor opens at the medium height with a grabber, as the sheet guidance suggests for an iPhone.
+A sheet closes when the lifter drags it down.
+A sheet with unsaved changes asks before it closes and offers Discard Changes and Keep Editing.
+
+The exercise picker lists the recent exercises first and then each body part.
+Its search field sits at the bottom, where the [search guidance](https://developer.apple.com/design/human-interface-guidelines/search-fields) places it when there is room.
+A toolbar item with the `plus` symbol pushes the form for a new exercise inside the same sheet.
+
+## History
+
+The History tab lists the training days under a header for each month, newest first.
+A row shows the date, the exercises with the number of sets, and the start of the note.
+A toolbar item with the `calendar.badge.plus` symbol opens the day picker, which shows a calendar.
+A past day uses the same screen as the Log tab, with a row that says the day isn't today.
+An empty history shows an empty state with a button that starts today's log.
+
+## Analysis
+
+The Analysis tab shows the training days of each of the last 12 weeks and one row for each exercise.
+A sentence before the bar chart states the two newest values.
+An exercise opens its progress: a range control, a line chart, the personal records, and the sets of each day.
+The range control is a segmented control with three ranges.
+The [segmented control guidance](https://developer.apple.com/design/human-interface-guidelines/segmented-controls) limits a control to about five segments of one kind.
+Each chart shows one measure in the accent color and gives each mark a spoken label and value.
+The [charting guidance](https://developer.apple.com/design/human-interface-guidelines/charting-data) asks for simple charts, descriptive text, and accessibility labels.
+The bars start at zero, and the list under the line chart gives every value as text.
+
+## Settings
+
+The Settings tab links to the exercises and to the export and import screen, and states where the records stay.
+The exercise list groups the exercises by body part and marks a hidden one.
+The exercise editor holds the name, the body part in a menu, a switch that shows the exercise in the picker, and a Delete button for an unused exercise.
+The export and import screen has one row for each action, with a footer that explains it.
+The result of an action appears in a row at the top.
 
 ## Confirmation
 
-Replacing the log with a backup shows an `alert`, and its cancel button reads Cancel in each language.
-The [guidance for the `alert`](https://developer.apple.com/design/human-interface-guidelines/alerts) reserves it for uncommon destructive actions that a person can't undo, and asks for a button titled Cancel.
+Replacing the log with a backup shows an `alert` with Cancel and a destructive Replace.
+The [guidance for the `alert`](https://developer.apple.com/design/human-interface-guidelines/alerts) reserves it for uncommon destructive actions that a person can't undo.
 Deleting one set shows no `alert`.
-The same page asks apps to avoid one for common, undoable actions.
-A deleted set has no undo, so the choice is a judgment: the lifter can log the same set again with one button.
-Deleting an unused exercise asks through an action sheet, which the same page prefers for choices that follow an intentional action.
-
-## Visual rules
-
-The screens draw with two colors: the surface and the ink.
-The two colors are white and black in the light appearance and black and white in the dark one.
-The app follows the system appearance and offers no setting of its own, as the [Dark Mode guidance](https://developer.apple.com/design/human-interface-guidelines/dark-mode) asks.
-The app's own drawing excludes gray steps, opacity, gradients, shadows, and translucent surfaces.
-Size, weight, spacing, solid rules, and solid frames carry the hierarchy.
-A selected option shows a filled mark or a filled button, and a personal record shows a framed label.
-The system draws the tab bar, the navigation bar, the keyboard, the file pickers, the date picker, and each `alert`, and the app leaves each of them unchanged.
-The content of a screen ends at a rule over the tab bar, and the navigation bar has a solid surface.
-No text shows through a translucent bar as a result.
-
-Each control has an icon and a visible label.
-Controls are at least 44 points tall, and text uses the system text styles so that Dynamic Type applies.
-Rows that hold two or more values stack them at the accessibility text sizes.
-The [accessibility guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility) gives the 44-point control size, asks for text that enlarges, and asks apps to convey information with more than color.
-
-## Charts
-
-Each chart shows one measure, has a sentence that states its main value, and gives each mark a spoken label and value.
-The [charting guidance](https://developer.apple.com/design/human-interface-guidelines/charting-data) asks for simple charts, descriptive text, and accessibility labels.
-The weekly chart draws one bar for each of the last 12 weeks, and the progress chart draws one line with a point for each day.
-Both use the ink alone, without grid lines, and a list under the progress chart gives every value as text.
-The charts take no selection or hover, because the list already gives the detail.
-A color palette check has nothing to examine, because the charts hold one series in one color.
+The same page asks apps to avoid one for common actions, even destructive ones.
+A deleted set has no undo, so the choice is a judgment: one button logs the same set again.
+Deleting an unused exercise asks in a confirmation that opens from the Delete button.
+The adoption guide asks for an action sheet that starts at the control behind it.
 
 ## Estimated one-repetition load
 
@@ -65,21 +126,15 @@ The app uses 0.0333, and no source read for the project confirms that value.
 The same paper found predictions most accurate from five to eight repetitions and found overestimates.
 The screens call the value an estimate and a rough guide for that reason.
 
-## Languages
+## Languages and text size
 
 English, Japanese, Simplified Chinese, and Traditional Chinese come from one String Catalog.
+English titles, buttons, and section headers use title-style capitalization, and explanations use sentence style.
+The adoption guide asks for title-style section headers.
 Dates follow the calendar and order of the device's region, and weights use its decimal separator.
-English counts take the singular and the plural form.
 The starter exercises take their names from the device language at the first launch.
 No native speaker has reviewed the Chinese text.
 
-## Verification
-
-`mise x -- just check` runs the source checks for colors, literals, and the other rules, with a planted violation for each.
-`mise x -- just ui-test` runs the scenarios and the accessibility audit of each screen.
-The audit runs in the light appearance, the dark appearance, the largest text size, and each language.
-The audit leaves out three kinds of findings that the app can't change.
-The first is the day numbers and the header of the system's date picker, which keep one size.
-The second is the axis labels of the charts, whose values each mark repeats as its spoken label.
-The third is a contrast finding on text that an edge of its scroll view cuts through, which fails at any colors.
-`mise x -- just screenshots` exports the screenshots that the tests kept.
+Rows hold text that wraps instead of truncating.
+At the accessibility text sizes, a set row moves its personal record mark under the set, and a number row stacks its label, its field, and its stepper.
+The [typography guidance](https://developer.apple.com/design/human-interface-guidelines/typography) asks for layouts that adapt to every text size.
