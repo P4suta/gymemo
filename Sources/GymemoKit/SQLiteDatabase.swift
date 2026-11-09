@@ -1,13 +1,6 @@
 import CSQLite
 import Foundation
 
-public enum DatabaseFailure: Error, Equatable, Sendable {
-  case sqlite(code: Int32, message: String)
-  case parameterCount
-  case textTooLarge
-  case invalidText
-}
-
 enum SQLValue: Equatable {
   case text(String)
   case integer(Int64)
@@ -18,12 +11,12 @@ enum SQLValue: Equatable {
 struct SQLiteRow {
   fileprivate let statement: OpaquePointer
 
-  func text(_ column: Int32, maximumBytes: Int = 1_048_576) throws -> String {
+  func text(_ column: Int32, maximumBytes: Int = 1_048_576) throws(StoreFailure) -> String {
     let count = Int(sqlite3_column_bytes(statement, column))
-    guard count <= maximumBytes else { throw DatabaseFailure.textTooLarge }
+    guard count <= maximumBytes else { throw .textTooLarge }
     guard let pointer = sqlite3_column_text(statement, column),
       let value = String(bytes: UnsafeBufferPointer(start: pointer, count: count), encoding: .utf8)
-    else { throw DatabaseFailure.invalidText }
+    else { throw .invalidText }
     return value
   }
 
@@ -40,7 +33,7 @@ struct SQLiteRow {
 final class SQLiteDatabase {
   private var handle: OpaquePointer?
 
-  init(url: URL) throws {
+  init(url: URL) throws(StoreFailure) {
     let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
     let status = sqlite3_open_v2(url.path, &handle, flags, nil)
     guard status == SQLITE_OK else {
@@ -57,7 +50,7 @@ final class SQLiteDatabase {
 
   deinit { sqlite3_close_v2(handle) }
 
-  func close() throws {
+  func close() throws(StoreFailure) {
     guard handle != nil else { return }
     let status = sqlite3_close(handle)
     guard status == SQLITE_OK else { throw failure(status) }
@@ -65,11 +58,9 @@ final class SQLiteDatabase {
   }
 
   func query<Value>(
-    _ sql: String, _ values: [SQLValue] = [], row: (SQLiteRow) throws -> Value
-  ) throws -> [Value] {
-    var prepared: OpaquePointer?
-    let status = sqlite3_prepare_v2(handle, sql, -1, &prepared, nil)
-    guard status == SQLITE_OK, let statement = prepared else { throw failure(status) }
+    _ sql: String, _ values: [SQLValue] = [], row: (SQLiteRow) throws(StoreFailure) -> Value
+  ) throws(StoreFailure) -> [Value] {
+    let statement = try prepare(sql)
     defer { sqlite3_finalize(statement) }
     try bind(values, to: statement)
     var rows: [Value] = []
@@ -81,13 +72,29 @@ final class SQLiteDatabase {
     }
   }
 
-  func execute(_ sql: String, _ values: [SQLValue] = []) throws {
+  func execute(_ sql: String, _ values: [SQLValue] = []) throws(StoreFailure) {
     _ = try query(sql, values) { _ in () }
+  }
+
+  /// Runs one statement for each row of values, preparing it only once.
+  func batch(_ sql: String, _ rows: [[SQLValue]]) throws(StoreFailure) {
+    let statement = try prepare(sql)
+    defer { sqlite3_finalize(statement) }
+    for values in rows {
+      sqlite3_reset(statement)
+      sqlite3_clear_bindings(statement)
+      try bind(values, to: statement)
+      var step = sqlite3_step(statement)
+      while step == SQLITE_ROW { step = sqlite3_step(statement) }
+      guard step == SQLITE_DONE else { throw failure(step) }
+    }
   }
 
   /// Runs `body` so that the database stores all its changes or none.
   /// A failed rollback never hides the error that caused it.
-  func transaction<Value>(_ body: () throws -> Value) throws -> Value {
+  func transaction<Value>(
+    _ body: () throws(StoreFailure) -> Value
+  ) throws(StoreFailure) -> Value {
     try execute("BEGIN IMMEDIATE")
     do {
       let value = try body()
@@ -99,22 +106,30 @@ final class SQLiteDatabase {
     }
   }
 
-  private func failure(_ code: Int32) -> DatabaseFailure {
+  private func failure(_ code: Int32) -> StoreFailure {
     .sqlite(code: code, message: String(cString: sqlite3_errmsg(handle)))
   }
 
-  private func bind(_ values: [SQLValue], to statement: OpaquePointer) throws {
+  private func prepare(_ sql: String) throws(StoreFailure) -> OpaquePointer {
+    var prepared: OpaquePointer?
+    let status = sqlite3_prepare_v2(handle, sql, -1, &prepared, nil)
+    guard status == SQLITE_OK, let statement = prepared else {
+      sqlite3_finalize(prepared)
+      throw failure(status)
+    }
+    return statement
+  }
+
+  private func bind(_ values: [SQLValue], to statement: OpaquePointer) throws(StoreFailure) {
     guard sqlite3_bind_parameter_count(statement) == values.count else {
-      throw DatabaseFailure.parameterCount
+      throw .parameterCount
     }
     for (index, value) in values.enumerated() {
       let position = Int32(index + 1)
       let status: Int32
       switch value {
       case .text(var text):
-        guard let count = Int32(exactly: text.utf8.count) else {
-          throw DatabaseFailure.textTooLarge
-        }
+        guard let count = Int32(exactly: text.utf8.count) else { throw .textTooLarge }
         // SQLite copies the bytes, so the string's own UTF-8 storage needs no C string copy.
         // An empty string may have no storage, and a null pointer would bind NULL instead of empty text.
         status = text.withUTF8 { bytes in
