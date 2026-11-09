@@ -1,5 +1,6 @@
 import Foundation
 import GymemoCore
+import GymemoTestSupport
 import Testing
 
 @Suite struct BackupTests {

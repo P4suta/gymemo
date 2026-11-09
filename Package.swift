@@ -12,8 +12,10 @@ let package = Package(
     .target(name: "GymemoCore"),
     .systemLibrary(name: "CSQLite"),
     .target(name: "GymemoKit", dependencies: ["GymemoCore", "CSQLite"]),
-    .testTarget(name: "GymemoCoreTests", dependencies: ["GymemoCore"]),
-    .testTarget(name: "GymemoKitTests", dependencies: ["GymemoKit"]),
+    .target(
+      name: "GymemoTestSupport", dependencies: ["GymemoCore"], path: "Tests/GymemoTestSupport"),
+    .testTarget(name: "GymemoCoreTests", dependencies: ["GymemoCore", "GymemoTestSupport"]),
+    .testTarget(name: "GymemoKitTests", dependencies: ["GymemoKit", "GymemoTestSupport"]),
   ],
   swiftLanguageModes: [.v6]
 )

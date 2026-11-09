@@ -1,42 +1,11 @@
-import Foundation
 import GymemoCore
 import Testing
-
-func uuid(_ number: UInt32) -> UUID {
-  let bytes = withUnsafeBytes(of: number.bigEndian, Array.init)
-  return UUID(
-    uuid: (
-      0x67, 0x79, 0x6D, 0x65, 0x6D, 0x6F, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00,
-      bytes[0], bytes[1], bytes[2], bytes[3]
-    ))
-}
-
-func exerciseID(_ number: UInt32) -> ExerciseID { ExerciseID(uuid(number)) }
-
-func setID(_ number: UInt32) -> SetID { SetID(uuid(number)) }
 
 func day(_ iso: String) throws -> LocalDay { try #require(LocalDay(iso: iso)) }
 
 func kilograms(_ text: String) throws -> Weight { try Weight.parse(text).get() }
 
 func reps(_ count: Int) throws -> Reps { try #require(Reps(count)) }
-
-/// SplitMix64, so a seed names one reproducible sequence.
-struct SeededGenerator: RandomNumberGenerator {
-  var state: UInt64
-
-  init(seed: UInt64) {
-    state = seed
-  }
-
-  mutating func next() -> UInt64 {
-    state &+= 0x9E37_79B9_7F4A_7C15
-    var mixed = state
-    mixed = (mixed ^ (mixed >> 30)) &* 0xBF58_476D_1CE4_E5B9
-    mixed = (mixed ^ (mixed >> 27)) &* 0x94D0_49BB_1331_11EB
-    return mixed ^ (mixed >> 31)
-  }
-}
 
 extension TrainingLog {
   /// The log after every command, or the first refusal as a thrown error.

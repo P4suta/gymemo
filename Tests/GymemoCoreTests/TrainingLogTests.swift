@@ -1,5 +1,6 @@
 import Foundation
 import GymemoCore
+import GymemoTestSupport
 import Testing
 
 @Suite struct TrainingLogCommandTests {
@@ -166,33 +167,6 @@ import Testing
 }
 
 @Suite struct TrainingLogPropertyTests {
-  private static let names = ["ベンチプレス", "スクワット", "デッドリフト", "懸垂", "", " ", "ベンチ\nプレス"]
-
-  private static func command(
-    for log: TrainingLog, using generator: inout SeededGenerator
-  ) -> Command {
-    let exercise = ExerciseID(uuid(UInt32.random(in: 1...6, using: &generator)))
-    let set = SetID(uuid(UInt32.random(in: 1...40, using: &generator)))
-    let name = names[Int.random(in: 0..<names.count, using: &generator)]
-    let part = BodyPart.allCases[Int.random(in: 0..<BodyPart.allCases.count, using: &generator)]
-    let day =
-      LocalDay.earliest.adding(days: Int.random(in: 46_000...46_005, using: &generator))
-      ?? .earliest
-    let weight = Weight(hundredths: Int.random(in: 0...3, using: &generator) * 2500) ?? .bodyweight
-    let count = Reps(Int.random(in: 1...12, using: &generator)) ?? Reps.one
-    switch Int.random(in: 0..<10, using: &generator) {
-    case 0: return .addExercise(id: exercise, name: name, bodyPart: part)
-    case 1: return .editExercise(id: exercise, name: name, bodyPart: part)
-    case 2: return .setExerciseArchived(id: exercise, isArchived: Bool.random(using: &generator))
-    case 3: return .deleteExercise(id: exercise)
-    case 4, 5, 6:
-      return .logSet(id: set, exerciseID: exercise, day: day, weight: weight, reps: count)
-    case 7: return .editSet(id: set, weight: weight, reps: count)
-    case 8: return .deleteSet(id: set)
-    default: return .writeMemo(day: day, text: name)
-    }
-  }
-
   @Test(arguments: [1, 2, 3, 4, 5, 6, 7, 8] as [UInt64])
   func everyCommandSequenceKeepsTheLogWholeAndItsChangesComplete(seed: UInt64) {
     var generator = SeededGenerator(seed: seed)
@@ -200,7 +174,7 @@ import Testing
     var rows = RowModel()
     var accepted = 0
     for step in 0..<600 {
-      let command = Self.command(for: log, using: &generator)
+      let command = RandomCommand.next(using: &generator)
       guard case .success(let transition) = log.apply(command) else { continue }
       accepted += 1
       log = transition.log

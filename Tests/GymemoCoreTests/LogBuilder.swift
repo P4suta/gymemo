@@ -1,4 +1,5 @@
 import GymemoCore
+import GymemoTestSupport
 import Testing
 
 /// Builds a log from short literal rows, numbering the sets in logging order from 1.

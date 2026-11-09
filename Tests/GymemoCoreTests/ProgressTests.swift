@@ -1,4 +1,5 @@
 import GymemoCore
+import GymemoTestSupport
 import Testing
 
 @Suite struct ProgressTests {
