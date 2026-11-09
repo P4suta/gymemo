@@ -41,6 +41,10 @@ check: lint gates test build
 ui-test *args: generate
     cargo run --locked -p xtask -- ui-test "$@"
 
+# Exports the screenshots that the latest UI test run kept.
+screenshots:
+    cargo run --locked -p xtask -- screenshots
+
 # Runs the package tests under the address and thread sanitizers.
 sanitize:
     swift test --sanitize=address

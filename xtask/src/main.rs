@@ -10,20 +10,59 @@ mod simulator;
 mod swift_source;
 
 use failure::{Failure, Result, ensure};
+use simulator::Appearance;
 use std::{env, path::Path, process::ExitCode};
 
 const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
   gates                             Check the Swift sources for authored colors, effects in the core, console output, networking, and required reason APIs
-  ui-test [XCODEBUILD_ARGUMENT]...  Run the UI tests on the dedicated simulator
+  ui-test [--only light|dark] [XCODEBUILD_ARGUMENT]...
+                                    Run the UI tests on the dedicated simulator, in the light appearance and then in the dark one
+  screenshots                       Export the screenshots of the latest UI test run into a new directory
   help                              Print this message";
 
 #[derive(Debug, PartialEq, Eq)]
 enum Task {
     Gates,
-    UiTest(Vec<String>),
+    UiTest {
+        only: Option<Appearance>,
+        arguments: Vec<String>,
+    },
+    Screenshots,
     Help,
+}
+
+/// Reads the optional `--only APPEARANCE` and leaves the rest for `xcodebuild`.
+fn ui_test(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
+    let mut rest = Vec::new();
+    let mut only = None;
+    while let Some(argument) = arguments.next() {
+        if argument != "--only" {
+            rest.push(argument);
+            continue;
+        }
+        let name = arguments.next().unwrap_or_default();
+        only = Some(Appearance::parse(&name).ok_or_else(|| {
+            Failure::new(format!(
+                "--only takes light or dark, and it received `{name}`\n\n{USAGE}"
+            ))
+        })?);
+    }
+    Ok(Task::UiTest {
+        only,
+        arguments: rest,
+    })
+}
+
+/// `task` when `command` received no further argument.
+fn alone(command: &str, task: Task, mut arguments: impl Iterator<Item = String>) -> Result<Task> {
+    match arguments.next() {
+        None => Ok(task),
+        Some(extra) => Err(Failure::new(format!(
+            "{command} takes no argument, and it received {extra}\n\n{USAGE}"
+        ))),
+    }
 }
 
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
@@ -31,13 +70,9 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         return Err(Failure::new(USAGE));
     };
     match command.as_str() {
-        "gates" => match arguments.next() {
-            None => Ok(Task::Gates),
-            Some(extra) => Err(Failure::new(format!(
-                "gates takes no argument, and it received {extra}\n\n{USAGE}"
-            ))),
-        },
-        "ui-test" => Ok(Task::UiTest(arguments.collect())),
+        "gates" => alone("gates", Task::Gates, arguments),
+        "screenshots" => alone("screenshots", Task::Screenshots, arguments),
+        "ui-test" => ui_test(arguments),
         "help" | "--help" | "-h" => Ok(Task::Help),
         unknown => Err(Failure::new(format!(
             "Unknown command {unknown}\n\n{USAGE}"
@@ -77,7 +112,8 @@ fn main() -> ExitCode {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let outcome = parse(env::args().skip(1)).and_then(|task| match task {
         Task::Gates => gates(&root),
-        Task::UiTest(arguments) => simulator::ui_test(&root, &arguments),
+        Task::UiTest { only, arguments } => simulator::ui_test(&root, only, &arguments),
+        Task::Screenshots => simulator::screenshots(&root).map(|_| ()),
         Task::Help => {
             println!("{USAGE}");
             Ok(())
@@ -103,12 +139,24 @@ mod tests {
     #[test]
     fn each_command_parses_and_anything_else_is_refused() {
         assert_eq!(task(&["gates"]), Ok(Task::Gates));
+        assert_eq!(task(&["screenshots"]), Ok(Task::Screenshots));
+        assert!(task(&["screenshots", "extra"]).is_err());
         assert_eq!(
             task(&["ui-test", "-only-testing:gymemoUITests/LogTests"]),
-            Ok(Task::UiTest(vec![
-                "-only-testing:gymemoUITests/LogTests".to_owned()
-            ]))
+            Ok(Task::UiTest {
+                only: None,
+                arguments: vec!["-only-testing:gymemoUITests/LogTests".to_owned()]
+            })
         );
+        assert_eq!(
+            task(&["ui-test", "--only", "dark"]),
+            Ok(Task::UiTest {
+                only: Some(Appearance::Dark),
+                arguments: vec![]
+            })
+        );
+        assert!(task(&["ui-test", "--only", "sepia"]).is_err());
+        assert!(task(&["ui-test", "--only"]).is_err());
         assert_eq!(task(&["--help"]), Ok(Task::Help));
         assert!(task(&[]).is_err());
         assert!(task(&["gates", "extra"]).is_err());
