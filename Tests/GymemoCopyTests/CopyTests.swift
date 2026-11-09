@@ -254,6 +254,44 @@ private func placeholders(_ format: String) -> [String] {
     #expect(copy.problem(backup: .invalidSet(index: 4)).contains("5"))
   }
 
+  @Test func countsTheUnreadableRowOfABackupFromOne() throws {
+    let english = try copy("en", locale: "en_US")
+    let ending = " in the backup can't be read. The file may be damaged."
+    #expect(english.problem(backup: .invalidExercise(index: 0)) == "Exercise 1" + ending)
+    #expect(english.problem(backup: .invalidExercise(index: 11)) == "Exercise 12" + ending)
+    #expect(english.problem(backup: .invalidSet(index: 0)) == "Set 1" + ending)
+    #expect(english.problem(backup: .invalidSet(index: 11)) == "Set 12" + ending)
+    #expect(english.problem(backup: .invalidMemo(index: 0)) == "Note 1" + ending)
+    #expect(english.problem(backup: .invalidMemo(index: 11)) == "Note 12" + ending)
+  }
+
+  @Test func callsABackupNewerOnlyAboveTheSupportedVersion() throws {
+    let english = try copy("en", locale: "en_US")
+    let newer = "The backup comes from a newer version of the app. Update the app, then import it."
+    let unsupported =
+      "The backup has a format that the app can't read. Choose a JSON file that gymemo exported."
+    #expect(english.problem(backup: .unsupportedVersion(Backup.formatVersion + 1)) == newer)
+    #expect(english.problem(backup: .unsupportedVersion(.max)) == newer)
+    #expect(english.problem(backup: .unsupportedVersion(Backup.formatVersion - 1)) == unsupported)
+    #expect(english.problem(backup: .unsupportedVersion(.min)) == unsupported)
+    // `Backup.read` accepts the supported number, so only a refusal built by hand carries it.
+    // The app already reads that number, so the sentence must not ask for an update.
+    #expect(english.problem(backup: .unsupportedVersion(Backup.formatVersion)) == unsupported)
+  }
+
+  @Test func namesWhyAFileIsNoReadableBackup() throws {
+    let english = try copy("en", locale: "en_US")
+    #expect(
+      english.problem(backup: .tooLarge)
+        == "The file is too large. Choose a backup that gymemo exported.")
+    #expect(
+      english.problem(backup: .notABackup)
+        == "The file isn't a gymemo backup. Choose a JSON file that gymemo exported.")
+    #expect(
+      english.problem(backup: .integrity(.duplicateSetID))
+        == "The backup's contents don't fit together. The file may be damaged.")
+  }
+
   @Test func writesTheRemainingSentences() throws {
     let english = try copy("en", locale: "en_US")
     let day = try #require(LocalDay(iso: "2026-11-09"))
