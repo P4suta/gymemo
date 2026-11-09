@@ -55,6 +55,19 @@ import Testing
     #expect(Weight.bodyweight.isBodyweight)
     #expect(Weight(hundredths: 1)?.isBodyweight == false)
   }
+
+  @Test(arguments: [
+    (0, 0), (0, 1), (5999, 6000), (6000, 6000), (6000, 5999), (99_998, 99_999),
+    (99_999, 99_999), (99_999, 0),
+  ])
+  func comparesLikeItsHundredths(left: Int, right: Int) throws {
+    let first = try #require(Weight(hundredths: left))
+    let second = try #require(Weight(hundredths: right))
+    #expect((first < second) == (left < right))
+    #expect((first <= second) == (left <= right))
+    #expect((first > second) == (left > right))
+    #expect((first >= second) == (left >= right))
+  }
 }
 
 @Suite struct RepsTests {
@@ -78,5 +91,15 @@ import Testing
   ])
   func refusesOtherText(text: String, refusal: RepsRefusal) {
     #expect(Reps.parse(text) == .failure(refusal))
+  }
+
+  @Test(arguments: [(1, 1), (1, 2), (8, 8), (9, 8), (998, 999), (999, 999), (999, 1)])
+  func comparesLikeItsCount(left: Int, right: Int) throws {
+    let first = try #require(Reps(left))
+    let second = try #require(Reps(right))
+    #expect((first < second) == (left < right))
+    #expect((first <= second) == (left <= right))
+    #expect((first > second) == (left > right))
+    #expect((first >= second) == (left >= right))
   }
 }

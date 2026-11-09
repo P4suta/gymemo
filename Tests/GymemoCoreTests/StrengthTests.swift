@@ -39,6 +39,40 @@ import Testing
   }
 }
 
+@Suite struct ScoreTests {
+  private func estimated(_ weight: String, _ count: Int) throws -> Score {
+    let estimate = OneRepMax.estimate(weight: try kilograms(weight), reps: try reps(count))
+    return .oneRepMax(try #require(estimate))
+  }
+
+  @Test func beatsOnlyALowerScoreOfItsKind() throws {
+    let fewer = Score.reps(try reps(8))
+    let more = Score.reps(try reps(9))
+    #expect(more.beats(fewer))
+    #expect(!fewer.beats(more))
+    #expect(!fewer.beats(fewer))
+    let lower = try estimated("60", 10)
+    let higher = try estimated("62.5", 10)
+    #expect(higher.beats(lower))
+    #expect(!lower.beats(higher))
+    #expect(!lower.beats(lower))
+    let sameFromOneRepetition = try estimated("80", 1)
+    #expect(!lower.beats(sameFromOneRepetition))
+    #expect(!sameFromOneRepetition.beats(lower))
+  }
+
+  @Test func neverBeatsAScoreOfTheOtherKind() throws {
+    let counts = [Score.reps(.one), Score.reps(try reps(Reps.maximumCount))]
+    let loads = [try estimated("0.01", 1), try estimated("999.99", Reps.maximumCount)]
+    for count in counts {
+      for load in loads {
+        #expect(!count.beats(load))
+        #expect(!load.beats(count))
+      }
+    }
+  }
+}
+
 @Suite struct PersonalBestTests {
   @Test func marksSetsThatBeatEveryEarlierSetOfTheExercise() throws {
     var builder = LogBuilder()
@@ -89,5 +123,22 @@ import Testing
     let marked = builder.log.personalBests(on: try day("2026-11-05"))
     #expect(marked == [more, weighted])
     #expect(!marked.contains(fewer) && !marked.contains(light))
+  }
+
+  @Test func marksNoSetThatOnlyEqualsTheBestBeforeIt() throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, "懸垂", .back)
+    try builder.set(1, "2026-11-02", "0", 8)
+    try builder.set(1, "2026-11-02", "10", 3)
+    let sameCount = try builder.set(1, "2026-11-05", "0", 8)
+    let more = try builder.set(1, "2026-11-05", "0", 9)
+    let sameCountAgain = try builder.set(1, "2026-11-05", "0", 9)
+    let sameEstimate = try builder.set(1, "2026-11-05", "10", 3)
+    let heavier = try builder.set(1, "2026-11-05", "10", 4)
+    let sameEstimateAgain = try builder.set(1, "2026-11-05", "10", 4)
+    let marked = builder.log.personalBests(on: try day("2026-11-05"))
+    #expect(marked == [more, heavier])
+    #expect(!marked.contains(sameCount) && !marked.contains(sameCountAgain))
+    #expect(!marked.contains(sameEstimate) && !marked.contains(sameEstimateAgain))
   }
 }

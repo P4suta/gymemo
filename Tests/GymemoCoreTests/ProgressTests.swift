@@ -19,6 +19,16 @@ import Testing
     return builder
   }
 
+  /// The heaviest set of an exercise whose sets are each a day, a weight, and a repetition count.
+  private func heaviest(_ rows: (String, String, Int)...) throws -> SetID? {
+    var builder = LogBuilder()
+    try builder.exercise(1, "ベンチプレス", .chest)
+    for (day, weight, count) in rows {
+      try builder.set(1, day, weight, count)
+    }
+    return try #require(builder.log.progress(of: exerciseID(1))).heaviest?.id
+  }
+
   @Test func plotsTheBestEstimateOfEachDay() throws {
     let progress = try #require(try sample().log.progress(of: exerciseID(1)))
     #expect(progress.kind == .oneRepMax)
@@ -36,6 +46,38 @@ import Testing
     try builder.set(1, "2026-11-12", "65", 8)
     let progress = try #require(builder.log.progress(of: exerciseID(1)))
     #expect(progress.best?.day.iso == "2026-11-05")
+  }
+
+  @Test func ordersPointsAndSessionsByDayWhateverTheOrderOfLogging() throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, "ベンチプレス", .chest)
+    try builder.set(1, "2026-11-09", "60", 10)
+    try builder.set(1, "2026-11-02", "60", 10)
+    try builder.set(1, "2026-11-05", "60", 10)
+    let progress = try #require(builder.log.progress(of: exerciseID(1)))
+    #expect(progress.points.map(\.day.iso) == ["2026-11-02", "2026-11-05", "2026-11-09"])
+    #expect(progress.sessions.map(\.day.iso) == ["2026-11-09", "2026-11-05", "2026-11-02"])
+    #expect(progress.best?.day.iso == "2026-11-02")
+  }
+
+  @Test func ranksTheHeaviestSetByWeightBeforeRepetitions() throws {
+    #expect(try heaviest(("2026-11-05", "70", 3), ("2026-11-09", "60", 10)) == setID(1))
+    #expect(try heaviest(("2026-11-05", "60", 10), ("2026-11-09", "70", 3)) == setID(2))
+    #expect(try heaviest(("2026-11-09", "70", 3), ("2026-11-05", "60", 10)) == setID(1))
+    #expect(try heaviest(("2026-11-09", "60", 10), ("2026-11-05", "70", 3)) == setID(2))
+  }
+
+  @Test func breaksATieOnTheHeaviestWeightByRepetitions() throws {
+    #expect(try heaviest(("2026-11-05", "60", 10), ("2026-11-09", "60", 8)) == setID(1))
+    #expect(try heaviest(("2026-11-05", "60", 8), ("2026-11-09", "60", 10)) == setID(2))
+    #expect(try heaviest(("2026-11-09", "60", 10), ("2026-11-05", "60", 8)) == setID(1))
+    #expect(try heaviest(("2026-11-09", "60", 8), ("2026-11-05", "60", 10)) == setID(2))
+  }
+
+  @Test func breaksATieOnWeightAndRepetitionsByTheEarliestDayThenTheFirstSet() throws {
+    #expect(try heaviest(("2026-11-05", "60", 10), ("2026-11-09", "60", 10)) == setID(1))
+    #expect(try heaviest(("2026-11-09", "60", 10), ("2026-11-05", "60", 10)) == setID(2))
+    #expect(try heaviest(("2026-11-09", "60", 10), ("2026-11-09", "60", 10)) == setID(1))
   }
 
   @Test func plotsRepetitionsForAnExerciseWithoutAddedWeight() throws {
@@ -80,6 +122,16 @@ import Testing
     #expect(summaries.map(\.best?.score.text) == ["10", "82.3"])
     try builder.apply(.setExerciseArchived(id: exerciseID(2), isArchived: true))
     #expect(builder.log.exerciseSummaries.map(\.exercise.id) == [exerciseID(2), exerciseID(1)])
+  }
+
+  @Test func datesASummaryByTheLatestDayWhateverTheOrderOfLogging() throws {
+    var builder = try sample()
+    try builder.set(2, "2026-11-01", "0", 9)
+    try builder.set(1, "2026-11-12", "60", 10)
+    try builder.set(1, "2026-11-03", "60", 10)
+    let summaries = builder.log.exerciseSummaries
+    #expect(summaries.map(\.exercise.id) == [exerciseID(1), exerciseID(2)])
+    #expect(summaries.map(\.lastDay.iso) == ["2026-11-12", "2026-11-09"])
   }
 }
 

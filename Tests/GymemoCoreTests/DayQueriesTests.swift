@@ -135,6 +135,30 @@ import Testing
     #expect(builder.log.recentExercises(limit: 5).map(\.id) == [exerciseID(1), exerciseID(2)])
   }
 
+  @Test func ranksExercisesOfTheSameLatestDayByTheirLastSets() throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, "ベンチプレス", .chest)
+    try builder.exercise(2, "スクワット", .legs)
+    try builder.set(1, "2026-11-09", "60", 10)
+    try builder.set(2, "2026-11-09", "100", 5)
+    try builder.set(1, "2026-11-09", "60", 8)
+    #expect(builder.log.recentExercises(limit: 5).map(\.id) == [exerciseID(1), exerciseID(2)])
+    try builder.set(2, "2026-11-09", "100", 4)
+    #expect(builder.log.recentExercises(limit: 5).map(\.id) == [exerciseID(2), exerciseID(1)])
+  }
+
+  @Test func ranksALaterDayAheadOfASetLoggedAfterwardsForAnEarlierDay() throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, "ベンチプレス", .chest)
+    try builder.exercise(2, "スクワット", .legs)
+    try builder.set(1, "2026-11-09", "60", 10)
+    try builder.set(2, "2026-11-05", "100", 5)
+    #expect(builder.log.recentExercises(limit: 5).map(\.id) == [exerciseID(1), exerciseID(2)])
+    try builder.set(2, "2026-11-09", "100", 5)
+    try builder.set(1, "2026-11-07", "60", 10)
+    #expect(builder.log.recentExercises(limit: 5).map(\.id) == [exerciseID(2), exerciseID(1)])
+  }
+
   @Test func groupsSelectableExercisesByBodyPart() throws {
     var builder = try sample()
     try builder.exercise(4, "ラットプルダウン", .back)

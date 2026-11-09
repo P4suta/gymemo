@@ -41,6 +41,81 @@ import Testing
     #expect(Backup.read(Backup.write(.empty)) == .success(.empty))
   }
 
+  @Test func writesExercisesAndSetsInTheLogsOrderAndMemosByDay() throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, "ベンチプレス", .chest)
+    try builder.exercise(2, "懸垂", .back)
+    try builder.set(2, "2026-11-09", "0", 12)
+    try builder.set(1, "2026-11-05", "62.5", 8)
+    try builder.apply(.setExerciseArchived(id: exerciseID(2), isArchived: true))
+    try builder.apply(.writeMemo(day: try day("2026-11-09"), text: "二日目"))
+    try builder.apply(.writeMemo(day: try day("2026-11-05"), text: "一行目\n\t二行目 \"quote\" \\"))
+    try builder.apply(.writeMemo(day: try day("2026-11-07"), text: "休み"))
+    #expect(
+      String(data: Backup.write(builder.log), encoding: .utf8)
+        == #"""
+        {"format":"gymemo-backup","formatVersion":1,
+        "exercises":[
+        {"id":"67796D65-6D6F-4000-8000-000000000001","name":"ベンチプレス","bodyPart":"chest","archived":false},
+        {"id":"67796D65-6D6F-4000-8000-000000000002","name":"懸垂","bodyPart":"back","archived":true}
+        ],
+        "sets":[
+        {"id":"67796D65-6D6F-4000-8000-000000000001","exercise":"67796D65-6D6F-4000-8000-000000000002","day":"2026-11-09","weightKg":"0","reps":12},
+        {"id":"67796D65-6D6F-4000-8000-000000000002","exercise":"67796D65-6D6F-4000-8000-000000000001","day":"2026-11-05","weightKg":"62.5","reps":8}
+        ],
+        "memos":[
+        {"day":"2026-11-05","text":"一行目\n\t二行目 \"quote\" \\"},
+        {"day":"2026-11-07","text":"休み"},
+        {"day":"2026-11-09","text":"二日目"}
+        ]}
+
+        """#)
+    #expect(
+      String(data: Backup.write(.empty), encoding: .utf8)
+        == """
+        {"format":"gymemo-backup","formatVersion":1,
+        "exercises":[],
+        "sets":[],
+        "memos":[]}
+
+        """)
+  }
+
+  @Test func readsBackEachControlCharacterThatTheLogAccepts() throws {
+    let monday = try day("2026-11-09")
+    let controls = (Array(0x00...0x1F) + Array(0x7F...0x9F) as [UInt8]).map(Unicode.Scalar.init)
+    var accepted: [Unicode.Scalar] = []
+    for control in controls {
+      let text = "a\(control)b"
+      let commands: [Command] = [
+        .addExercise(id: exerciseID(1), name: text, bodyPart: .other),
+        .writeMemo(day: monday, text: text),
+      ]
+      for command in commands {
+        guard case .success(let transition) = TrainingLog.empty.apply(command) else { continue }
+        accepted.append(control)
+        #expect(Backup.read(Backup.write(transition.log)) == .success(transition.log))
+      }
+    }
+    // A memo keeps the tab and the line feed, and it turns a carriage return into a line feed.
+    #expect(accepted == ["\t", "\n", "\r"])
+  }
+
+  @Test func readsADocumentOfTheLargestSizeAndRefusesOneByteMore() throws {
+    let log = try sample()
+    let written = Backup.write(log)
+    try #require(written.count <= Backup.maximumBytes)
+    // Spaces after the opening brace are JSON whitespace, so the padded document holds the same log.
+    var padded = Data(capacity: Backup.maximumBytes + 1)
+    padded.append(written.prefix(1))
+    padded.append(Data(repeating: 0x20, count: Backup.maximumBytes - written.count))
+    padded.append(written.dropFirst())
+    #expect(padded.count == Backup.maximumBytes)
+    #expect(Backup.read(padded) == .success(log))
+    padded.insert(0x20, at: 1)
+    #expect(Backup.read(padded) == .failure(.tooLarge))
+  }
+
   @Test func readsAHandwrittenDocumentAndIgnoresUnknownKeys() throws {
     let data = document(
       exercises: bench.replacingOccurrences(of: "}", with: #","color":"red"}"#), sets: benchSet,
@@ -191,6 +266,20 @@ import Testing
     let data = CSVExport.write(builder.log, labels: labels)
     let text = try #require(String(data: data.dropFirst(3), encoding: .utf8))
     #expect(text.contains("2026-11-09,\"プレス, \"\"重\"\"\",legs,1,100,5\r\n"))
+  }
+
+  @Test func quotesAFieldForEachCharacterThatWouldSplitIt() throws {
+    let splitting = CSVLabels(
+      day: "a,b", exercise: "c\"d", bodyPart: "e\nf", set: "g\rh", weight: "i\r\nj", reps: "k",
+      bodyParts: [.legs: "脚\n下半身"])
+    var builder = LogBuilder()
+    try builder.exercise(1, "5\"プレート", .legs)
+    try builder.set(1, "2026-11-09", "100", 5)
+    let data = CSVExport.write(builder.log, labels: splitting)
+    #expect(
+      String(data: data.dropFirst(3), encoding: .utf8)
+        == "\"a,b\",\"c\"\"d\",\"e\nf\",\"g\rh\",\"i\r\nj\",k\r\n"
+        + "2026-11-09,\"5\"\"プレート\",\"脚\n下半身\",1,100,5\r\n")
   }
 
   @Test func writesOnlyTheHeaderForAnEmptyLog() throws {

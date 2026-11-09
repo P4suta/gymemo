@@ -24,6 +24,15 @@ import Testing
     #expect(Reps.stepped(from: "x", by: 1) == nil)
   }
 
+  @Test func aStepCountOfZeroKeepsTheValueAndLeavesAnEmptyFieldEmpty() {
+    #expect(Weight.stepped(from: "60", by: 0)?.hundredths == 6000)
+    #expect(Weight.stepped(from: "999.99", by: 0)?.hundredths == Weight.maximumHundredths)
+    #expect(Weight.stepped(from: "", by: 0) == .bodyweight)
+    #expect(Reps.stepped(from: "8", by: 0)?.count == 8)
+    #expect(Reps.stepped(from: "1", by: 0) == .one)
+    #expect(Reps.stepped(from: "", by: 0) == nil)
+  }
+
   @Test func aStepCountOfAnySizeEndsAtTheEdgeOfTheRange() {
     #expect(Weight.stepped(from: "60", by: .max)?.hundredths == Weight.maximumHundredths)
     #expect(Weight.stepped(from: "60", by: .min) == .bodyweight)
