@@ -9,6 +9,8 @@ mod purity;
 mod required_reasons;
 mod simulator;
 mod swift_source;
+#[cfg(test)]
+mod system_design;
 
 use failure::{Failure, Result, ensure};
 use simulator::Appearance;
