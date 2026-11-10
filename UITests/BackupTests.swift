@@ -41,9 +41,7 @@ final class BackupTests: XCTestCase {
     app.open(.settings)
     app.buttons["import-backup"].required("the import button").tap()
     // The picker opens a file from a tap on its cell, and a tap on the name alone leaves the picker open.
-    let file = app.cells.matching(
-      NSPredicate(format: "identifier BEGINSWITH %@", "gymemo-backup-2026-11-09")
-    ).firstMatch
+    let file = exportedBackup(in: app)
     if !file.waitForExistence(timeout: 15) {
       let attachment = XCTAttachment(string: app.debugDescription)
       attachment.name = "import-picker-hierarchy"
@@ -66,7 +64,7 @@ final class BackupTests: XCTestCase {
 
     app.open(.settings)
     app.buttons["import-backup"].required("the import button").tap()
-    file.required("the exported backup", timeout: 15).tap()
+    exportedBackup(in: app).required("the exported backup", timeout: 15).tap()
     app.alerts["Replace the current records?"].required("the confirmation").buttons["Replace"]
       .tap()
     XCTAssertEqual(
@@ -74,5 +72,24 @@ final class BackupTests: XCTestCase {
       "The backup was imported.")
     app.open(.log)
     bench.set(2).requiredGone("the set that the backup doesn't hold")
+  }
+
+  /// The cell of the exported backup in the import picker, reached by the same way on every run.
+  /// The picker opens where its last use ended, which may be an empty Recents tab.
+  /// The test goes to the Browse tab and into the local folder of the device before it looks for the file.
+  @MainActor
+  private func exportedBackup(in app: XCUIApplication) -> XCUIElement {
+    let file = app.cells.matching(
+      NSPredicate(format: "identifier BEGINSWITH %@", "gymemo-backup-2026-11-09")
+    ).firstMatch
+    let browse = app.buttons["Browse"].firstMatch
+    if browse.waitForExistence(timeout: 15) {
+      browse.tap()
+      if !file.waitForExistence(timeout: 3) {
+        let local = app.staticTexts["On My iPhone"].firstMatch
+        if local.waitForExistence(timeout: 5) { local.tap() }
+      }
+    }
+    return file
   }
 }
