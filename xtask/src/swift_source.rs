@@ -21,7 +21,8 @@
 //! Swift parses each of those files without an error.
 //! In each of them the lexer reads the regular expression literals that `swiftc -frontend -dump-parse -swift-version 6` dumps and no other.
 //! It also shows as code the first character of each declaration, statement, and other explicit node to which the dump gives a source range.
-//! `oracle corpus` in `target/oracle/tool` of the scratch directory made that comparison.
+//! A scratch tool made that comparison on 2026-11-10.
+//! It fed each file to `swiftc -frontend -dump-parse -swift-version 6` and compared the dump with the marks.
 //!
 //! Two known exceptions remain in sources that Swift accepts.
 //! The first is a constant named `yield` right before a slash, as in `let yield = 6; let q = yield/2; let d = Date()`.
