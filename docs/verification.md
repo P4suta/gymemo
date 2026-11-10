@@ -57,10 +57,11 @@ A day is its number of days since 1970, and a Swift test pins the rendering to t
 The SQLite store, the backup format, and the CSV export have no model, and the package tests cover them.
 A change that the vectors can't tell apart, such as a relaxed `Admissible` or a `<` turned into `≤` in the memo days, fails the hand-written proofs instead.
 
-The Kani harnesses cover the lexer of `xtask/src/swift_source.rs` on every input up to three characters over the characters with a rule of their own in the lexer.
-A test enumerates every input up to five characters over the same alphabet plus a stand-in for every other character.
-A second test holds each character class to its stand-in.
-The enumeration covers no keyword, and a table test holds the reading after each keyword instead.
+Four Kani harnesses cover the lexer of `xtask/src/swift_source.rs` on every source of up to three characters, where each character is any Unicode scalar value.
+A test runs every source of up to four characters over 31 characters, one for each set of characters that the lexer reads alike.
+Another test runs every source of up to five characters over the 17 characters that open and close the constructs of the lexer.
+A third test holds each character outside the 31 to its stand-in on sources of up to three characters.
+No source over those characters spells a keyword, and a test with expected values from swiftc holds the reading after each keyword instead.
 
 ## Bounded runs
 
