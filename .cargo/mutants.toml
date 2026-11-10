@@ -1,0 +1,8 @@
+# The time limits of each mutant's test run, fixed so that a slow host and a fast one report the same result.
+timeout_multiplier = 3.0
+minimum_test_timeout = 20.0
+
+# Exempt as no-decision: the `proofs` module of `xtask/src/swift_source.rs` holds only the Kani harnesses, which compile under `cfg(kani)` alone and decide nothing in the tool.
+# Evidence: `cargo test` compiles no line of that module, so no test can tell a mutant there from the source, and `cargo kani --package xtask` runs each harness itself.
+# Reconsider when a harness moves to code that the tests compile, or when cargo-mutants skips `cfg(kani)` on its own.
+exclude_re = ['^xtask/src/swift_source\.rs:\d+:\d+: replace proofs::']
