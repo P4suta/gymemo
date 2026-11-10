@@ -1,9 +1,14 @@
 //! Repository checks and simulator runs for gymemo.
 
+mod bounded;
+mod cargo_mutants;
 #[cfg(test)]
 mod contrast;
 mod failure;
 mod host;
+mod json;
+mod kani;
+mod lean;
 mod literals;
 mod logging;
 mod offline;
@@ -12,9 +17,11 @@ mod required_reasons;
 #[cfg(test)]
 mod scratch;
 mod simulator;
+mod swift_mutation;
 mod swift_source;
 mod system_design;
 
+use bounded::Toolset;
 use failure::{Failure, Result, ensure};
 use host::{Host, Local};
 use simulator::Appearance;
@@ -28,6 +35,11 @@ Commands:
                                     Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast
   screenshots                       Export the screenshots of the latest UI test run into a new directory
   app [LAUNCH_ARGUMENT]...          Build the app and open it on the dedicated simulator
+  proofs                            Build the Lean proofs, hold their theorems to the standard axioms, replay each module, and verify the Kani harnesses, each tool in a bounded container
+  mutate [SWIFT_MUTATION_TESTING_ARGUMENT]...
+                                    Mutate the package sources and fail on each change that the package tests miss
+  mutate-xtask [CARGO_MUTANTS_ARGUMENT]...
+                                    Mutate xtask in bounded containers and fail on each mutant that its tests miss
   help                              Print this message";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -39,6 +51,9 @@ enum Task {
     },
     Screenshots,
     App(Vec<String>),
+    Proofs,
+    Mutate(Vec<String>),
+    MutateXtask(Vec<String>),
     Help,
 }
 
@@ -74,6 +89,22 @@ fn alone(command: &str, task: Task, mut arguments: impl Iterator<Item = String>)
     }
 }
 
+/// The arguments that `command` passes on to its tool, unless one names an option among `owned`, which the command chooses itself.
+fn passed_on(
+    command: &str,
+    owned: &str,
+    refused: fn(&[String]) -> Option<&str>,
+    arguments: impl Iterator<Item = String>,
+) -> Result<Vec<String>> {
+    let arguments = arguments.collect::<Vec<_>>();
+    match refused(&arguments) {
+        None => Ok(arguments),
+        Some(argument) => Err(Failure::new(format!(
+            "{command} chooses {owned} itself, and it received {argument}\n\n{USAGE}"
+        ))),
+    }
+}
+
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
     let Some(command) = arguments.next() else {
         return Err(Failure::new(USAGE));
@@ -83,6 +114,21 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         "screenshots" => alone("screenshots", Task::Screenshots, arguments),
         "ui-test" => ui_test(arguments),
         "app" => Ok(Task::App(arguments.collect())),
+        "proofs" => alone("proofs", Task::Proofs, arguments),
+        "mutate" => passed_on(
+            "mutate",
+            "--output, --max-integrity-warnings, --plan, --shard, --exclude, --operator, --operator-tier, and --disable-mutator",
+            swift_mutation::refused,
+            arguments,
+        )
+        .map(Task::Mutate),
+        "mutate-xtask" => passed_on(
+            "mutate-xtask",
+            "--shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path",
+            cargo_mutants::refused,
+            arguments,
+        )
+        .map(Task::MutateXtask),
         "help" | "--help" | "-h" => Ok(Task::Help),
         unknown => Err(Failure::new(format!(
             "Unknown command {unknown}\n\n{USAGE}"
@@ -120,6 +166,25 @@ fn gates(host: &mut impl Host, root: &Path) -> Result<()> {
     })
 }
 
+/// Checks the Lean proofs and the Kani harnesses, each tool in a bounded container, and stops at the first step that fails or stays inconclusive.
+/// The checks of the sources run before any container starts.
+fn proofs(host: &mut impl Host, root: &Path) -> Result<()> {
+    lean::check_release(host, root)?;
+    let modules = lean::modules(host, root)?;
+    let declared = kani::declared(host, root)?;
+    let image = bounded::build(host, root, Toolset::Lean)?;
+    lean::build(host, root, &image)?;
+    let theorems = lean::axioms(host, root, &image)?;
+    lean::replay(host, root, &image, &modules)?;
+    let harnesses = kani::verify(host, root, &declared)?;
+    host.print(&format!(
+        "PASS proofs: {} modules built, {theorems} theorems held to the standard axioms, {} modules replayed, {harnesses} harnesses verified",
+        modules.len(),
+        modules.len()
+    ));
+    Ok(())
+}
+
 /// Runs `task` on the repository at `root`, where the commands reach programs, directories, and output streams through `host`.
 fn execute(task: Task, host: &mut impl Host, root: &Path) -> Result<()> {
     match task {
@@ -127,6 +192,9 @@ fn execute(task: Task, host: &mut impl Host, root: &Path) -> Result<()> {
         Task::UiTest { only, arguments } => simulator::ui_test(host, root, only, &arguments),
         Task::Screenshots => simulator::screenshots(host, root).map(|_| ()),
         Task::App(arguments) => simulator::app(host, root, &arguments),
+        Task::Proofs => proofs(host, root),
+        Task::Mutate(arguments) => swift_mutation::mutate(host, root, &arguments),
+        Task::MutateXtask(arguments) => cargo_mutants::mutate(host, root, &arguments),
         Task::Help => {
             host.print(USAGE);
             Ok(())
@@ -155,7 +223,7 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
     use crate::{
-        host::fake::{DEVICE, FakeHost, Fault},
+        host::fake::{DEVICE, Ending, FakeHost, Fault},
         scratch::Scratch,
     };
     use std::io;
@@ -540,6 +608,304 @@ mod tests {
         );
         assert!(host.transcript().is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn the_verification_commands_parse_with_the_arguments_that_they_pass_on() {
+        assert_eq!(task(&["proofs"]), Ok(Task::Proofs));
+        assert_eq!(task(&["mutate"]), Ok(Task::Mutate(vec![])));
+        let swift = [
+            "--sources-path",
+            "Sources/GymemoCopy",
+            "--concurrency",
+            "4",
+            "--no-cache",
+        ];
+        assert_eq!(
+            task(&[&["mutate"], &swift[..]].concat()),
+            Ok(Task::Mutate(texts(&swift)))
+        );
+        assert_eq!(task(&["mutate-xtask"]), Ok(Task::MutateXtask(vec![])));
+        let rust = ["--file", "xtask/src/failure.rs", "--", "--output", "-p"];
+        assert_eq!(
+            task(&[&["mutate-xtask"], &rust[..]].concat()),
+            Ok(Task::MutateXtask(texts(&rust)))
+        );
+    }
+
+    #[test]
+    fn a_verification_command_refuses_the_options_that_it_chooses_itself() {
+        assert_eq!(
+            task(&["proofs", "--fast"]),
+            refusal("proofs takes no argument, and it received --fast")
+        );
+        for owned in [
+            "--output",
+            "--output=report.json",
+            "--max-integrity-warnings",
+            "--max-integrity-warnings=3",
+            "--plan",
+            "--shard=0/2",
+            "--exclude",
+            "--operator",
+            "--operator-tier=conservative",
+            "--disable-mutator",
+        ] {
+            assert_eq!(
+                task(&["mutate", "--concurrency", "4", owned]),
+                refusal(&format!(
+                    "mutate chooses --output, --max-integrity-warnings, --plan, --shard, --exclude, --operator, --operator-tier, and --disable-mutator itself, and it received {owned}"
+                )),
+                "{owned}"
+            );
+        }
+        for owned in [
+            "--shard",
+            "--output=x",
+            "-o",
+            "--list",
+            "--in-place",
+            "--package",
+            "-pxtask",
+            "--baseline",
+            "--baseline=skip",
+            "--jobs",
+            "-j4",
+            "--dir",
+            "-d",
+            "--manifest-path",
+        ] {
+            assert_eq!(
+                task(&["mutate-xtask", "--file", "a.rs", owned, "skip"]),
+                refusal(&format!(
+                    "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received {owned}"
+                )),
+                "{owned}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_proofs_hold_every_step_and_print_one_line_with_the_numbers() {
+        let root = Path::new("/repo");
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        assert_eq!(execute(Task::Proofs, &mut host, root), Ok(()));
+        assert_eq!(
+            host.output,
+            [
+                "PASS proofs: 3 modules built, 4 theorems held to the standard axioms, 3 modules replayed, 2 harnesses verified"
+            ]
+        );
+        assert_eq!(host.errors, Vec::<String>::new());
+        let commands = host
+            .transcript()
+            .iter()
+            .filter_map(|line| line.split_once("\"900s\" "))
+            .map(|(_, command)| command.replace('"', ""))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            commands,
+            [
+                "lake build --wfail",
+                "lake env lean Axioms.lean",
+                "lake env leanchecker --fresh Gymemo",
+                "lake env leanchecker --fresh Gymemo.Log",
+                "lake env leanchecker --fresh Gymemo.Strength",
+                "cargo kani list --format json",
+                "cargo kani --package xtask",
+            ]
+        );
+        let volumes = host
+            .transcript()
+            .iter()
+            .filter_map(|line| line.split_once("\"--volume\" "))
+            .filter_map(|(_, rest)| rest.split_once(' '))
+            .map(|(volume, _)| volume.replace('"', ""))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            volumes,
+            [
+                "/repo:/work",
+                "/repo:/work:ro",
+                "/repo:/work:ro",
+                "/repo:/work:ro",
+                "/repo:/work:ro",
+                "/repo:/work",
+                "/repo:/work",
+            ]
+        );
+        assert_eq!(
+            host.transcript()
+                .iter()
+                .filter(|line| line.starts_with("capture \"docker\" \"build\""))
+                .collect::<Vec<_>>(),
+            [
+                "capture \"docker\" \"build\" \"--quiet\" \"--tag\" \"gymemo-lean:proofs\" \"/repo/xtask/proofs/lean\"",
+                "capture \"docker\" \"build\" \"--quiet\" \"--tag\" \"gymemo-rust:proofs\" \"/repo/xtask/proofs/rust\""
+            ]
+        );
+        assert_eq!(host.containers(), 0);
+    }
+
+    #[test]
+    fn the_proofs_stop_at_the_first_step_that_fails_or_stays_inconclusive() {
+        let root = Path::new("/repo");
+        let mut host = lean::tests::repository();
+        host.file("/repo/xtask/src/main.rs", "fn main() {}\n");
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert_eq!(
+            host.errors,
+            ["xtask/src declares no Kani harness (#[kani::proof]), so Kani has nothing to verify"]
+        );
+        assert_eq!(host.output, Vec::<String>::new());
+        assert!(!host.transcript().iter().any(|line| line.contains("docker")));
+
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        host.file(
+            "/repo/xtask/src/json.rs",
+            "#[cfg_attr(kani, kani::proof)]\nfn hidden() {}\n",
+        );
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert_eq!(
+            host.errors,
+            [
+                "xtask/src/json.rs:1: names proof outside an attribute #[kani::proof] alone at the start of its line, so Kani may verify a harness that the check can't match"
+            ]
+        );
+        assert!(!host.transcript().iter().any(|line| line.contains("docker")));
+
+        let mut host = lean::tests::repository();
+        host.file(
+            "/repo/specs/lean/lean-toolchain",
+            "leanprover/lean4:v4.35.0\n",
+        );
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert!(!host.transcript().iter().any(|line| line.contains("docker")));
+
+        let mut host = lean::tests::repository();
+        host.file("/repo/specs/lean/Gymemo/Extra.lean", "");
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert!(!host.transcript().iter().any(|line| line.contains("docker")));
+
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        host.file("/repo/specs/lean/Gymemo/Strength.lean", lean::tests::FORGED);
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert_eq!(
+            host.errors,
+            [
+                "These lines declare code that runs whenever Lean imports the library, and such code runs inside the process that prints the axiom listing:\nspecs/lean/Gymemo/Strength.lean:7: initialize"
+            ]
+        );
+        assert!(!host.transcript().iter().any(|line| line.contains("docker")));
+
+        let mut host = lean::tests::repository();
+        host.file(
+            "/repo/specs/lean/Gymemo.lean",
+            "import Gymemo.Log\nimport Gymemo.Strength\ntheorem bogus : 1 = 2 := sorry\n",
+        );
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert!(!host.transcript().iter().any(|line| line.contains("docker")));
+
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        host.ends("\"lake\" \"build\"", Ending::Exit(124));
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 75);
+        assert_eq!(
+            host.errors,
+            [
+                "INCONCLUSIVE: `lake build --wfail` stopped at the time limit of 900 seconds with exit code 124"
+            ]
+        );
+        assert_eq!(host.output, Vec::<String>::new());
+        assert!(
+            !host
+                .transcript()
+                .iter()
+                .any(|line| line.contains("Axioms.lean"))
+        );
+        assert_eq!(host.containers(), 0);
+
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        host.prints(
+            "\"Axioms.lean\"",
+            "theorems 1\ntheorem Gymemo.stored axioms sorryAx\n",
+        );
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert!(
+            !host
+                .transcript()
+                .iter()
+                .any(|line| line.contains("leanchecker"))
+        );
+
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        host.ends("\"Gymemo.Strength\"", Ending::Exit(1));
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert!(!host.transcript().iter().any(|line| line.contains("kani")));
+    }
+
+    #[test]
+    fn the_proofs_replay_the_theorems_of_the_root_module_too() {
+        let root = Path::new("/repo");
+        let mut host = lean::tests::repository();
+        kani::tests::with_harnesses(&mut host);
+        host.prints(
+            "\"Axioms.lean\"",
+            &format!(
+                "theorems 5\ntheorem Gymemo.bogus axioms \n{}",
+                lean::tests::LISTING
+                    .split_once('\n')
+                    .map_or("", |(_, theorems)| theorems)
+            ),
+        );
+        host.ends("\"--fresh\" \"Gymemo\"", Ending::Exit(1));
+        assert_eq!(run(texts(&["proofs"]).into_iter(), &mut host, root), 1);
+        assert_eq!(
+            host.errors,
+            ["`lake env leanchecker --fresh Gymemo` failed with exit code 1 in its container"]
+        );
+        assert_eq!(host.output, Vec::<String>::new());
+        assert!(!host.transcript().iter().any(|line| line.contains("kani")));
+        assert_eq!(host.containers(), 0);
+    }
+
+    #[test]
+    fn each_mutation_command_reaches_its_run_with_its_arguments() {
+        let root = Path::new("/repo");
+        let mut host = FakeHost::new();
+        host.file(
+            "/repo/mise.toml",
+            "\"github:ericodx/swift-mutation-testing\" = \"1.6.4\"\n",
+        );
+        assert!(
+            execute(
+                Task::Mutate(texts(&["--sources-path", "Sources/GymemoCopy"])),
+                &mut host,
+                root
+            )
+            .is_err()
+        );
+        assert!(host.transcript().contains(
+            &"show cd \"/repo\" && \"swift-mutation-testing\" \"run\" \".\" \"--no-cache\" \"--max-integrity-warnings\" \"0\" \"--output\" \"/repo/target/mutation/report.json\" \"--sources-path\" \"Sources/GymemoCopy\"".to_owned()
+        ));
+        let mut host = FakeHost::new();
+        host.prints("\"--list\"", "xtask/src/failure.rs:1:1: replace\n");
+        assert!(
+            execute(
+                Task::MutateXtask(texts(&["--file", "xtask/src/failure.rs"])),
+                &mut host,
+                root
+            )
+            .is_err()
+        );
+        assert!(host.transcript().iter().any(|line| line.ends_with(
+            "\"cargo\" \"mutants\" \"--package\" \"xtask\" \"--shard\" \"0/1\" \"--output\" \"/work/target/mutants/run-1/shard-0\" \"--file\" \"xtask/src/failure.rs\""
+        )));
     }
 
     #[test]

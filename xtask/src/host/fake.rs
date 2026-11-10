@@ -20,6 +20,26 @@ pub const CREATED: &str = "BBBBBBBB-1111-4111-8111-0123456789AB";
 
 const LISTING: &str = "== Devices ==\n-- iOS 27.0 --\n    gymemo checks (AAAAAAAA-0000-4000-8000-0123456789AB) (Shutdown) \n-- iOS 27.1 --\n    gymemo checks (9B2E7D10-AAAA-4BBB-8CCC-0123456789AB) (Booted) \n";
 
+/// The image identifier that the fake's `docker build --quiet` prints.
+pub const IMAGE: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// How the command of a container ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ending {
+    /// The command exits with this code.
+    Exit(i32),
+    /// The kernel stops a process of the container at the memory limit, and the container then exits with this code.
+    OutOfMemory(i32),
+}
+
+/// A container that `docker create` made and that no `docker rm` removed yet.
+struct Container {
+    /// The command line of `docker create`, which holds the command of the container.
+    line: String,
+    /// The exit code, and whether the memory limit stopped a process, once the container ran.
+    ended: Option<(i32, bool)>,
+}
+
 /// The way one program goes wrong.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fault {
@@ -60,6 +80,10 @@ fn refused() -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, "no permission")
 }
 
+fn missing_file() -> io::Error {
+    io::Error::new(io::ErrorKind::NotFound, "no such file")
+}
+
 pub struct FakeHost {
     transcript: Vec<String>,
     started: usize,
@@ -68,6 +92,13 @@ pub struct FakeHost {
     directories: BTreeMap<PathBuf, BTreeSet<String>>,
     uncreatable: BTreeSet<PathBuf>,
     unlistable: BTreeSet<PathBuf>,
+    unremovable: BTreeSet<PathBuf>,
+    files: BTreeMap<PathBuf, String>,
+    printed: Vec<(String, String)>,
+    written: Vec<(String, PathBuf, String)>,
+    endings: Vec<(String, Ending)>,
+    containers: BTreeMap<String, Container>,
+    made: usize,
     /// What `simctl list devices` prints.
     pub listing: String,
     /// What `simctl create` prints.
@@ -99,6 +130,13 @@ impl FakeHost {
             directories: BTreeMap::new(),
             uncreatable: BTreeSet::new(),
             unlistable: BTreeSet::new(),
+            unremovable: BTreeSet::new(),
+            files: BTreeMap::new(),
+            printed: Vec::new(),
+            written: Vec::new(),
+            endings: Vec::new(),
+            containers: BTreeMap::new(),
+            made: 0,
             listing: LISTING.to_owned(),
             created: format!("{CREATED}\n"),
             appearance: "unset".to_owned(),
@@ -129,12 +167,45 @@ impl FakeHost {
         );
     }
 
+    /// Adds a file that holds `text`.
+    pub fn file(&mut self, path: &str, text: &str) {
+        self.files.insert(PathBuf::from(path), text.to_owned());
+    }
+
+    /// Makes each program, or the command of each container, whose command line holds `part` print `text` to its standard output.
+    /// Of the rules that match a command line, the one added last decides, so a test can replace a rule of a prepared host.
+    pub fn prints(&mut self, part: &str, text: &str) {
+        self.printed.push((part.to_owned(), text.to_owned()));
+    }
+
+    /// Makes each program, or the command of each container, whose command line holds `part` write `text` to `path`.
+    /// A program writes even when it fails, as long as it starts.
+    pub fn writes(&mut self, part: &str, path: &str, text: &str) {
+        self.written
+            .push((part.to_owned(), PathBuf::from(path), text.to_owned()));
+    }
+
+    /// Makes the command of each container whose command line holds `part` end this way, where every other command exits with 0.
+    /// Of the rules that match a command line, the one added last decides.
+    pub fn ends(&mut self, part: &str, ending: Ending) {
+        self.endings.push((part.to_owned(), ending));
+    }
+
+    /// The number of containers that exist.
+    pub fn containers(&self) -> usize {
+        self.containers.len()
+    }
+
     pub fn refuse_creating(&mut self, path: &str) {
         self.uncreatable.insert(PathBuf::from(path));
     }
 
     pub fn refuse_listing(&mut self, path: &str) {
         self.unlistable.insert(PathBuf::from(path));
+    }
+
+    pub fn refuse_removing(&mut self, path: &str) {
+        self.unremovable.insert(PathBuf::from(path));
     }
 
     /// Every call so far, one line for each.
@@ -162,8 +233,8 @@ impl FakeHost {
         }
     }
 
-    /// What a program without a fault does and prints.
-    fn succeed(&mut self, words: &[&str]) -> Output {
+    /// What a program without a fault does and prints, where `line` is its command line.
+    fn succeed(&mut self, words: &[&str], line: &str) -> Output {
         match words {
             ["xcrun", "simctl", "list", "devices"] => ended(0, &self.listing, ""),
             ["xcrun", "simctl", "create", ..] => ended(0, &self.created, ""),
@@ -214,9 +285,91 @@ impl FakeHost {
             ["open", _, application] if !self.applications.contains(application) => {
                 ended(1 << 8, "", "Unable to find application\n")
             }
-            _ => ended(0, "", ""),
+            ["docker", "build", ..] => {
+                let image = self.output_of(line).unwrap_or(IMAGE).to_owned();
+                ended(0, &format!("{image}\n"), "")
+            }
+            ["docker", "create", ..] => {
+                self.made += 1;
+                let id = format!("{:064x}", self.made);
+                self.containers.insert(
+                    id.clone(),
+                    Container {
+                        line: line.to_owned(),
+                        ended: None,
+                    },
+                );
+                ended(0, &format!("{id}\n"), "")
+            }
+            ["docker", "start", "--attach", id] => self.start(id),
+            ["docker", "inspect", "--format", _, id] => match self.containers.get(*id) {
+                Some(Container {
+                    ended: Some((code, out_of_memory)),
+                    ..
+                }) => ended(0, &format!("exited {out_of_memory} {code}\n"), ""),
+                Some(_) => ended(0, "created false 0\n", ""),
+                None => no_such_container(),
+            },
+            ["docker", "logs", id] => match self.containers.get(*id) {
+                Some(container) => ended(0, self.output_of(&container.line).unwrap_or(""), ""),
+                None => no_such_container(),
+            },
+            ["docker", "rm", "--force", id] => match self.containers.remove(*id) {
+                Some(_) => ended(0, &format!("{id}\n"), ""),
+                None => no_such_container(),
+            },
+            _ => ended(0, self.output_of(line).unwrap_or(""), ""),
         }
     }
+
+    /// What a program prints by the rule added last among the rules whose part `line` holds.
+    fn output_of(&self, line: &str) -> Option<&str> {
+        self.printed
+            .iter()
+            .rev()
+            .find(|(part, _)| line.contains(part))
+            .map(|(_, text)| text.as_str())
+    }
+
+    /// Writes the file of every rule whose part `line` holds.
+    fn write_files(&mut self, line: &str) {
+        for (part, path, text) in &self.written {
+            if line.contains(part) {
+                self.files.insert(path.clone(), text.clone());
+            }
+        }
+    }
+
+    /// Runs the command of the container `id`, which ends as its rule says, and keeps that end for `docker inspect`.
+    fn start(&mut self, id: &str) -> Output {
+        let Some(line) = self
+            .containers
+            .get(id)
+            .map(|container| container.line.clone())
+        else {
+            return no_such_container();
+        };
+        let ending = self
+            .endings
+            .iter()
+            .rev()
+            .find(|(part, _)| line.contains(part))
+            .map_or(Ending::Exit(0), |(_, ending)| *ending);
+        let (code, out_of_memory) = match ending {
+            Ending::Exit(code) => (code, false),
+            Ending::OutOfMemory(code) => (code, true),
+        };
+        if let Some(container) = self.containers.get_mut(id) {
+            container.ended = Some((code, out_of_memory));
+        }
+        self.write_files(&line);
+        ended(code << 8, self.output_of(&line).unwrap_or(""), "")
+    }
+}
+
+/// What Docker answers about a container that doesn't exist.
+fn no_such_container() -> Output {
+    ended(1 << 8, "", "Error: No such container\n")
 }
 
 impl Host for FakeHost {
@@ -247,10 +400,14 @@ impl Host for FakeHost {
         });
         if fault != Some(Fault::Missing) {
             self.leave_bundle(&words);
+            // A container writes its files when it starts, so a Docker command line writes nothing here.
+            if words.first() != Some(&"docker") {
+                self.write_files(&line);
+            }
         }
         let result = match fault {
             Some(fault) => fault.outcome()?,
-            None => self.succeed(&words),
+            None => self.succeed(&words, &line),
         };
         // Only a captured program hands its output to the caller.
         Ok(match streams {
@@ -288,6 +445,7 @@ impl Host for FakeHost {
     fn exists(&mut self, path: &Path) -> bool {
         self.transcript.push(format!("exists {}", path.display()));
         self.directories.contains_key(path)
+            || self.files.contains_key(path)
             || path
                 .parent()
                 .zip(path.file_name())
@@ -296,6 +454,34 @@ impl Host for FakeHost {
                         .get(directory)
                         .is_some_and(|names| names.contains(name.to_string_lossy().as_ref()))
                 })
+    }
+
+    fn read(&mut self, file: &Path) -> io::Result<String> {
+        self.transcript.push(format!("read {}", file.display()));
+        self.files.get(file).cloned().ok_or_else(missing_file)
+    }
+
+    fn files(&mut self, directory: &Path) -> io::Result<Vec<PathBuf>> {
+        self.transcript
+            .push(format!("files {}", directory.display()));
+        let found = self
+            .files
+            .keys()
+            .filter(|file| file.starts_with(directory))
+            .cloned()
+            .collect::<Vec<_>>();
+        if found.is_empty() && !self.directories.contains_key(directory) {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "no such directory"));
+        }
+        Ok(found)
+    }
+
+    fn remove_file(&mut self, file: &Path) -> io::Result<()> {
+        self.transcript.push(format!("remove {}", file.display()));
+        if self.unremovable.contains(file) {
+            return Err(refused());
+        }
+        self.files.remove(file).map(|_| ()).ok_or_else(missing_file)
     }
 
     fn print(&mut self, message: &str) {
@@ -332,6 +518,184 @@ mod tests {
         );
         let garbled = Local.run(&shell("printf '\\377'"), Streams::Captured)?;
         assert_eq!(Fault::Garbled.outcome()?, garbled);
+        Ok(())
+    }
+
+    fn docker(arguments: &[&str]) -> Invocation {
+        Invocation::new("docker").args(arguments)
+    }
+
+    fn text(result: &Output) -> (Option<i32>, String) {
+        (
+            result.status.code(),
+            String::from_utf8_lossy(&result.stdout).into_owned(),
+        )
+    }
+
+    /// The fake container follows a probe of Docker 29.8.
+    /// There `start --attach` exits with the code of the container, and `inspect` reports `created` before the start.
+    /// The memory limit sets `OOMKilled` there whatever the exit code.
+    #[test]
+    fn a_container_runs_once_reports_its_end_and_leaves_with_its_removal() -> io::Result<()> {
+        let mut host = FakeHost::new();
+        host.ends("\"lake\" \"build\"", Ending::Exit(3));
+        host.ends("\"dd\"", Ending::OutOfMemory(1));
+        host.prints("\"lake\" \"build\"", "built\n");
+        host.writes("\"lake\" \"build\"", "/repo/out.txt", "written");
+        let image = host.run(
+            &docker(&["build", "--quiet", "/repo/lean"]),
+            Streams::Captured,
+        )?;
+        assert_eq!(text(&image), (Some(0), format!("{IMAGE}\n")));
+        let created = host.run(
+            &docker(&["create", "--network", "none", IMAGE, "lake", "build"]),
+            Streams::Captured,
+        )?;
+        let first = format!("{:064x}", 1);
+        assert_eq!(text(&created), (Some(0), format!("{first}\n")));
+        assert_eq!(host.containers(), 1);
+        let state = |host: &mut FakeHost, id: &str| {
+            host.run(
+                &docker(&["inspect", "--format", "{{.State}}", id]),
+                Streams::Captured,
+            )
+            .map(|result| text(&result))
+        };
+        assert_eq!(
+            state(&mut host, &first)?,
+            (Some(0), "created false 0\n".to_owned())
+        );
+        assert!(!host.exists(Path::new("/repo/out.txt")));
+        let started = host.run(&docker(&["start", "--attach", &first]), Streams::Captured)?;
+        assert_eq!(text(&started), (Some(3), "built\n".to_owned()));
+        assert_eq!(host.read(Path::new("/repo/out.txt"))?, "written");
+        assert_eq!(
+            state(&mut host, &first)?,
+            (Some(0), "exited false 3\n".to_owned())
+        );
+        let logs = host.run(&docker(&["logs", &first]), Streams::Captured)?;
+        assert_eq!(text(&logs), (Some(0), "built\n".to_owned()));
+        let shown = host.run(&docker(&["start", "--attach", &first]), Streams::Shown)?;
+        assert_eq!(text(&shown), (Some(3), String::new()));
+
+        let second = format!("{:064x}", 2);
+        host.run(
+            &docker(&["create", IMAGE, "dd", "bs=3G"]),
+            Streams::Captured,
+        )?;
+        host.run(&docker(&["start", "--attach", &second]), Streams::Shown)?;
+        assert_eq!(
+            state(&mut host, &second)?,
+            (Some(0), "exited true 1\n".to_owned())
+        );
+        assert_eq!(host.containers(), 2);
+        for id in [&first, &second] {
+            let removed = host.run(&docker(&["rm", "--force", id]), Streams::Captured)?;
+            assert_eq!(removed.status.code(), Some(0));
+        }
+        assert_eq!(host.containers(), 0);
+        for gone in [
+            docker(&["rm", "--force", &first]),
+            docker(&["start", "--attach", &first]),
+            docker(&["logs", &first]),
+            docker(&["inspect", "--format", "{{.State}}", &first]),
+        ] {
+            let result = host.run(&gone, Streams::Captured)?;
+            assert_eq!(
+                (
+                    result.status.code(),
+                    String::from_utf8_lossy(&result.stderr).into_owned()
+                ),
+                (Some(1), "Error: No such container\n".to_owned()),
+                "{gone}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_program_prints_and_writes_by_its_rules_and_a_fault_still_writes() -> io::Result<()> {
+        let mut host = FakeHost::new();
+        host.prints("\"run\"", "report written\n");
+        host.writes("\"run\"", "/repo/report.json", "{}");
+        let tool = Invocation::new("swift-mutation-testing").arg("run");
+        let result = host.run(&tool, Streams::Captured)?;
+        assert_eq!(text(&result), (Some(0), "report written\n".to_owned()));
+        assert_eq!(host.read(Path::new("/repo/report.json"))?, "{}");
+        host.remove_file(Path::new("/repo/report.json"))?;
+        assert!(!host.exists(Path::new("/repo/report.json")));
+        host.fail("\"run\"", Fault::Exit(2, "gate"));
+        assert_eq!(host.run(&tool, Streams::Captured)?.status.code(), Some(2));
+        assert!(host.exists(Path::new("/repo/report.json")));
+        host.remove_file(Path::new("/repo/report.json"))?;
+        host.fail_at(2, Fault::Missing);
+        assert!(host.run(&tool, Streams::Captured).is_err());
+        assert!(!host.exists(Path::new("/repo/report.json")));
+        Ok(())
+    }
+
+    #[test]
+    fn files_are_read_found_under_their_directories_and_removed() -> io::Result<()> {
+        let mut host = FakeHost::new();
+        host.file("/repo/src/main.rs", "fn main() {}");
+        host.file("/repo/src/host/fake.rs", "");
+        host.file("/repo/srcs/other.rs", "");
+        host.directory("/repo/empty", &[]);
+        assert_eq!(
+            host.files(Path::new("/repo/src"))?,
+            ["/repo/src/host/fake.rs", "/repo/src/main.rs"].map(PathBuf::from)
+        );
+        assert_eq!(host.files(Path::new("/repo/empty"))?, Vec::<PathBuf>::new());
+        let kind = |result: io::Result<Vec<PathBuf>>| result.map_err(|error| error.kind());
+        assert_eq!(
+            kind(host.files(Path::new("/repo/missing"))),
+            Err(io::ErrorKind::NotFound)
+        );
+        assert_eq!(host.read(Path::new("/repo/src/main.rs"))?, "fn main() {}");
+        assert!(host.exists(Path::new("/repo/src/main.rs")));
+        host.remove_file(Path::new("/repo/src/main.rs"))?;
+        assert!(!host.exists(Path::new("/repo/src/main.rs")));
+        assert_eq!(
+            host.read(Path::new("/repo/src/main.rs"))
+                .map_err(|error| error.kind()),
+            Err(io::ErrorKind::NotFound)
+        );
+        assert_eq!(
+            host.remove_file(Path::new("/repo/src/main.rs"))
+                .map_err(|error| error.kind()),
+            Err(io::ErrorKind::NotFound)
+        );
+        assert_eq!(
+            host.transcript(),
+            [
+                "files /repo/src",
+                "files /repo/empty",
+                "files /repo/missing",
+                "read /repo/src/main.rs",
+                "exists /repo/src/main.rs",
+                "remove /repo/src/main.rs",
+                "exists /repo/src/main.rs",
+                "read /repo/src/main.rs",
+                "remove /repo/src/main.rs"
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_refused_removal_keeps_the_file() -> io::Result<()> {
+        let mut host = FakeHost::new();
+        host.file("/repo/kept.json", "{}");
+        host.file("/repo/gone.json", "{}");
+        host.refuse_removing("/repo/kept.json");
+        assert_eq!(
+            host.remove_file(Path::new("/repo/kept.json"))
+                .map_err(|error| error.kind()),
+            Err(io::ErrorKind::PermissionDenied)
+        );
+        assert_eq!(host.read(Path::new("/repo/kept.json"))?, "{}");
+        host.remove_file(Path::new("/repo/gone.json"))?;
+        assert!(!host.exists(Path::new("/repo/gone.json")));
         Ok(())
     }
 

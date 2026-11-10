@@ -11,6 +11,9 @@ pub struct Failure {
 
 pub type Result<T> = std::result::Result<T, Failure>;
 
+/// The exit code of a run that neither passed nor failed, which `sysexits.h` calls `EX_TEMPFAIL`.
+pub const INCONCLUSIVE: u8 = 75;
+
 impl Failure {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
@@ -24,6 +27,14 @@ impl Failure {
         Self {
             message: message.into(),
             code,
+        }
+    }
+
+    /// A run that stopped at a resource limit, which counts neither as a pass nor as a failure.
+    pub fn inconclusive(message: impl Into<String>) -> Self {
+        Self {
+            message: format!("INCONCLUSIVE: {}", message.into()),
+            code: INCONCLUSIVE,
         }
     }
 
@@ -82,6 +93,23 @@ mod tests {
         assert_eq!(child.to_string(), "xcodebuild failed");
         assert_eq!(child.code(), 65);
         assert_eq!(Failure::exit("stopped", 0).code(), 0);
+    }
+
+    #[test]
+    fn an_inconclusive_run_says_so_first_and_exits_with_its_own_code() {
+        let stopped = Failure::inconclusive("lake build stopped at the time limit");
+        assert_eq!(
+            stopped,
+            Failure::exit("INCONCLUSIVE: lake build stopped at the time limit", 75)
+        );
+        assert_eq!(INCONCLUSIVE, 75);
+        assert_eq!(
+            stopped.followed_by(&Failure::new("The cleanup failed")),
+            Failure::exit(
+                "INCONCLUSIVE: lake build stopped at the time limit\nThe cleanup failed",
+                75
+            )
+        );
     }
 
     #[test]

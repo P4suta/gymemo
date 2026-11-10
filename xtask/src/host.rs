@@ -89,11 +89,33 @@ pub trait Host {
     /// Whether a file or a directory stands at `path`.
     fn exists(&mut self, path: &Path) -> bool;
 
+    /// The text of `file`, which must be UTF-8.
+    fn read(&mut self, file: &Path) -> io::Result<String>;
+
+    /// Every file under `directory` at any depth, in path order, without the directories.
+    fn files(&mut self, directory: &Path) -> io::Result<Vec<PathBuf>>;
+
+    /// Removes `file`, which must exist and must not be a directory.
+    fn remove_file(&mut self, file: &Path) -> io::Result<()>;
+
     /// Writes `message` and a line break to the standard output.
     fn print(&mut self, message: &str);
 
     /// Writes `message` and a line break to the standard error.
     fn print_error(&mut self, message: &str);
+}
+
+/// Adds every file under `directory` to `found`, descending into each directory below it.
+fn walk(directory: &Path, found: &mut Vec<PathBuf>) -> io::Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            walk(&path, found)?;
+        } else {
+            found.push(path);
+        }
+    }
+    Ok(())
 }
 
 /// The machine that runs this command, reached through the standard library.
@@ -126,6 +148,21 @@ impl Host for Local {
 
     fn exists(&mut self, path: &Path) -> bool {
         path.exists()
+    }
+
+    fn read(&mut self, file: &Path) -> io::Result<String> {
+        fs::read_to_string(file)
+    }
+
+    fn files(&mut self, directory: &Path) -> io::Result<Vec<PathBuf>> {
+        let mut found = Vec::new();
+        walk(directory, &mut found)?;
+        found.sort();
+        Ok(found)
+    }
+
+    fn remove_file(&mut self, file: &Path) -> io::Result<()> {
+        fs::remove_file(file)
     }
 
     fn print(&mut self, message: &str) {
@@ -324,6 +361,72 @@ mod tests {
         assert_eq!(names, ["notes.txt", "run-2-dark.xcresult"]);
         assert!(Local.exists(&nested.join("notes.txt")));
         assert!(!Local.exists(&nested.join("run-3-dark.xcresult")));
+        Ok(())
+    }
+
+    #[test]
+    fn a_file_is_read_as_text_and_removed() -> io::Result<()> {
+        let scratch = Scratch::new("host-files")?;
+        scratch.write("target/mutation/report.json", "{\"é\": 1}\n")?;
+        let report = scratch.path().join("target/mutation/report.json");
+        assert_eq!(Local.read(&report)?, "{\"é\": 1}\n");
+        Local.remove_file(&report)?;
+        assert!(!report.exists());
+        assert!(scratch.path().join("target/mutation").is_dir());
+        let kinds = |result: io::Result<()>| result.map_err(|error| error.kind());
+        assert_eq!(
+            kinds(Local.remove_file(&report)),
+            Err(io::ErrorKind::NotFound)
+        );
+        assert_eq!(
+            kinds(Local.read(&report).map(|_| ())),
+            Err(io::ErrorKind::NotFound)
+        );
+        fs::write(&report, [b'{', 0xff, b'}'])?;
+        assert_eq!(
+            kinds(Local.read(&report).map(|_| ())),
+            Err(io::ErrorKind::InvalidData)
+        );
+        assert!(Local.remove_file(&scratch.path().join("target")).is_err());
+        assert!(scratch.path().join("target/mutation").is_dir());
+        Ok(())
+    }
+
+    #[test]
+    fn the_files_under_a_directory_are_found_at_every_depth_in_path_order() -> io::Result<()> {
+        let scratch = Scratch::new("host-walk")?;
+        for file in [
+            "src/main.rs",
+            "src/host/fake.rs",
+            "src/b.rs",
+            "src/a/z/deep.rs",
+        ] {
+            scratch.write(file, "")?;
+        }
+        fs::create_dir_all(scratch.path().join("src/empty"))?;
+        let found = Local.files(&scratch.path().join("src"))?;
+        let relative = found
+            .iter()
+            .map(|file| file.strip_prefix(scratch.path()).map(Path::to_owned))
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(io::Error::other)?;
+        assert_eq!(
+            relative,
+            [
+                "src/a/z/deep.rs",
+                "src/b.rs",
+                "src/host/fake.rs",
+                "src/main.rs"
+            ]
+            .map(PathBuf::from)
+        );
+        assert_eq!(
+            Local
+                .files(&scratch.path().join("missing"))
+                .map_err(|error| error.kind()),
+            Err(io::ErrorKind::NotFound)
+        );
+        assert!(Local.files(&scratch.path().join("src/main.rs")).is_err());
         Ok(())
     }
 

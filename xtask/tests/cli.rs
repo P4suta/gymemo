@@ -13,6 +13,11 @@ Commands:
                                     Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast
   screenshots                       Export the screenshots of the latest UI test run into a new directory
   app [LAUNCH_ARGUMENT]...          Build the app and open it on the dedicated simulator
+  proofs                            Build the Lean proofs, hold their theorems to the standard axioms, replay each module, and verify the Kani harnesses, each tool in a bounded container
+  mutate [SWIFT_MUTATION_TESTING_ARGUMENT]...
+                                    Mutate the package sources and fail on each change that the package tests miss
+  mutate-xtask [CARGO_MUTANTS_ARGUMENT]...
+                                    Mutate xtask in bounded containers and fail on each mutant that its tests miss
   help                              Print this message
 ";
 
@@ -89,6 +94,41 @@ fn a_refused_command_line_fails_with_its_reason_above_the_usage() -> io::Result<
         (
             &["ui-test", "-quiet", "--only"][..],
             "--only takes light, dark, contrast, or dark-contrast, and it received ``",
+        ),
+        (
+            &["proofs", "extra"][..],
+            "proofs takes no argument, and it received extra",
+        ),
+        (
+            &["mutate", "--output", "report.json"][..],
+            "mutate chooses --output, --max-integrity-warnings, --plan, --shard, --exclude, --operator, --operator-tier, and --disable-mutator itself, and it received --output",
+        ),
+        (
+            &[
+                "mutate",
+                "--sources-path",
+                "Sources/GymemoCopy",
+                "--shard",
+                "0/2",
+            ][..],
+            "mutate chooses --output, --max-integrity-warnings, --plan, --shard, --exclude, --operator, --operator-tier, and --disable-mutator itself, and it received --shard",
+        ),
+        (
+            &["mutate-xtask", "--file", "xtask/src/json.rs", "--shard=0/2"][..],
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received --shard=0/2",
+        ),
+        (
+            &[
+                "mutate-xtask",
+                "--file",
+                "xtask/src/json.rs",
+                "--baseline=skip",
+            ][..],
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received --baseline=skip",
+        ),
+        (
+            &["mutate-xtask", "--manifest-path", "../other/Cargo.toml"][..],
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received --manifest-path",
         ),
     ];
     for (arguments, reason) in refusals {

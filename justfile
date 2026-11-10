@@ -53,7 +53,16 @@ screenshots:
 # Mutates the package sources and reports each change that the package tests miss.
 [positional-arguments]
 mutate *args:
-    swift-mutation-testing run . "$@"
+    cargo run --locked -p xtask -- mutate "$@"
+
+# Mutates xtask in bounded containers and reports each mutant that its tests miss.
+[positional-arguments]
+mutate-xtask *args:
+    cargo run --locked -p xtask -- mutate-xtask "$@"
+
+# Checks the Lean proofs and the Kani harnesses in bounded containers.
+proofs:
+    cargo run --locked -p xtask -- proofs
 
 # Writes the Lean vectors from the Swift results.
 gen:
