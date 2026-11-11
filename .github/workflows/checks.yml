@@ -24,11 +24,11 @@ jobs:
       website: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.website == 'true' }}
       store: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.store == 'true' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
       - id: filter
-        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
         with:
           base: ${{ github.event.merge_group.base_sha || github.event.repository.default_branch }}
           filters: |
@@ -79,14 +79,14 @@ jobs:
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: rust just gitleaks xcodegen swiftlint github:EmbarkStudios/cargo-deny
-      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -105,14 +105,14 @@ jobs:
     env:
       MISE_AUTO_INSTALL: "false"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: node just gitleaks actionlint zizmor
-      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
@@ -132,10 +132,10 @@ jobs:
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: rust just github:rorkai/App-Store-Connect-CLI

@@ -45,11 +45,11 @@ jobs:
       artifact: ${{ steps.artifact.outputs.artifact-id }}
       version: ${{ steps.candidate.outputs.version }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: rust just
@@ -68,7 +68,7 @@ jobs:
           mise x -- just verify-native "$PLATFORM" "$SOURCE_SHA" "$CANDIDATE_RUN"
           printf 'version=%s\n' "$(jq --raw-output .identity.version native-candidate.json)" >> "$GITHUB_OUTPUT"
       - id: artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-admitted-attempt-${{ github.run_attempt }}
           path: |
@@ -92,18 +92,18 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             mise.toml
             .github/export-options/visionos.plist
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: github:rorkai/App-Store-Connect-CLI github:anchore/syft
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: github.run_attempt == 1
         with:
           artifact-ids: ${{ needs.admission.outputs.artifact }}
@@ -219,7 +219,7 @@ jobs:
         if: github.run_attempt == 1
         run: tar --create --file native-signed.tar candidate/native-candidate.tar candidate/native-candidate.json signed
       - if: github.run_attempt == 1
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: native-signed.tar
       - name: Reuse the original signed bytes on a retry
@@ -232,7 +232,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh attestation verify native-signed.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
       - id: artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-signed-attempt-${{ github.run_attempt }}
           path: native-signed.tar
@@ -269,14 +269,14 @@ jobs:
     outputs:
       artifact: ${{ steps.artifact.outputs.artifact-id }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: rust just
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.signing.outputs.artifact }}
           digest-mismatch: error
@@ -293,7 +293,7 @@ jobs:
           shasum -a 256 --check signed/SHA256SUMS
           mise x -- just check-sbom native "$APP_VERSION" signed/native-sbom.cdx.json
       - id: artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-inspected-attempt-${{ github.run_attempt }}
           path: native-signed.tar
@@ -316,16 +316,16 @@ jobs:
       - name: Require reconciliation of the original upload before a retry
         if: github.run_attempt > 1
         run: "false"
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
           sparse-checkout-cone-mode: false
           sparse-checkout: mise.toml
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
           install_args: github:rorkai/App-Store-Connect-CLI
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ needs.inspect.outputs.artifact }}
           digest-mismatch: error
@@ -368,7 +368,7 @@ jobs:
         run: |
           mise x -- asc xcode validate --pkg signed/gymemo.pkg
           mise x -- asc builds upload --app 6833008455 --pkg signed/gymemo.pkg --version "$APP_VERSION" --build-number "$BUILD_NUMBER" --checksum --wait --output json > native-upload-result.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && github.run_attempt == 1
         with:
           name: native-upload-result
