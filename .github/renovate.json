@@ -1,4 +1,13 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>P4suta/renovate-config"]
+  "extends": ["github>P4suta/renovate-config"],
+  "packageRules": [
+    {
+      "matchFileNames": ["xtask/proofs/lean/Dockerfile"],
+      "matchDatasources": ["deb"],
+      "registryUrls": [
+        "https://deb.debian.org/debian?suite=bookworm&components=main&binaryArch=amd64"
+      ]
+    }
+  ]
 }
