@@ -19,6 +19,33 @@ final class NativePlatformTests: XCTestCase {
   }
 
   @MainActor
+  func testReadsEveryPrivacyFact() throws {
+    let app = launch("privacy", tab: "settings")
+    let privacy = app.buttons["open-privacy"].firstMatch
+    XCTAssertTrue(privacy.waitForExistence(timeout: 10))
+    bringIntoView(privacy, in: app)
+    activate(privacy)
+    let collection = app.descendants(matching: .any)["privacy-collection"].firstMatch
+    XCTAssertTrue(collection.waitForExistence(timeout: 5))
+    keepScreenshot("native-privacy", anchoredBy: "privacy-collection")
+    for identifier in [
+      "privacy-collection", "privacy-retention", "privacy-watch", "privacy-sync",
+      "privacy-backup", "privacy-files", "privacy-deletion", "privacy-erase-devices",
+      "privacy-delete-copies",
+    ] {
+      let fact = app.descendants(matching: .any)[identifier].firstMatch
+      bringIntoView(fact, in: app)
+      XCTAssertTrue(fact.isHittable, "\(identifier) must be reachable")
+      XCTAssertFalse(
+        fact.label.isEmpty && (fact.value as? String ?? "").isEmpty,
+        "\(identifier) must expose readable text")
+    }
+    #if os(iOS) || os(visionOS)
+      try audit(app)
+    #endif
+  }
+
+  @MainActor
   private func launch(
     _ name: String, tab: String, language: String = "en", assistive: Bool = false
   ) -> XCUIApplication {

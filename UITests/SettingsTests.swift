@@ -16,11 +16,20 @@ final class SettingsTests: XCTestCase {
     let app = Gymemo.launch(store: "settings-privacy", tab: "settings")
     app.buttons["open-privacy"].required("the privacy policy row").tap()
     app.navigationBars["Privacy Policy"].required("the privacy policy")
-    app.staticTexts["privacy-collection"].required("the data collection policy")
-    app.swipeUp()
-    app.staticTexts["privacy-deletion"].required("the deletion policy")
+    PrivacyTour.read(in: app)
     app.goBack()
     app.buttons["open-privacy"].required("the settings screen")
+  }
+
+  @MainActor
+  func testReadsEveryPrivacyFactAtTheLargestTextSizeInTraditionalChinese() {
+    let app = Gymemo.launch(
+      store: "settings-privacy-zh-hant-large", tab: "settings",
+      textSize: Gymemo.largestTextSize, language: "zh-Hant")
+    app.buttons["open-privacy"].scrollAndTap(in: app)
+    PrivacyTour.read(in: app) { page in
+      capture("privacy-zh-hant-large-\(page)")
+    }
   }
 
   @MainActor

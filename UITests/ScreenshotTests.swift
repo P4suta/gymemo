@@ -84,7 +84,8 @@ struct ScreenTour {
 
   /// Whether the audit reports something that the app can't change.
   private func isSystemDrawn(
-    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication
+    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication,
+    snapshot: PrivacyAuditSnapshot?
   ) -> Bool {
     // The audit reports partial support for the calendar of the date picker, which keeps one size, and for text in system styles inside a list.
     // Apple's Settings app gets the same report for its own title.
@@ -103,8 +104,20 @@ struct ScreenTour {
       }
     }
     guard issue.auditType == .contrast || issue.auditType == .textClipped else { return false }
+    let frame: CGRect
+    if let snapshot {
+      guard let captured = snapshot.frame(for: element) else { return false }
+      frame = captured
+    } else {
+      frame = element.frame
+    }
     // A bar floats over the content, and the audit measures the text under the bar through its material.
-    if element.frame.maxY > app.tabBars.firstMatch.frame.minY { return true }
+    if frame.maxY > (snapshot?.tabFrame ?? app.tabBars.firstMatch.frame).minY { return true }
+    if let snapshot, frame.minY < snapshot.navigationFrame.maxY,
+      !snapshot.navigationFrame.contains(frame)
+    {
+      return true
+    }
     // The header of the set editor lies on the sheet's material under the sheet's bar.
     // A screenshot with Increase Contrast shows 5.5:1 between its text and its background.
     return element.identifier == "edit-exercise"
@@ -112,10 +125,11 @@ struct ScreenTour {
 
   private func check(_ app: XCUIApplication, _ name: String) throws {
     test.capture("\(prefix)-\(name)")
+    let snapshot = name.hasPrefix("12-privacy") ? try PrivacyAuditSnapshot(app) : nil
     try app.performAccessibilityAudit(for: audits) { issue in
-      if passesMeasuredContrast(issue, on: name, in: app) { return true }
+      if passesMeasuredContrast(issue, on: name, in: app, snapshot: snapshot) { return true }
       if passesMeasuredPlaceholder(issue, on: name) { return true }
-      if isSystemDrawn(issue, on: name, in: app) { return true }
+      if isSystemDrawn(issue, on: name, in: app, snapshot: snapshot) { return true }
       let element = issue.element.map { element in
         "type \(element.elementType.rawValue) identifier '\(element.identifier)' label '\(element.label)' frame \(element.frame)"
       }
@@ -144,15 +158,30 @@ struct ScreenTour {
   }
 
   private func passesMeasuredContrast(
-    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication
+    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication,
+    snapshot: PrivacyAuditSnapshot?
   ) -> Bool {
-    guard issue.auditType == .contrast, screen == "03-set-editor",
-      let element = issue.element,
-      ["label-edit-weight", "label-edit-reps", "unit-edit-weight", "label-delete-set"].contains(
-        element.identifier),
-      let ratio = PrimaryTextContrast.measure(element, in: app)
-    else { return false }
-    XCTContext.runActivity(named: "Measured \(element.identifier) contrast: \(ratio):1") { _ in }
+    guard issue.auditType == .contrast, let element = issue.element else { return false }
+    let editorLabel =
+      screen == "03-set-editor"
+      && ["label-edit-weight", "label-edit-reps", "unit-edit-weight", "label-delete-set"].contains(
+        element.identifier)
+    let privacyValue =
+      screen.hasPrefix("12-privacy")
+      && element.identifier == "privacy-collection-value"
+    let privacyTitle =
+      snapshot.map { captured in
+        element.elementType == .staticText && element.label == captured.navigationTitle
+          && captured.frame(for: element).map(captured.navigationFrame.contains) == true
+      } ?? false
+    guard editorLabel || privacyValue || privacyTitle else { return false }
+    let measured =
+      snapshot.map {
+        $0.contrast(of: element, darkInk: privacyTitle ? !prefix.contains("dark") : nil)
+      } ?? PrimaryTextContrast.measure(element, in: app)
+    guard let ratio = measured else { return false }
+    let name = element.identifier.isEmpty ? element.label : element.identifier
+    XCTContext.runActivity(named: "Measured \(name) contrast: \(ratio):1") { _ in }
     return ratio >= 4.5
   }
 
@@ -163,6 +192,15 @@ struct ScreenTour {
     try check(app, "\(name)+below")
     app.swipeDown(velocity: .fast)
     app.swipeDown(velocity: .fast)
+  }
+
+  func runPrivacy() throws {
+    let app = Gymemo.launch(
+      store: "privacy-\(prefix)", tab: "settings", textSize: textSize, language: language)
+    app.buttons["open-privacy"].scrollAndTap(in: app)
+    try PrivacyTour.read(in: app) { page in
+      try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)")
+    }
   }
 
   func runSettings() throws {
@@ -240,15 +278,9 @@ struct ScreenTour {
 
     app.goBack()
     app.buttons["open-privacy"].scrollAndTap(in: app)
-    app.staticTexts["privacy-collection"].required("the privacy policy")
-    try check(app, "12-privacy")
-    var page = 0
-    while !app.staticTexts["privacy-deletion"].isHittable && page < 12 {
-      app.swipeUp()
-      page += 1
-      try check(app, "12-privacy+\(page)")
+    try PrivacyTour.read(in: app) { page in
+      try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)")
     }
-    app.staticTexts["privacy-deletion"].required("the deletion policy")
     app.goBack()
     app.buttons["open-watch"].scrollAndTap(in: app)
     try check(app, "13-watch-help")
@@ -257,6 +289,19 @@ struct ScreenTour {
 }
 
 final class ScreenshotTests: XCTestCase {
+  @MainActor
+  func testEveryPrivacyFactPassesTheAuditAtTheLargestTextSizeInEnglish() throws {
+    try ScreenTour(
+      test: self, prefix: "privacy-en-largest", textSize: Gymemo.largestTextSize,
+      audits: .all.subtracting(.contrast)
+    ).runPrivacy()
+  }
+
+  @MainActor
+  func testEveryPrivacyFactPassesTheAuditInEachLanguageAndTextSize() throws {
+    try PrivacyTour.audit(test: self, prefix: "privacy-light", audits: .all.subtracting(.contrast))
+  }
+
   @MainActor
   func testSettingsPassesTheAuditAtTheLargestTextSizeInEachLanguage() throws {
     for language in ["en", "ja", "zh-Hans", "zh-Hant"] {
@@ -323,6 +368,11 @@ final class ScreenshotTests: XCTestCase {
 /// The scenario that the check command runs while the simulator shows the dark appearance.
 final class DarkAppearanceTests: XCTestCase {
   @MainActor
+  func testEveryPrivacyFactPassesTheAuditInEachLanguageAndTextSize() throws {
+    try PrivacyTour.audit(test: self, prefix: "privacy-dark", audits: .all.subtracting(.contrast))
+  }
+
+  @MainActor
   func testEveryScreenPassesTheAudit() throws {
     try ScreenTour(test: self, prefix: "dark").run()
   }
@@ -331,6 +381,11 @@ final class DarkAppearanceTests: XCTestCase {
 /// The scenario that the check command runs while the simulator increases the contrast in the light appearance.
 final class IncreasedContrastTests: XCTestCase {
   @MainActor
+  func testEveryPrivacyFactPassesTheAuditInEachLanguageAndTextSize() throws {
+    try PrivacyTour.audit(test: self, prefix: "privacy-contrast", audits: .all)
+  }
+
+  @MainActor
   func testEveryScreenPassesTheAuditWithIncreasedContrast() throws {
     try ScreenTour(test: self, prefix: "contrast", audits: .all.subtracting(.textClipped)).run()
   }
@@ -338,6 +393,11 @@ final class IncreasedContrastTests: XCTestCase {
 
 /// The scenario that the check command runs while the simulator increases the contrast in the dark appearance.
 final class DarkIncreasedContrastTests: XCTestCase {
+  @MainActor
+  func testEveryPrivacyFactPassesTheAuditInEachLanguageAndTextSize() throws {
+    try PrivacyTour.audit(test: self, prefix: "privacy-dark-contrast", audits: .all)
+  }
+
   @MainActor
   func testEveryScreenPassesTheAuditWithIncreasedContrast() throws {
     try ScreenTour(test: self, prefix: "dark-contrast", audits: .all.subtracting(.textClipped))

@@ -3,7 +3,9 @@
 gymemo follows Apple's system design with Liquid Glass.
 The [Figma file](https://www.figma.com/design/Hid7RVq16U5SizfgMTQRZB/) holds the design system and screens, based on Apple's iOS, iPadOS, macOS, and visionOS kits.
 The Watch library refused component imports, so the editable Watch studies document standard SwiftUI controls using Apple's guidance.
-Each rule names the Apple page that it applies, read on 2026-11-09 or 2026-11-10, or carries the label of a judgment.
+The renderer can't resolve the imported San Francisco font faces for changed text, so the privacy studies use Inter for editable Latin text.
+Native builds use Apple's system fonts, and their screenshots establish typography verification.
+Each rule names its Apple source or identifies the choice as a judgment.
 
 ## Foundations
 
@@ -12,7 +14,8 @@ The [adoption guide](https://developer.apple.com/documentation/technologyovervie
 The system draws the tab bar, the toolbars, the sheets, the menus, each `alert`, and the bar over the keyboard.
 The app adds no glass effect and no background to a bar or a sheet.
 The [materials guidance](https://developer.apple.com/design/human-interface-guidelines/materials) keeps Liquid Glass out of the content layer and asks apps to use the effect sparingly.
-The content sits in inset grouped lists and forms on the grouped background.
+Interactive content sits in inset grouped lists and forms on the grouped background.
+The privacy document uses the system background.
 
 Every color is a system color, and the one accent is system indigo.
 The accent marks the confirming button of a sheet, the selected tab, the rows that act, the charts, and the symbol of a personal record.
@@ -110,7 +113,18 @@ The bars start at zero, and the list under the line chart gives every value as t
 ## Settings
 
 The Settings tab links to exercises, export and import, and the local privacy policy, and states where records stay.
-On iPhone and iPad, it also explains paired Apple Watch transfer.
+The privacy policy uses four text groups in a standard `ScrollView` with eager `VStack` content.
+Apple's [stack guidance](https://developer.apple.com/documentation/swiftui/vstack) recommends eager rendering for a small number of views.
+The list version lost its visible content and accessibility children during repeated audits at the largest text size on iOS 27.
+The Data Collection heading and value form one accessibility element using Apple's [combine behavior](https://developer.apple.com/documentation/swiftui/accessibilitychildbehavior/combine).
+Each remaining statement stays separate, and every group has a heading for VoiceOver navigation.
+The [writing guidance](https://developer.apple.com/design/human-interface-guidelines/writing) asks for clear, readable text, and the [accessibility guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility) asks for content that remains available with larger text.
+The screen tour requires every statement to fit fully between the navigation bar and the tab bar before marking it as read.
+It records reached statements before each audit and scrolls past content already reached, because audits can reset the scroll position on the iOS 27 simulator.
+Privacy audits use text bounds and pixels captured before the audit, so a scroll reset can't substitute a different viewport while handling reports.
+The Watch privacy scenarios turn the Digital Crown in small steps through [XCUIDevice](https://developer.apple.com/documentation/xcuiautomation/xcuidevice), so short statements aren't skipped between observations.
+On iOS, the standard [hard scroll edge effect](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle/hard) separates scrolling text from the navigation bar.
+The policy also explains paired Apple Watch transfer.
 On iPhone, iPad, and Vision Pro, a standard `Link` opens the Shortcuts app using Apple's [documented URL scheme](https://support.apple.com/guide/shortcuts/apda283236d7/ios).
 The row grows with Dynamic Type.
 On the iOS 26 simulator, `ShortcutsLink` and `ShortcutsUIButton` failed the largest-text-size audit, so the app uses the standard text link.
@@ -201,9 +215,13 @@ The [accessibility guidance](https://developer.apple.com/design/human-interface-
 The same page asks for the check in both appearances.
 The two tours with Increase Contrast audit the contrast of every element that the audit names.
 The set editor's Weight, Reps, kg, and Delete Set labels also have a narrow image check for reports that contradict their rendered primary color.
+The privacy screen's data collection value and native navigation title use the same check for contrast reports observed on iOS 27.
 The check measures the unrounded [contrast ratio defined by the Web Content Accessibility Guidelines](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio) in the reported label's screenshot bounds and requires at least 4.5:1.
 It refuses missing ink, an ambiguous or colored background, and nonopaque pixels.
-The image check applies only to the four identified primary labels on the set editor, not to arbitrary text, images, or material backgrounds.
+The image check applies only to the five identified primary labels and the privacy screen's native navigation title.
+The title must match the system navigation bar's text and bounds.
+Its measurement uses the expected primary ink for the selected appearance and the least contrasting background pixel outside a two-pixel antialiased edge around the ink.
+The fixtures include insufficient contrast and colored background cases that the measurement refuses.
 On iOS 26.4, the largest-size audit also reports the fully visible English Bodyweight placeholder as clipped.
 The empty-weight scenario measures its rounded-up bounds with the [system body font](https://developer.apple.com/documentation/uikit/uifont/preferredfont(fortextstyle:compatiblewith:)) at that exact accessibility size.
 The check accepts that identified placeholder only when its measured width and height fit inside the field.
@@ -216,6 +234,7 @@ This app got 11 in the light appearance, and the number stayed the same when a t
 The audit reports partial Dynamic Type support for the calendar of the day picker and for some text in system styles.
 Settings gets that report for its own title.
 Text under the tab bar or the search field fails the contrast audit through the bar's material.
+The privacy tour also excludes text that extends under the navigation bar, while requiring every statement to become fully visible elsewhere in the tour.
 The header of the set editor lies on the sheet's material under the sheet's bar and fails the contrast audit.
 A screenshot with Increase Contrast shows 5.5:1 for that header.
 The audit of clipped text runs only at the largest text size.

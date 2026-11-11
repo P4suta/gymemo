@@ -63,13 +63,50 @@ enum PrimaryTextContrast {
     return candidates.first?.key
   }
 
-  @MainActor
-  static func measure(_ element: XCUIElement, in app: XCUIApplication) -> Double? {
-    let bounds = app.frame
-    let frame = element.frame
-    guard !frame.isEmpty, bounds.contains(frame), let image = app.screenshot().image.cgImage else {
-      return nil
+  static func renderedRatio(pixels: [Pixel], width: Int, darkInk: Bool) -> Double? {
+    guard width > 0, !pixels.isEmpty, pixels.count.isMultiple(of: width) else { return nil }
+    let height = pixels.count / width
+    func isInk(_ pixel: Pixel) -> Bool {
+      darkInk
+        ? max(pixel.red, pixel.green, pixel.blue) <= 16
+        : min(pixel.red, pixel.green, pixel.blue) >= 239
     }
+    let ink = pixels.filter(isInk)
+    guard ink.count >= 20, Double(ink.count) / Double(pixels.count) >= 0.01 else { return nil }
+    var backgrounds: [Double] = []
+    for (index, pixel) in pixels.enumerated() where !isInk(pixel) {
+      guard max(pixel.red, pixel.green, pixel.blue) - min(pixel.red, pixel.green, pixel.blue) <= 8
+      else { return nil }
+      let x = index % width
+      let y = index / width
+      // Ignore only the antialiased edge beside primary ink.
+      let besideInk = (max(0, y - 2)...min(height - 1, y + 2)).contains { row in
+        (max(0, x - 2)...min(width - 1, x + 2)).contains { column in
+          isInk(pixels[row * width + column])
+        }
+      }
+      if !besideInk { backgrounds.append(pixel.luminance) }
+    }
+    guard Double(backgrounds.count) / Double(pixels.count) >= 0.25,
+      let foreground = darkInk ? ink.map(\.luminance).max() : ink.map(\.luminance).min(),
+      let background = darkInk ? backgrounds.min() : backgrounds.max(),
+      darkInk ? foreground < background : foreground > background
+    else { return nil }
+    return (max(foreground, background) + 0.05) / (min(foreground, background) + 0.05)
+  }
+
+  @MainActor
+  static func measure(
+    _ element: XCUIElement, in app: XCUIApplication, darkInk: Bool? = nil
+  ) -> Double? {
+    guard let image = app.screenshot().image.cgImage else { return nil }
+    return measure(frame: element.frame, bounds: app.frame, image: image, darkInk: darkInk)
+  }
+
+  static func measure(
+    frame: CGRect, bounds: CGRect, image: CGImage, darkInk: Bool? = nil
+  ) -> Double? {
+    guard !frame.isEmpty, bounds.contains(frame) else { return nil }
     let scaleX = Double(image.width) / bounds.width
     let scaleY = Double(image.height) / bounds.height
     let crop = CGRect(
@@ -100,6 +137,7 @@ enum PrimaryTextContrast {
       guard bytes[index + 3] == 255 else { return nil }
       pixels.append(Pixel(bytes[index], bytes[index + 1], bytes[index + 2]))
     }
+    if let darkInk { return renderedRatio(pixels: pixels, width: width, darkInk: darkInk) }
     return ratio(pixels: pixels)
   }
 }
