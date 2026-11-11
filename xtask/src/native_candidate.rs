@@ -815,6 +815,50 @@ mod tests {
         }
     }
 
+    #[test]
+    fn accepts_each_platform_and_canonical_run_identifier_boundary() -> Result<()> {
+        for (name, platform) in [
+            ("iOS", Platform::Ios),
+            ("macOS", Platform::Macos),
+            ("visionOS", Platform::Visionos),
+        ] {
+            for value in [1, u64::MAX] {
+                let mut values = arguments();
+                values[0] = name.into();
+                values[2] = value.to_string();
+                let selected = Selection::parse(&values)?;
+                assert_eq!(selected.platform, platform);
+                assert_eq!(selected.run_id.get(), value);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_noncanonical_run_identifiers_before_any_external_program() {
+        for invalid in [
+            "01234",
+            "+1234",
+            "-1234",
+            " 1234",
+            "1234 ",
+            "1.0",
+            "18446744073709551616",
+        ] {
+            for seal in [false, true] {
+                let mut values = arguments();
+                values[2] = invalid.into();
+                let mut host = FakeHost::new();
+                assert!(run(&mut host, Path::new("/repo"), &values, seal).is_err());
+                assert!(host.transcript().is_empty(), "{invalid}");
+            }
+        }
+    }
+
+    fn archive_properties() -> Value {
+        json!({"ApplicationPath":"Applications/gymemo.app","CFBundleIdentifier":"com.p4suta.gymemo","CFBundleShortVersionString":"1.0.0","CFBundleVersion":"1234"})
+    }
+
     fn prepare_sealing() -> FakeHost {
         let mut host = prepare_verification();
         host.remove_file(Path::new("/repo/native-candidate.json"))
@@ -822,7 +866,10 @@ mod tests {
         host.prints("\"rev-parse\"", &arguments()[1]);
         host.prints("\"status\" \"--porcelain=v1\"", "");
         host.prints("\"show-dependencies\"", "{\"dependencies\":[]}");
-        host.prints("\"-extract\" \"ApplicationProperties\"",&json!({"ApplicationPath":"Applications/gymemo.app","CFBundleIdentifier":"com.p4suta.gymemo","CFBundleShortVersionString":"1.0.0","CFBundleVersion":"1234"}).to_string());
+        host.prints(
+            "\"-extract\" \"ApplicationProperties\"",
+            &archive_properties().to_string(),
+        );
         for (role, directory, executable) in [
             (
                 BundleRole::Ios,
@@ -873,6 +920,106 @@ mod tests {
         assert_eq!(manifest.sbom.sha256, "a".repeat(64));
         assert!(run(&mut host, Path::new("/repo"), &arguments(), true).is_err());
         Ok(())
+    }
+
+    #[test]
+    fn rejects_embedded_frameworks_and_dynamic_libraries_before_sealing() {
+        for bundle in ["gymemo.app", "gymemo.app/Watch/gymemoWatch.app"] {
+            for dependency in ["Extra.framework/Extra", "libExtra.dylib"] {
+                let mut host = prepare_sealing();
+                host.file(
+                    &format!(
+                        "/repo/target/gymemo.xcarchive/Products/Applications/{bundle}/Frameworks/{dependency}"
+                    ),
+                    "native dependency",
+                );
+                let failure = run(&mut host, Path::new("/repo"), &arguments(), true).unwrap_err();
+                assert!(
+                    failure
+                        .to_string()
+                        .contains("Embedded native dependencies require an explicit SBOM"),
+                    "{bundle}/{dependency}: {failure}"
+                );
+                assert!(!host.exists(Path::new("/repo/native-candidate.json")));
+                assert!(!host.exists(Path::new("/repo/native-candidate.tar")));
+            }
+        }
+    }
+
+    #[test]
+    fn rejects_each_mismatched_archive_property_before_sealing() {
+        for (field, replacement) in [
+            ("ApplicationPath", "Applications/another.app"),
+            ("CFBundleIdentifier", "com.p4suta.another"),
+            ("CFBundleShortVersionString", "1.0.1"),
+            ("CFBundleVersion", "1235"),
+        ] {
+            for replacement in [json!(replacement), Value::Null, json!(1234)] {
+                let mut properties = archive_properties();
+                properties[field] = replacement;
+                let mut host = prepare_sealing();
+                host.prints(
+                    "\"-extract\" \"ApplicationProperties\"",
+                    &properties.to_string(),
+                );
+                let failure = run(&mut host, Path::new("/repo"), &arguments(), true).unwrap_err();
+                assert!(
+                    failure
+                        .to_string()
+                        .contains("The Xcode archive properties differ from the native candidate"),
+                    "{field}: {failure}"
+                );
+                assert!(!host.exists(Path::new("/repo/native-candidate.json")));
+                assert!(!host.exists(Path::new("/repo/native-candidate.tar")));
+            }
+        }
+    }
+
+    #[test]
+    fn sealing_requires_the_selected_source_and_a_clean_checkout() {
+        let source = arguments()[1].clone();
+        for (head, state) in [
+            ("f".repeat(40), ""),
+            (source.clone(), " M App/AppModel.swift\n"),
+            (source, "?? extra.txt\n"),
+            ("f".repeat(40), " M App/AppModel.swift\n"),
+        ] {
+            let mut host = prepare_sealing();
+            host.prints("\"rev-parse\"", &head);
+            host.prints("\"status\" \"--porcelain=v1\"", state);
+            let failure = run(&mut host, Path::new("/repo"), &arguments(), true).unwrap_err();
+            assert!(
+                failure
+                    .to_string()
+                    .contains("Native candidates require the selected clean source checkout"),
+                "{head}, {state}: {failure}"
+            );
+            assert!(!host.exists(Path::new("/repo/native-candidate.json")));
+            assert!(!host.exists(Path::new("/repo/native-candidate.tar")));
+        }
+    }
+
+    #[test]
+    fn existing_candidate_files_are_protected_independently() {
+        for file in ["native-candidate.tar", "native-candidate.json"] {
+            let mut host = prepare_sealing();
+            let path = format!("/repo/{file}");
+            host.file(&path, "preserved bytes");
+            let failure = run(&mut host, Path::new("/repo"), &arguments(), true).unwrap_err();
+            assert!(
+                failure
+                    .to_string()
+                    .contains("A preserved native candidate must not be overwritten"),
+                "{file}: {failure}"
+            );
+            assert_eq!(host.read(Path::new(&path)).unwrap(), "preserved bytes");
+            assert!(
+                !host
+                    .transcript()
+                    .iter()
+                    .any(|line| line.starts_with("write "))
+            );
+        }
     }
 
     #[test]
@@ -928,8 +1075,8 @@ mod tests {
             );
         }
         for listing in [
-            "gymemo.xcarchive/../private\nnative-sbom.cdx.json\n",
-            "/private\n",
+            "gymemo.xcarchive/Info.plist\n",
+            "native-sbom.cdx.json\n",
             "native-sbom.cdx.json\nnative-sbom.cdx.json\ngymemo.xcarchive/Info.plist\n",
         ] {
             let mut host = prepare_verification();
@@ -945,6 +1092,37 @@ mod tests {
             let mut host = prepare_verification();
             host.fail(part, Fault::Exit(1, "refused"));
             assert!(run(&mut host, Path::new("/repo"), &arguments(), false).is_err());
+        }
+    }
+
+    #[test]
+    fn verification_rejects_unsafe_archive_members_before_extraction() {
+        for member in [
+            "gymemo.xcarchive/../private",
+            "gymemo.xcarchive/./Info.plist",
+            "gymemo.xcarchive/Contents/../private",
+            "gymemo.xcarchive/Contents/./Info.plist",
+            "outside",
+            "/private",
+        ] {
+            let mut host = prepare_verification();
+            host.prints(
+                "\"--list\"",
+                &format!("gymemo.xcarchive/Info.plist\nnative-sbom.cdx.json\n{member}\n"),
+            );
+            let failure = run(&mut host, Path::new("/repo"), &arguments(), false).unwrap_err();
+            assert!(
+                failure
+                    .to_string()
+                    .contains("The native archive contains an unsafe or unexpected path"),
+                "{member}: {failure}"
+            );
+            assert!(
+                !host
+                    .transcript()
+                    .iter()
+                    .any(|line| line.contains("\"--extract\""))
+            );
         }
     }
 
