@@ -2,7 +2,7 @@ import XCTest
 
 @MainActor
 enum PrivacyTour {
-  private static let facts = [
+  static let facts = [
     "privacy-collection", "privacy-retention", "privacy-watch", "privacy-sync",
     "privacy-backup", "privacy-files", "privacy-deletion", "privacy-erase-devices",
     "privacy-delete-copies",
@@ -17,10 +17,7 @@ enum PrivacyTour {
     var page = 0
     var swipesWithoutReading = 0
     while swipesWithoutReading < 12 {
-      let viewport = CGRect(
-        x: app.frame.minX, y: app.navigationBars.firstMatch.frame.maxY,
-        width: app.frame.width,
-        height: app.tabBars.firstMatch.frame.minY - app.navigationBars.firstMatch.frame.maxY)
+      let viewport = ContentViewport(app).frame
       let reached = unread.filter { identifier in
         let text = app.any(identifier)
         return text.exists && text.isHittable && !text.label.isEmpty

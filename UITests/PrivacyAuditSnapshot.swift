@@ -15,11 +15,16 @@ struct PrivacyAuditSnapshot {
   let tabFrame: CGRect
   private let frames: [Key: [CGRect]]
 
+  var viewport: ContentViewport {
+    ContentViewport(bounds: bounds, navigationBar: navigationFrame, tabBar: tabFrame)
+  }
+
   init(_ app: XCUIApplication) throws {
-    bounds = app.frame
-    navigationFrame = app.navigationBars.firstMatch.frame
+    let viewport = ContentViewport(app)
+    bounds = viewport.bounds
+    navigationFrame = viewport.navigationBar
     navigationTitle = app.navigationBars.firstMatch.identifier
-    tabFrame = app.tabBars.firstMatch.frame
+    tabFrame = viewport.tabBar
     var captured: [Key: [CGRect]] = [:]
     for text in app.staticTexts.allElementsBoundByIndex {
       captured[Key(identifier: text.identifier, label: text.label), default: []].append(text.frame)

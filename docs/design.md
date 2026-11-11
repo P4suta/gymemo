@@ -114,14 +114,16 @@ The bars start at zero, and the list under the line chart gives every value as t
 
 The Settings tab links to exercises, export and import, and the local privacy policy, and states where records stay.
 The privacy policy uses four text groups in a standard `ScrollView` with eager `VStack` content.
-Apple's [stack guidance](https://developer.apple.com/documentation/swiftui/vstack) recommends eager rendering for a small number of views.
+Apple's [stack guidance](https://developer.apple.com/documentation/swiftui/vstack) recommends eager rendering for a few views.
 The list version lost its visible content and accessibility children during repeated audits at the largest text size on iOS 27.
 The Data Collection heading and value form one accessibility element using Apple's [combine behavior](https://developer.apple.com/documentation/swiftui/accessibilitychildbehavior/combine).
 Each remaining statement stays separate, and every group has a heading for VoiceOver navigation.
 The [writing guidance](https://developer.apple.com/design/human-interface-guidelines/writing) asks for clear, readable text, and the [accessibility guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility) asks for content that remains available with larger text.
-The screen tour requires every statement to fit fully between the navigation bar and the tab bar before marking it as read.
+The screen tour requires every statement to fit fully outside the navigation and tab bars before marking it as read.
+Its viewport follows the bar's actual position because Apple's [sidebar adaptable style](https://developer.apple.com/documentation/swiftui/tabviewstyle/sidebaradaptable) puts tabs at the top on iPad and at the bottom on iPhone.
 It records reached statements before each audit and scrolls past content already reached, because audits can reset the scroll position on the iOS 27 simulator.
 Privacy audits use text bounds and pixels captured before the audit, so a scroll reset can't substitute a different viewport while handling reports.
+Contrast reports for fully visible privacy facts require a measured screenshot ratio of at least 4.5:1.
 The Watch privacy scenarios turn the Digital Crown in small steps through [XCUIDevice](https://developer.apple.com/documentation/xcuiautomation/xcuidevice), so short statements aren't skipped between observations.
 On iOS, the standard [hard scroll edge effect](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle/hard) separates scrolling text from the navigation bar.
 The policy also explains paired Apple Watch transfer.

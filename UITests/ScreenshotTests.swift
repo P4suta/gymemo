@@ -40,10 +40,7 @@ struct ScreenTour {
     for _ in 0..<12 {
       if element.exists {
         let frame = element.frame
-        let viewport = CGRect(
-          x: app.frame.minX, y: app.navigationBars.firstMatch.frame.maxY,
-          width: app.frame.width,
-          height: app.tabBars.firstMatch.frame.minY - app.navigationBars.firstMatch.frame.maxY)
+        let viewport = ContentViewport(app).frame
         if frame.height > 0 && viewport.contains(frame) { return frame }
         if frame.minY < viewport.minY {
           app.swipeDown(velocity: .slow)
@@ -112,7 +109,7 @@ struct ScreenTour {
       frame = element.frame
     }
     // A bar floats over the content, and the audit measures the text under the bar through its material.
-    if frame.maxY > (snapshot?.tabFrame ?? app.tabBars.firstMatch.frame).minY { return true }
+    if (snapshot?.viewport ?? ContentViewport(app)).tabBarCovers(frame) { return true }
     if let snapshot, frame.minY < snapshot.navigationFrame.maxY,
       !snapshot.navigationFrame.contains(frame)
     {
@@ -166,15 +163,19 @@ struct ScreenTour {
       screen == "03-set-editor"
       && ["label-edit-weight", "label-edit-reps", "unit-edit-weight", "label-delete-set"].contains(
         element.identifier)
-    let privacyValue =
+    let privacyText =
       screen.hasPrefix("12-privacy")
-      && element.identifier == "privacy-collection-value"
+      && (PrivacyTour.facts.contains(element.identifier)
+        || element.identifier == "privacy-collection-value")
+      && snapshot.map { captured in
+        captured.frame(for: element).map(captured.viewport.frame.contains) == true
+      } == true
     let privacyTitle =
       snapshot.map { captured in
         element.elementType == .staticText && element.label == captured.navigationTitle
           && captured.frame(for: element).map(captured.navigationFrame.contains) == true
       } ?? false
-    guard editorLabel || privacyValue || privacyTitle else { return false }
+    guard editorLabel || privacyText || privacyTitle else { return false }
     let measured =
       snapshot.map {
         $0.contrast(of: element, darkInk: privacyTitle ? !prefix.contains("dark") : nil)
