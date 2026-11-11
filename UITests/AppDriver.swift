@@ -66,12 +66,15 @@ extension XCUIApplication {
     descendants(matching: .any).matching(identifier: identifier).firstMatch
   }
 
-  /// Waits for a visible keyboard's dismissal control, then requires the keyboard to disappear.
+  /// Dismisses the keyboard or waits for a dismissal already in progress.
   @MainActor
   func hideKeyboard() {
     let keyboard = keyboards.firstMatch
     guard keyboard.exists else { return }
-    buttons["hide-keyboard"].requiredHittable("the keyboard dismissal button").tap()
+    let button = buttons["hide-keyboard"]
+    if button.exists {
+      button.requiredHittable("the keyboard dismissal button").tap()
+    }
     keyboard.requiredGone("the keyboard")
   }
 
