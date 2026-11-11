@@ -156,4 +156,33 @@ mod tests {
         host.file("/repo/inventory.json", "{}");
         assert!(check(&mut host, Path::new("/repo"), &args).is_err());
     }
+
+    #[test]
+    fn refuses_invalid_source_identifier_lengths_and_characters_before_reading() {
+        for version in [
+            String::new(),
+            "a".to_owned(),
+            "a".repeat(39),
+            "a".repeat(41),
+            "g".repeat(40),
+            format!("g{}", "a".repeat(39)),
+            format!("{}g", "a".repeat(39)),
+            "A".repeat(40),
+            "`".repeat(40),
+            " ".repeat(40),
+            "é".repeat(20),
+        ] {
+            let mut host = FakeHost::new();
+            let arguments = [
+                "website".to_owned(),
+                version.clone(),
+                "inventory.json".into(),
+            ];
+            assert!(
+                check(&mut host, Path::new("/repo"), &arguments).is_err(),
+                "{version:?}"
+            );
+            assert!(host.transcript().is_empty(), "{version:?}");
+        }
+    }
 }
