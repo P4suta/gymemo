@@ -7,6 +7,9 @@ use std::path::{Component, PathBuf};
 #[cfg(target_os = "macos")]
 mod native;
 
+#[cfg(any(target_os = "macos", test))]
+mod purpose;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Activation {
     Preserve,

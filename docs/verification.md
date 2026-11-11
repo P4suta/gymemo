@@ -54,13 +54,15 @@ The workflow attests the preserved bytes.
 
 `mise x -- just verify-native PLATFORM SHA RUN` rechecks qualification, the successful build run, provenance, checksums, and SBOM before signing.
 The protected signing job uses the selected distribution identities in temporary keychains and exports from that preserved archive.
-Mac App Store installer certificates require package-signing validation rather than a code-signing probe.
 `mise x -- just install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256` plans the import without reading credentials.
 With `--confirm`, the command reads the installer certificate and password from the protected `gymemo/ci_native_signing` environment.
-It requires one trusted installer identity, its private key, and the expected certificate fingerprint.
+It requires one identity with the Mac App Store installer subject, its private key, the expected certificate fingerprint, and basic certificate trust.
+It checks the critical extensions of Apple's [installer submission profile](https://images.apple.com/certificateauthority/pdf/Apple_WWDR_CPS_v1.32.pdf#page=34), including digital signatures, package signing, and the installer marker.
+The delivery job validates the exported package signature with `pkgutil --check-signature` after signing.
 The new keychain preserves the default keychain and search list unless `--add-to-search-list` requests activation.
 A failed import restores the search policy and deletes its own keychain.
 Both credential verification and delivery build the importer in a separate job without signing secrets and verify its provenance before use.
+Artifacts passed across approval gates stay available for 35 days, matching GitHub's [workflow execution limit](https://docs.github.com/en/actions/reference/limits).
 visionOS uses explicit export options because the provider CLI can't generate its manual signing options.
 A fresh job validates the signed package's dependency inventory and checksums.
 The upload job requires its own approval and App Store Connect key and receives the verified bytes.

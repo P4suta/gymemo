@@ -272,6 +272,7 @@ impl<H: Host> KeychainPort for Native<'_, H> {
                     .certificate()
                     .context(|| "Read the imported installer certificate".into())?;
                 let der = certificate.to_der();
+                super::purpose::verify(&der)?;
                 let sha1 = hex(digest(&SHA1_FOR_LEGACY_USE_ONLY, &der).as_ref());
                 Ok(Identity {
                     fingerprint: hex(digest(&SHA256, &der).as_ref()),

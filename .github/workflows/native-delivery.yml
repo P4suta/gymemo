@@ -75,7 +75,7 @@ jobs:
             native-candidate.tar
             native-candidate.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 35
   installer-tool:
     name: Build the installer credential importer without secrets
     needs: admission
@@ -109,7 +109,7 @@ jobs:
           name: installer-tool-attempt-${{ github.run_attempt }}
           path: target/debug/xtask
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 35
   signing:
     name: Sign the preserved native candidate
     needs: [admission, installer-tool]
@@ -284,7 +284,7 @@ jobs:
           name: native-signed-attempt-${{ github.run_attempt }}
           path: native-signed.tar
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 35
       - name: Delete the application signing keychain
         if: always()
         run: |
@@ -345,7 +345,7 @@ jobs:
           name: native-inspected-attempt-${{ github.run_attempt }}
           path: native-signed.tar
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 35
   upload:
     name: Upload the preserved native package
     needs: [admission, inspect]
