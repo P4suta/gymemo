@@ -165,6 +165,8 @@ mod tests {
             "a".repeat(39),
             "a".repeat(41),
             "g".repeat(40),
+            format!("g{}", "a".repeat(39)),
+            format!("{}g", "a".repeat(39)),
             "A".repeat(40),
             "`".repeat(40),
             " ".repeat(40),
