@@ -92,7 +92,7 @@ build: generate
     xcodebuild build -project {{ project }} -scheme gymemo -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData -quiet
 
 build-mac: generate
-    xcodebuild build -project {{ project }} -scheme gymemo -destination 'generic/platform=macOS' -derivedDataPath DerivedData -quiet CODE_SIGNING_ALLOWED=NO
+    xcodebuild build -project {{ project }} -scheme gymemo -destination 'generic/platform=macOS' -derivedDataPath target/native-test-build -quiet CODE_SIGNING_ALLOWED=NO
 
 build-vision: generate
     xcodebuild build -project {{ project }} -scheme gymemo -destination 'generic/platform=visionOS Simulator' -derivedDataPath DerivedData -quiet CODE_SIGNING_ALLOWED=NO
@@ -137,7 +137,7 @@ require-qualification *args:
 # Runs the native layout and keyboard scenarios on an Xcode destination.
 [positional-arguments]
 native-test *args: generate
-    xcodebuild test -project {{ project }} -scheme gymemoNative -derivedDataPath target/native-test-build -parallel-testing-enabled NO -quiet "$@"
+    xcodebuild clean test -project {{ project }} -scheme gymemoNative -derivedDataPath target/native-test-build -parallel-testing-enabled NO -quiet "$@"
 
 # Runs the Watch scenarios on a paired simulator or device.
 [positional-arguments]

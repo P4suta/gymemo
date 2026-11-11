@@ -146,6 +146,10 @@ Screenshots and accessibility labels don't replace that rendering prerequisite.
 `mise x -- just native-test -destination 'platform=macOS,arch=arm64'` checks Mac navigation, range selection, standard keyboard commands, Return, Escape, Undo, and Redo.
 The Mac App Intents tests require [the same development signing team](https://developer.apple.com/documentation/appintentstesting/testing-your-app-intents-code) for the app and its UI test runner.
 Set `DEVELOPMENT_TEAM` in the ignored `Signing.local.xcconfig` to select the local development identity.
+Xcode [registers Mac build products](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/ProductPostprocessingTaskProducer.swift#L649-L674) with Launch Services.
+The fast Mac build and native tests share `target/native-test-build`, so a signed test build replaces the unsigned app at the same registered path.
+The native test command cleans that build directory before rebuilding to replace unsigned preview libraries as well.
+Past builds with the same bundle identifier can conflict with App Intents discovery.
 XCTest may ask for macOS authentication to enable UI automation.
 The same command accepts an iPad, iPhone Duo, or visionOS Simulator destination from `xcodebuild -showdestinations -scheme gymemoNative`.
 Its history and analysis scenarios check the selected detail and keep screenshots.
