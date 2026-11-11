@@ -16,8 +16,7 @@ struct ContentViewport {
   }
 
   func tabBarCovers(_ text: CGRect) -> Bool {
-    guard !tabBar.isEmpty else { return false }
-    return tabsAtBottom ? text.maxY > tabBar.minY : text.minY < tabBar.maxY
+    !tabBar.isEmpty && tabBar.intersects(text)
   }
 }
 
