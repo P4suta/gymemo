@@ -132,10 +132,25 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存储位置" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存位置" } } } },
     "privacyOnDeviceText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Records stay on each device until deleted. Paired Watch and iPhone exchange records. No cloud sync. Device backups may include records." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除するまで、各端末内に保存します。WatchとペアリングしたiPhoneの間で記録を転送します。クラウド同期はありません。端末のバックアップに含まれる場合があります。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各设备内，直到您删除为止。配对的Watch与iPhone会传输记录。不进行云同步。设备备份可能包含记录。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄保留在各裝置內，直到您刪除為止。配對的Watch與iPhone會傳輸紀錄。不進行雲端同步。裝置備份可能包含紀錄。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Records stay on each device until deleted." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除するまで、各端末内に保存します。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各设备内，直到您删除为止。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄保留在各裝置內，直到您刪除為止。" } } } },
+    "privacyWatchText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Paired Watch and iPhone exchange records." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "WatchとペアリングしたiPhoneの間で記録を転送します。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "配对的Watch与iPhone会传输记录。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "配對的Watch與iPhone會傳輸紀錄。" } } } },
+    "privacySyncText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "No cloud sync." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "クラウド同期はありません。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不进行云同步。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不進行雲端同步。" } } } },
+    "privacyBackupText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Device backups may include records." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "端末のバックアップに含まれる場合があります。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设备备份可能包含记录。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "裝置備份可能包含紀錄。" } } } },
     "privacyFiles" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Files" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル" } },
@@ -152,10 +167,20 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除数据" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除資料" } } } },
     "privacyDeletionText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete sets and unused exercises in the app. Remove the app and its data from each device to erase all records. Delete exported files and device backups." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットと未使用の種目は、アプリ内で削除できます。全記録を消す場合は、各端末のアプリとアプリデータを削除してください。書き出したファイルと端末のバックアップは別途削除してください。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可在App内删除训练组和未使用的训练项目。要清除所有记录，请在各设备上删除App及其数据。导出文件和设备备份需另行删除。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "可在App內刪除訓練組和未使用的訓練項目。若要清除所有紀錄，請在各裝置上刪除App及其資料。匯出檔案和裝置備份需另行刪除。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete sets and unused exercises in the app." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットと未使用の種目は、アプリ内で削除できます。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可在App内删除训练组和未使用的训练项目。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "可在App內刪除訓練組和未使用的訓練項目。" } } } },
+    "privacyEraseText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove the app and its data from each device to erase all records." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "全記録を消す場合は、各端末のアプリとアプリデータを削除してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "要清除所有记录，请在各设备上删除App及其数据。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "若要清除所有紀錄，請在各裝置上刪除App及其資料。" } } } },
+    "privacyCopiesText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete exported files and device backups." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "書き出したファイルと端末のバックアップは別途削除してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出文件和设备备份需另行删除。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯出檔案和裝置備份需另行刪除。" } } } },
     "tabLog" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Log" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録" } },

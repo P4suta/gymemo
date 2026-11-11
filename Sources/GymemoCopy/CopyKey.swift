@@ -25,8 +25,9 @@ public enum CopyKey: String, CaseIterable, Sendable {
   case axisDate, axisWeekStart, axisDays
   case exportAndImport, storageHeading, storageText, shortcuts, versionLabel
   case privacyPolicy, privacyCollection, privacyCollectionText
-  case privacyOnDevice, privacyOnDeviceText, privacyFiles, privacyFilesText
-  case privacyDeletion, privacyDeletionText
+  case privacyOnDevice, privacyOnDeviceText, privacyWatchText, privacySyncText, privacyBackupText
+  case privacyFiles, privacyFilesText
+  case privacyDeletion, privacyDeletionText, privacyEraseText, privacyCopiesText
   case watchDelivery, watchPending, watchSaved, watchRefused, watchNeedsPhone
   case watchHelp, watchWaitingHint, watchTransferFailed, retry, watch
   case watchExerciseMissing, watchIdentifierConflict, watchPhoneFull

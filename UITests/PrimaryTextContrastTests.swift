@@ -62,4 +62,55 @@ final class PrimaryTextContrastTests: XCTestCase {
       PrimaryTextContrast.ratio(
         pixels: sample(background: Pixel(200, 150, 100), ink: Pixel(0, 0, 0))))
   }
+
+  func testMeasuresTheWorstBackgroundOutsideAntialiasedEdges() throws {
+    var pixels = Array(repeating: Pixel(255, 255, 255), count: 400)
+    for row in 6...12 {
+      for column in 6...12 {
+        pixels[row * 20 + column] = Pixel(128, 128, 128)
+      }
+    }
+    for row in 7...11 {
+      for column in 7...11 {
+        pixels[row * 20 + column] = Pixel(0, 0, 0)
+      }
+    }
+    XCTAssertEqual(
+      try XCTUnwrap(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 20, darkInk: true)),
+      21, accuracy: 0.000_001)
+    pixels[0] = Pixel(80, 80, 80)
+    XCTAssertLessThan(
+      try XCTUnwrap(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 20, darkInk: true)),
+      4.5)
+    pixels[0] = Pixel(200, 150, 100)
+    XCTAssertNil(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 20, darkInk: true))
+    XCTAssertNil(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 0, darkInk: true))
+    XCTAssertNil(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 21, darkInk: true))
+    XCTAssertNil(PrimaryTextContrast.renderedRatio(pixels: [], width: 20, darkInk: true))
+  }
+
+  func testMeasuresWhiteInkOverVaryingDarkBackgrounds() throws {
+    var pixels = Array(repeating: Pixel(0, 0, 0), count: 400)
+    for row in 6...12 {
+      for column in 6...12 {
+        pixels[row * 20 + column] = Pixel(128, 128, 128)
+      }
+    }
+    for row in 7...11 {
+      for column in 7...11 {
+        pixels[row * 20 + column] = Pixel(255, 255, 255)
+      }
+    }
+    XCTAssertEqual(
+      try XCTUnwrap(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 20, darkInk: false)),
+      21, accuracy: 0.000_001)
+    pixels[0] = Pixel(145, 145, 145)
+    XCTAssertLessThan(
+      try XCTUnwrap(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 20, darkInk: false)),
+      4.5)
+    XCTAssertNil(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 20, darkInk: true))
+    XCTAssertNil(
+      PrimaryTextContrast.renderedRatio(
+        pixels: Array(repeating: Pixel(80, 80, 80), count: 400), width: 20, darkInk: false))
+  }
 }

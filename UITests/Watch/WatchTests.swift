@@ -63,16 +63,65 @@ final class WatchTests: XCTestCase {
     XCTAssertEqual(reps.value as? String, "1 rep")
     app.terminate()
     app.launch()
+    readPrivacy(in: app)
+  }
+
+  @MainActor
+  func testReadsEveryPrivacyFactWithLargerText() {
+    let app = XCUIApplication()
+    app.launchArguments = [
+      "-gymemo-watch-checks", "-gymemo-reset", "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+    ]
+    app.launch()
+    readPrivacy(in: app)
+  }
+
+  @MainActor
+  private func readPrivacy(in app: XCUIApplication) {
     let privacy = app.buttons["watch-privacy"]
-    swipes = 0
+    var swipes = 0
     while !privacy.isHittable && swipes < 15 {
       app.swipeUp()
       swipes += 1
     }
     XCTAssertTrue(privacy.exists)
     privacy.tap()
-    XCTAssertTrue(app.staticTexts["privacy-collection"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.descendants(matching: .any)["privacy-collection"].waitForExistence(timeout: 5))
     capture("watch-privacy")
+    let facts = [
+      "privacy-collection", "privacy-retention", "privacy-watch", "privacy-sync",
+      "privacy-backup", "privacy-files", "privacy-deletion", "privacy-erase-devices",
+      "privacy-delete-copies",
+    ]
+    var unread = Set(facts)
+    var rotationsWithoutReading = 0
+    while rotationsWithoutReading < 20 {
+      let reached = unread.filter { identifier in
+        let text = app.descendants(matching: .any)[identifier]
+        return text.exists && text.isHittable && !text.label.isEmpty
+      }
+      if !reached.isEmpty {
+        unread.subtract(reached)
+        rotationsWithoutReading = 0
+      }
+      if unread.isEmpty { break }
+      guard let identifier = facts.first(where: unread.contains) else { break }
+      let next = app.descendants(matching: .any)[identifier]
+      let direction = next.exists && next.frame.maxY < app.frame.minY ? -1.0 : 1.0
+      // https://developer.apple.com/documentation/xcuiautomation/xcuidevice
+      XCUIDevice.shared.rotateDigitalCrown(delta: direction * 0.125)
+      rotationsWithoutReading += 1
+    }
+    if !unread.isEmpty {
+      let tree = XCTAttachment(string: app.debugDescription)
+      tree.name = "watch-privacy-hierarchy"
+      tree.lifetime = .keepAlways
+      add(tree)
+    }
+    XCTAssertTrue(unread.isEmpty, "Privacy facts were not accessible: \(unread.sorted())")
+    capture("watch-privacy-end")
   }
 
   @MainActor
