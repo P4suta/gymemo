@@ -1,0 +1,17 @@
+default:
+    @just --list
+
+check:
+    npm audit --audit-level=high
+    npm exec --offline -- tsc --noEmit
+    npm exec --offline -- html-validate 'dist/**/*.html'
+    npm exec --offline -- stylelint dist/styles.css
+    node --test tests/*.test.ts
+    npm exec --offline -- playwright test
+    npm exec --offline -- wrangler deploy --dry-run
+
+e2e:
+    npm exec --offline -- playwright test
+
+preview:
+    npm exec --offline -- http-server dist -a 127.0.0.1 -p 4173 -c-1

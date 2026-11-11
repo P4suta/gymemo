@@ -1,9 +1,11 @@
 //! Repository checks and simulator runs for gymemo.
 
+mod app_version;
 mod bounded;
 mod cargo_mutants;
 #[cfg(test)]
 mod contrast;
+mod delivery_setup;
 mod failure;
 mod host;
 mod json;
@@ -11,12 +13,16 @@ mod kani;
 mod lean;
 mod literals;
 mod logging;
+mod native_candidate;
 mod offline;
 mod purity;
+mod qualification;
 mod required_reasons;
+mod sbom;
 #[cfg(test)]
 mod scratch;
 mod simulator;
+mod store_metadata;
 mod swift_mutation;
 mod swift_source;
 mod system_design;
@@ -30,9 +36,20 @@ use std::{env, path::Path, process::ExitCode};
 const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
+  generate-version                  Generate the Xcode version setting from the canonical app version
+  prepare-store-metadata            Prepare localized metadata for the canonical app version
+  check-store                       Validate the generated store metadata with the provider CLI
+  check-sbom native|website VERSION FILE
+                                    Validate the preserved product and dependency inventory
+  seal-native PLATFORM SHA RUN
+                                    Inspect and preserve an unsigned archive, SBOM, and candidate manifest
+  verify-native PLATFORM SHA RUN
+                                    Admit preserved candidate bytes before protected signing
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
   ui-test [--only light|dark|contrast|dark-contrast] [XCODEBUILD_ARGUMENT]...
                                     Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast
+  ui-test-on DEVICE [XCODEBUILD_ARGUMENT]...
+                                    Run the same four appearance passes on a selected simulator
   screenshots                       Export the screenshots of the latest UI test run into a new directory
   app [LAUNCH_ARGUMENT]...          Build the app and open it on the dedicated simulator
   proofs                            Build the Lean proofs, hold their theorems to the standard axioms, replay each module, and verify the Kani harnesses, each tool in a bounded container
@@ -40,13 +57,30 @@ Commands:
                                     Mutate the package sources and fail on each change that the package tests miss
   mutate-xtask [CARGO_MUTANTS_ARGUMENT]...
                                     Mutate xtask in bounded containers and fail on each mutant that its tests miss
+  setup-delivery WORKPLACE [--apply] Preview or prepare the website's protected workload identity
+  inspect-delivery WORKPLACE         Inspect delivery integration metadata without reading secret values
+  setup-native-delivery WORKPLACE INTEGRATION signing|upload|version-preparation [--apply]
+                                    Plan or configure the native environment's Doppler Secrets sync
+  qualify SHA FLOOR IPAD DUO WATCH VISION [--run]
+                                    Plan or run the local release checks for a clean main commit and five simulator identifiers
+  require-qualification SHA         Require the owner's successful local checks for the exact main commit
   help                              Print this message";
 
 #[derive(Debug, PartialEq, Eq)]
 enum Task {
+    GenerateVersion,
+    PrepareStoreMetadata,
+    CheckStore,
+    CheckSbom(Vec<String>),
+    SealNative(Vec<String>),
+    VerifyNative(Vec<String>),
     Gates,
     UiTest {
         only: Option<Appearance>,
+        arguments: Vec<String>,
+    },
+    UiTestOn {
+        device: String,
         arguments: Vec<String>,
     },
     Screenshots,
@@ -54,6 +88,14 @@ enum Task {
     Proofs,
     Mutate(Vec<String>),
     MutateXtask(Vec<String>),
+    SetupDelivery {
+        workplace: String,
+        apply: bool,
+    },
+    Qualify(Vec<String>),
+    InspectDelivery(String),
+    SetupNativeDelivery(Vec<String>),
+    RequireQualification(String),
     Help,
 }
 
@@ -110,10 +152,30 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         return Err(Failure::new(USAGE));
     };
     match command.as_str() {
+        "generate-version" => alone("generate-version", Task::GenerateVersion, arguments),
+        "prepare-store-metadata" => alone("prepare-store-metadata", Task::PrepareStoreMetadata, arguments),
+        "check-store" => alone("check-store", Task::CheckStore, arguments),
+        "check-sbom" => Ok(Task::CheckSbom(arguments.collect())),
+        "seal-native" => Ok(Task::SealNative(arguments.collect())),
+        "verify-native" => Ok(Task::VerifyNative(arguments.collect())),
         "gates" => alone("gates", Task::Gates, arguments),
         "screenshots" => alone("screenshots", Task::Screenshots, arguments),
         "ui-test" => ui_test(arguments),
+        "ui-test-on" => {
+            let device = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
+            Ok(Task::UiTestOn { device, arguments: arguments.collect() })
+        }
         "app" => Ok(Task::App(arguments.collect())),
+        "qualify" => Ok(Task::Qualify(arguments.collect())),
+        "setup-native-delivery" => Ok(Task::SetupNativeDelivery(arguments.collect())),
+        "inspect-delivery" => {
+            let workplace = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
+            alone("inspect-delivery", Task::InspectDelivery(workplace), arguments)
+        }
+        "require-qualification" => {
+            let source = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
+            alone("require-qualification", Task::RequireQualification(source), arguments)
+        }
         "proofs" => alone("proofs", Task::Proofs, arguments),
         "mutate" => passed_on(
             "mutate",
@@ -124,12 +186,21 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         .map(Task::Mutate),
         "mutate-xtask" => passed_on(
             "mutate-xtask",
-            "--shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path",
+            "--shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, --manifest-path, and --gitignore",
             cargo_mutants::refused,
             arguments,
         )
         .map(Task::MutateXtask),
         "help" | "--help" | "-h" => Ok(Task::Help),
+        "setup-delivery" => {
+            let workplace = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
+            let apply = match arguments.next().as_deref() {
+                None => false,
+                Some("--apply") => true,
+                Some(_) => return Err(Failure::new(USAGE)),
+            };
+            alone("setup-delivery", Task::SetupDelivery { workplace, apply }, arguments)
+        }
         unknown => Err(Failure::new(format!(
             "Unknown command {unknown}\n\n{USAGE}"
         ))),
@@ -188,13 +259,36 @@ fn proofs(host: &mut impl Host, root: &Path) -> Result<()> {
 /// Runs `task` on the repository at `root`, where the commands reach programs, directories, and output streams through `host`.
 fn execute(task: Task, host: &mut impl Host, root: &Path) -> Result<()> {
     match task {
+        Task::GenerateVersion => app_version::generate(host, root),
+        Task::PrepareStoreMetadata => {
+            let directory = store_metadata::prepare(host, root)?;
+            host.print(&format!(
+                "Prepared store metadata at {}",
+                directory.display()
+            ));
+            Ok(())
+        }
+        Task::CheckStore => store_metadata::check(host, root),
+        Task::CheckSbom(arguments) => sbom::check(host, root, &arguments),
+        Task::SealNative(arguments) => native_candidate::run(host, root, &arguments, true),
+        Task::VerifyNative(arguments) => native_candidate::run(host, root, &arguments, false),
         Task::Gates => gates(host, root),
         Task::UiTest { only, arguments } => simulator::ui_test(host, root, only, &arguments),
+        Task::UiTestOn { device, arguments } => {
+            simulator::ui_test_on(host, root, &device, &arguments)
+        }
         Task::Screenshots => simulator::screenshots(host, root).map(|_| ()),
         Task::App(arguments) => simulator::app(host, root, &arguments),
         Task::Proofs => proofs(host, root),
+        Task::SetupNativeDelivery(arguments) => delivery_setup::run_native(host, root, &arguments),
         Task::Mutate(arguments) => swift_mutation::mutate(host, root, &arguments),
         Task::MutateXtask(arguments) => cargo_mutants::mutate(host, root, &arguments),
+        Task::SetupDelivery { workplace, apply } => {
+            delivery_setup::run(host, root, &workplace, apply)
+        }
+        Task::Qualify(arguments) => qualification::run(host, root, &arguments),
+        Task::InspectDelivery(workplace) => delivery_setup::inspect(host, root, &workplace),
+        Task::RequireQualification(source) => qualification::require(host, root, &source),
         Task::Help => {
             host.print(USAGE);
             Ok(())
@@ -284,6 +378,29 @@ mod tests {
                 arguments: vec![]
             })
         );
+    }
+
+    #[test]
+    fn delivery_setup_requires_a_workplace_and_an_explicit_apply_flag() {
+        for (arguments, apply) in [
+            (vec!["setup-delivery", "selected"], false),
+            (vec!["setup-delivery", "selected", "--apply"], true),
+        ] {
+            assert_eq!(
+                task(&arguments),
+                Ok(Task::SetupDelivery {
+                    workplace: "selected".into(),
+                    apply
+                })
+            );
+        }
+        for arguments in [
+            vec!["setup-delivery"],
+            vec!["setup-delivery", "selected", "unexpected"],
+            vec!["setup-delivery", "selected", "--apply", "extra"],
+        ] {
+            assert!(task(&arguments).is_err());
+        }
     }
 
     #[test]
@@ -674,11 +791,12 @@ mod tests {
             "--dir",
             "-d",
             "--manifest-path",
+            "--gitignore=false",
         ] {
             assert_eq!(
                 task(&["mutate-xtask", "--file", "a.rs", owned, "skip"]),
                 refusal(&format!(
-                    "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received {owned}"
+                    "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, --manifest-path, and --gitignore itself, and it received {owned}"
                 )),
                 "{owned}"
             );
@@ -880,7 +998,7 @@ mod tests {
         let mut host = FakeHost::new();
         host.file(
             "/repo/mise.toml",
-            "\"github:ericodx/swift-mutation-testing\" = \"1.6.4\"\n",
+            "[tools]\n\"github:ericodx/swift-mutation-testing\" = \"1.6.4\"\n",
         );
         assert!(
             execute(
@@ -904,7 +1022,7 @@ mod tests {
             .is_err()
         );
         assert!(host.transcript().iter().any(|line| line.ends_with(
-            "\"cargo\" \"mutants\" \"--package\" \"xtask\" \"--shard\" \"0/1\" \"--output\" \"/work/target/mutants/run-1/shard-0\" \"--file\" \"xtask/src/failure.rs\""
+            "\"cargo\" \"mutants\" \"--gitignore=true\" \"--package\" \"xtask\" \"--shard\" \"0/1\" \"--output\" \"/work/target/mutants/run-1/shard-0\" \"--file\" \"xtask/src/failure.rs\""
         )));
     }
 

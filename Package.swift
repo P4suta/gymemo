@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
   name: "Gymemo",
   defaultLocalization: "en",
-  platforms: [.iOS(.v26), .macOS(.v15)],
+  platforms: [.iOS(.v26), .macOS(.v26), .watchOS(.v26), .visionOS(.v26)],
   products: [
     .library(name: "GymemoCore", targets: ["GymemoCore"]),
     .library(name: "GymemoKit", targets: ["GymemoKit"]),

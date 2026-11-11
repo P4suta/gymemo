@@ -3,6 +3,9 @@ options:
   minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
     iOS: "26.0"
+    macOS: "26.0"
+    watchOS: "26.0"
+    visionOS: "26.0"
 packages:
   Gymemo:
     path: .
@@ -11,10 +14,8 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-    TARGETED_DEVICE_FAMILY: "1"
     CODE_SIGN_STYLE: Automatic
     CURRENT_PROJECT_VERSION: "1"
-    MARKETING_VERSION: "1.0"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_TREAT_WARNINGS_AS_ERRORS: YES
@@ -24,9 +25,76 @@ configFiles:
 targets:
   gymemo:
     type: application
-    platform: iOS
+    supportedDestinations: [iOS, macOS, visionOS]
     sources:
-      - App
+      - path: App
+        excludes: [Watch, AppShortcuts.xcstrings]
+      - path: App/AppShortcuts.xcstrings
+        buildPhase: resources
+        destinationFilters: [iOS, visionOS]
+      - path: Sources/GymemoCopy/Localizable.xcstrings
+        buildPhase: resources
+      - path: Config/Assets.xcassets
+        buildPhase: resources
+      - path: Config/LaunchAssets.xcassets
+        buildPhase: resources
+        destinationFilters: [iOS]
+      - path: Config/VisionAssets.xcassets
+        buildPhase: resources
+        destinationFilters: [visionOS]
+      - path: Config/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: Gymemo
+        product: GymemoCore
+      - package: Gymemo
+        product: GymemoKit
+      - package: Gymemo
+        product: GymemoCopy
+      - target: gymemoWatch
+        embed: true
+        destinationFilters: [iOS]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        "TARGETED_DEVICE_FAMILY[sdk=iphone*]": "1,2"
+        "TARGETED_DEVICE_FAMILY[sdk=xr*]": "7"
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Config/Mac.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+    info:
+      path: Config/App-Info.plist
+      properties:
+        CFBundleDisplayName: gymemo
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, ja, zh-Hans, zh-Hant]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.p4suta.gymemo
+            CFBundleTypeRole: Editor
+            CFBundleURLSchemes: [com.p4suta.gymemo]
+        ITSAppUsesNonExemptEncryption: false
+        UISupportsAssistiveAccess: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations: {}
+        LSApplicationCategoryType: public.app-category.healthcare-fitness
+        NSHumanReadableCopyright: Copyright © 2026 Yasunobu Sakashita
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+  gymemoWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - App/Watch
+      - App/CompanionSession.swift
+      - App/Formatting.swift
+      - App/PrivacyScreen.swift
+      - App/AppIcon.icon
       - path: Config/Assets.xcassets
         buildPhase: resources
       - path: Config/PrivacyInfo.xcprivacy
@@ -40,33 +108,82 @@ targets:
         product: GymemoCopy
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo
+        PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo.watchkitapp
+        TARGETED_DEVICE_FAMILY: "4"
+        SKIP_INSTALL: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     info:
-      path: Config/App-Info.plist
+      path: Config/Watch-Info.plist
       properties:
         CFBundleDisplayName: gymemo
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, ja, zh-Hans, zh-Hant]
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.p4suta.gymemo
+        WKRunsIndependentlyOfCompanionApp: false
         ITSAppUsesNonExemptEncryption: false
-        UILaunchScreen:
-          UIColorName: LaunchBackground
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
   gymemoUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - UITests
+      - path: UITests
+        excludes: [Native, Watch]
     dependencies:
       - target: gymemo
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo.UITests
         GENERATE_INFOPLIST_FILE: YES
+  gymemoNativeUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS, macOS, visionOS]
+    sources: [UITests/Native]
+    dependencies:
+      - target: gymemo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo.NativeUITests
+        TEST_TARGET_NAME: gymemo
+        GENERATE_INFOPLIST_FILE: YES
+        "IPHONEOS_DEPLOYMENT_TARGET[sdk=iphone*]": "27.2"
+        "XROS_DEPLOYMENT_TARGET[sdk=xr*]": "27.2"
+        "MACOSX_DEPLOYMENT_TARGET[sdk=macosx*]": "27.2"
+        "TARGETED_DEVICE_FAMILY[sdk=iphone*]": "1,2"
+        "TARGETED_DEVICE_FAMILY[sdk=xr*]": "7"
+  gymemoWatchUITests:
+    type: bundle.ui-testing
+    platform: watchOS
+    sources: [UITests/Watch]
+    dependencies:
+      - target: gymemoWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo.watchtests
+        TEST_TARGET_NAME: gymemoWatch
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "4"
 schemes:
+  gymemoNative:
+    build:
+      targets:
+        gymemo: all
+    test:
+      config: Debug
+      targets: [gymemoNativeUITests]
+  gymemoWatch:
+    build:
+      targets:
+        gymemoWatch: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [gymemoWatchUITests]
+    archive:
+      config: Release
   gymemo:
     build:
       targets:

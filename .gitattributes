@@ -1,4 +1,11 @@
-# The String Catalog and the tests that quote it hold Simplified and Traditional Chinese text.
+# Localized resources and their fixtures contain Simplified and Traditional Chinese text.
+App/AppShortcuts.xcstrings dotguard-lang=off
 Sources/GymemoCopy/Localizable.xcstrings dotguard-lang=off
 Tests/GymemoCopyTests/CopyTests.swift dotguard-lang=off
+UITests/FontTests.swift dotguard-lang=off
 UITests/ScreenshotTests.swift dotguard-lang=off
+metadata/app-store/**/zh-*.json dotguard-lang=off
+website/dist/**/*.html dotguard-lang=off
+website/e2e/navigation.spec.ts dotguard-lang=off
+website/tests/localization.test.ts dotguard-lang=off
+xtask/src/literals.rs dotguard-lang=off

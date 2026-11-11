@@ -2,6 +2,28 @@ import XCTest
 
 final class SettingsTests: XCTestCase {
   @MainActor
+  func testOpensShortcutsAndReturnsToTheSettingsScreen() {
+    let app = Gymemo.launch(store: "settings-shortcuts", tab: "settings")
+    app.any("open-shortcuts").scrollAndTap(in: app)
+    let shortcuts = XCUIApplication(bundleIdentifier: "com.apple.shortcuts")
+    XCTAssertTrue(shortcuts.wait(for: .runningForeground, timeout: 10))
+    app.activate()
+    app.any("open-shortcuts").required("the Shortcuts link after returning")
+  }
+
+  @MainActor
+  func testReadsThePrivacyPolicyWithoutLeavingTheApp() {
+    let app = Gymemo.launch(store: "settings-privacy", tab: "settings")
+    app.buttons["open-privacy"].required("the privacy policy row").tap()
+    app.navigationBars["Privacy Policy"].required("the privacy policy")
+    app.staticTexts["privacy-collection"].required("the data collection policy")
+    app.swipeUp()
+    app.staticTexts["privacy-deletion"].required("the deletion policy")
+    app.goBack()
+    app.buttons["open-privacy"].required("the settings screen")
+  }
+
+  @MainActor
   private func openExercises(_ app: XCUIApplication) {
     app.open(.settings)
     app.buttons["open-exercises"].required("the exercises row").tap()
@@ -84,10 +106,15 @@ final class SettingsTests: XCTestCase {
   }
 
   @MainActor
-  func testShowsWhereRecordsAreKeptAndTheBackupActions() {
+  func testShowsWhereRecordsAreKeptAndTheBackupActions() throws {
     let app = Gymemo.launch(store: "settings-backup", tab: "settings")
     app.staticTexts["Where Records Are Kept"].required("the storage heading")
-    XCTAssertTrue(app.staticTexts["Version 1.0 (1)"].exists)
+    let version = app.staticTexts["app-version"].required("the app version")
+    XCTAssertEqual(version.label, "Version")
+    let information = try XCTUnwrap(Bundle(for: Self.self).infoDictionary)
+    let release = try XCTUnwrap(information["CFBundleShortVersionString"] as? String)
+    let build = try XCTUnwrap(information["CFBundleVersion"] as? String)
+    XCTAssertEqual(version.value as? String, "\(release) (\(build))")
     app.buttons["open-backup"].tap()
     for action in ["export-backup", "export-csv", "import-backup"] {
       app.buttons[action].required(action)

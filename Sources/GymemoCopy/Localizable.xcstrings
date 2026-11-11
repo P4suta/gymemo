@@ -1,6 +1,161 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "versionLabel" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "バージョン" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "版本" } } } },
+    "shortcuts" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Shortcuts" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "ショートカット" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷指令" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "捷徑" } } } },
+    "openLog" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Log" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録を開く" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开记录" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開啟紀錄" } } } },
+    "next" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Next" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "次へ" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下一步" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "下一步" } } } },
+    "done" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "完成" } } } },
+    "reviewSet" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Review Set" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットの確認" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认训练组" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認訓練組" } } } },
+    "setSaved" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Set Saved" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットを保存しました" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "训练组已存储" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訓練組已儲存" } } } },
+    "logAnotherSet" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Log Another Set" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "次のセットを記録" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录下一组" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記錄下一組" } } } },
+    "exerciseControlTitle" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$@, %2$@" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@、%2$@" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@，%2$@" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@，%2$@" } } } },
+    "watch" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watch" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watch" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watch" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Apple Watch" } } } },
+    "watchDelivery" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delivery Status" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "送信状況" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输状态" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "傳輸狀態" } } } },
+    "watchPending" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Waiting for iPhone" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneへの送信待ち" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待iPhone确认" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "等待iPhone確認" } } } },
+    "watchSaved" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Saved on iPhone" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneに保存済み" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已存储到iPhone" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已儲存至iPhone" } } } },
+    "watchRefused" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't Save on iPhone" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneに保存できませんでした" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未能存储到iPhone" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存至iPhone" } } } },
+    "watchExerciseMissing" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "The exercise no longer exists on iPhone. Keep the Watch record and enter the set on iPhone under an existing exercise." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneに種目がありません。Watchの記録を残し、iPhoneの登録済みの種目にセットを入力してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iPhone上已无该训练项目。请保留Watch记录，并在iPhone的现有训练项目中输入该组。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "iPhone上已無該訓練項目。請保留Watch紀錄，並在iPhone的現有訓練項目中輸入該組。" } } } },
+    "watchIdentifierConflict" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "iPhone already has a different set with the same identifier. Compare the records on both devices." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneには同じ識別子で異なるセットが保存されています。両方の端末の記録を比較してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iPhone上已有标识符相同但内容不同的训练组。请比较两个设备上的记录。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "iPhone上已有識別碼相同但內容不同的訓練組。請比較兩部裝置上的紀錄。" } } } },
+    "watchPhoneFull" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "The iPhone log is full. Export a backup, remove unneeded sets on iPhone, and try again." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneの記録件数が上限に達しました。バックアップを書き出し、iPhoneで不要なセットを削除して再試行してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iPhone的记录已满。请导出备份，在iPhone上删除不需要的训练组后重试。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "iPhone的紀錄已滿。請匯出備份，在iPhone上刪除不需要的訓練組後再試。" } } } },
+    "watchNeedsPhone" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Open gymemo on iPhone" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneでgymemoを開いてください" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在iPhone上打开gymemo" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在iPhone上開啟gymemo" } } } },
+    "watchHelp" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Your paired iPhone sends up to 40 exercises, with recent exercises first. Open gymemo on iPhone after changing exercises. Once the exercises arrive, you can log sets while your iPhone is away. Other devices keep separate logs." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "ペアリングしたiPhoneから、最近の種目を優先して最大40種目を受け取ります。種目の変更後はiPhoneでgymemoを開いてください。種目を受け取った後は、iPhoneが近くになくてもセットを記録できます。ほかの端末の記録とは同期しません。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "配对的iPhone会发送最多40个训练项目，最近使用的项目排在前面。更改训练项目后，请在iPhone上打开gymemo。收到训练项目后，即使iPhone不在身边，也能记录训练组。其他设备的记录不会同步。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "配對的iPhone會傳送最多40個訓練項目，最近使用的項目排在前面。更改訓練項目後，請在iPhone上開啟gymemo。收到訓練項目後，即使iPhone不在身邊，也能記錄訓練組。其他裝置的紀錄不會同步。" } } } },
+    "watchWaitingHint" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Sets stay on Apple Watch until your iPhone confirms storage. Transfer runs when the system permits. Keep both apps installed until every pending set is saved on iPhone." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "iPhoneの保存完了を確認するまで、セットをApple Watch内に保持します。転送のタイミングはシステムが決めます。送信待ちのセットがiPhoneに保存されるまで、両方のアプリを削除しないでください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "iPhone确认存储前，训练组会保留在Apple Watch上。系统决定传输时间。所有待传输的训练组存储到iPhone前，请保留两个设备上的应用。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "iPhone確認儲存前，訓練組會保留在Apple Watch上。系統會決定傳輸時間。所有待傳輸的訓練組儲存至iPhone前，請保留兩部裝置上的App。" } } } },
+    "watchTransferFailed" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Transfer couldn't finish. Your saved records remain on the device. Open gymemo on both devices and try again." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "転送できませんでした。保存した記録は端末内に残っています。両方の端末でgymemoを開き、再試行してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "传输未完成。已存储的记录仍保留在设备上。请在两个设备上打开gymemo后重试。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "傳輸未完成。已儲存的紀錄仍保留在裝置上。請在兩部裝置上開啟gymemo後再試。" } } } },
+    "retry" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Try Again" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "再試行" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重试" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "再試一次" } } } },
+    "privacyPolicy" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy Policy" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライバシーポリシー" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "隐私政策" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱私權政策" } } } },
+    "privacyCollection" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Data Collection" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "データの収集" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "数据收集" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料收集" } } } },
+    "privacyCollectionText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "None." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "ありません。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無。" } } } },
+    "privacyOnDevice" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Storage" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存先" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "存储位置" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存位置" } } } },
+    "privacyOnDeviceText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Records stay on each device until deleted. Paired Watch and iPhone exchange records. No cloud sync. Device backups may include records." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除するまで、各端末内に保存します。WatchとペアリングしたiPhoneの間で記録を転送します。クラウド同期はありません。端末のバックアップに含まれる場合があります。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各设备内，直到您删除为止。配对的Watch与iPhone会传输记录。不进行云同步。设备备份可能包含记录。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄保留在各裝置內，直到您刪除為止。配對的Watch與iPhone會傳輸紀錄。不進行雲端同步。裝置備份可能包含紀錄。" } } } },
+    "privacyFiles" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Files" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案" } } } },
+    "privacyFilesText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose files to import and where to export." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "読み込み元と書き出し先は、あなたが選びます。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入文件和导出位置由您选择。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入檔案和匯出位置由您選擇。" } } } },
+    "privacyDeletion" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Deleting Data" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "データの削除" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除数据" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除資料" } } } },
+    "privacyDeletionText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete sets and unused exercises in the app. Remove the app and its data from each device to erase all records. Delete exported files and device backups." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットと未使用の種目は、アプリ内で削除できます。全記録を消す場合は、各端末のアプリとアプリデータを削除してください。書き出したファイルと端末のバックアップは別途削除してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可在App内删除训练组和未使用的训练项目。要清除所有记录，请在各设备上删除App及其数据。导出文件和设备备份需另行删除。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "可在App內刪除訓練組和未使用的訓練項目。若要清除所有紀錄，請在各裝置上刪除App及其資料。匯出檔案和裝置備份需另行刪除。" } } } },
     "tabLog" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Log" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録" } },
@@ -422,15 +577,15 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录的保存位置" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄的儲存位置" } } } },
     "storageText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Your records stay on your iPhone, and the app never uses the network. Export a backup before you change phones." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録はiPhoneの中だけに保存します。通信はしません。機種を変える前に、バックアップを書き出してください。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录只保存在 iPhone 上，应用不会联网。更换手机前，请先导出备份。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄只儲存在 iPhone 上，App 不會連上網路。更換手機前，請先匯出備份。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Records stay on each device. No cloud sync." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録は各端末に保存します。クラウドとは同期しません。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各个设备上。不进行云同步。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄儲存在各部裝置上。不進行雲端同步。" } } } },
     "exportBackupText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Saves every exercise, set, and note to one JSON file. Export one before you change phones." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべての種目、セット、メモを1つのJSONファイルに保存します。機種を変える前に書き出してください。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将所有动作、训练记录和备注保存为一个 JSON 文件。更换手机前请先导出。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將所有動作、訓練紀錄和備註儲存為一個 JSON 檔案。更換手機前請先匯出。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Saves every exercise, set, and note on this device to one JSON file. Export a backup before changing devices." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "端末内のすべての種目、セット、メモを1つのJSONファイルに保存します。機種を変える前に書き出してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将设备上的所有动作、训练记录和备注保存为一个JSON文件。更换设备前请先导出备份。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將裝置上的所有動作、訓練紀錄和備註儲存為一個JSON檔案。更換裝置前請先匯出備份。" } } } },
     "exportBackup" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Backup" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "バックアップを書き出す" } },
@@ -833,10 +988,10 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@的变化" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@的變化" } } } },
     "version" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Version %1$@ (%2$@)" } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "バージョン %1$@（%2$@）" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "版本 %1$@（%2$@）" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "版本 %1$@（%2$@）" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ (%2$@)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@（%2$@）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@（%2$@）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@（%2$@）" } } } },
     "replaceMessage" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Your %1$@ will be deleted and replaced with the %2$@ in the backup. You can't undo the replacement." } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "今の%1$@を消して、バックアップの%2$@に置き換えます。置き換えた後は元に戻せません。" } },

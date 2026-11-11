@@ -1,0 +1,24 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Open the log in ${applicationName}" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open the log in ${applicationName}" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "${applicationName}で記録を開く" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在${applicationName}中打开记录" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在${applicationName}中開啟紀錄" } }
+      }
+    },
+    "Start a set in ${applicationName}" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start a set in ${applicationName}" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "${applicationName}でセットを記録" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用${applicationName}记录一组" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "用${applicationName}記錄一組" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

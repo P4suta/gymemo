@@ -1,0 +1,5 @@
+# These hosted labels postdate actionlint 1.7.12.
+self-hosted-runner:
+  labels:
+    - xcode-27
+    - ubuntu-26.04

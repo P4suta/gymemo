@@ -1,0 +1,164 @@
+name: Checks
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    name: Scope
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # Reads pull request file lists for scope selection.
+    outputs:
+      native: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.native == 'true' }}
+      website: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.website == 'true' }}
+      store: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.store == 'true' }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad
+        with:
+          base: ${{ github.event.merge_group.base_sha || github.event.repository.default_branch }}
+          filters: |
+            native:
+              - 'App/**'
+              - 'Config/**'
+              - 'Sources/**'
+              - 'Tests/**'
+              - 'UITests/**'
+              - 'specs/**'
+              - 'xtask/**'
+              - 'docs/**'
+              - '.github/**'
+              - '.gitleaks.toml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'Package.swift'
+              - 'justfile'
+              - 'mise.toml'
+              - 'project.yml'
+            website:
+              - 'website/**'
+              - 'docs/support-site.md'
+              - '.github/**'
+              - '.gitleaks.toml'
+              - 'justfile'
+              - 'mise.toml'
+            store:
+              - 'metadata/**'
+              - 'Config/MarketingVersion.txt'
+              - 'xtask/src/app_version.rs'
+              - 'xtask/src/store_metadata.rs'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/**'
+              - 'justfile'
+              - 'mise.toml'
+  native:
+    name: Native checks
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: rust just gitleaks xcodegen swiftlint github:EmbarkStudios/cargo-deny
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'mise.toml') }}
+      - run: mise x -- just check-native
+  website:
+    name: Website checks
+    needs: scope
+    if: needs.scope.outputs.website == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      MISE_AUTO_INSTALL: "false"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: node just gitleaks actionlint zizmor
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
+      - run: mise x -- just setup
+      - run: mise x -- just check-website
+      - run: mise x -- just lint-workflows
+      - run: mise x -- gitleaks dir --no-banner --redact --config .gitleaks.toml .
+  store:
+    name: Store metadata checks
+    needs: scope
+    if: needs.scope.outputs.store == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: rust just github:rorkai/App-Store-Connect-CLI
+      - run: mise x -- just check-store
+  gate:
+    name: Checks
+    if: always()
+    needs: [scope, native, website, store]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Require successful checks
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          NATIVE_REQUIRED: ${{ needs.scope.outputs.native }}
+          NATIVE_RESULT: ${{ needs.native.result }}
+          WEBSITE_REQUIRED: ${{ needs.scope.outputs.website }}
+          WEBSITE_RESULT: ${{ needs.website.result }}
+          STORE_REQUIRED: ${{ needs.scope.outputs.store }}
+          STORE_RESULT: ${{ needs.store.result }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          test "$NATIVE_REQUIRED:$NATIVE_RESULT" = true:success || test "$NATIVE_REQUIRED:$NATIVE_RESULT" = false:skipped
+          test "$WEBSITE_REQUIRED:$WEBSITE_RESULT" = true:success || test "$WEBSITE_REQUIRED:$WEBSITE_RESULT" = false:skipped
+          test "$STORE_REQUIRED:$STORE_RESULT" = true:success || test "$STORE_REQUIRED:$STORE_RESULT" = false:skipped

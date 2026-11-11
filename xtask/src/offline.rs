@@ -1,6 +1,6 @@
-//! Keeps networking APIs out of the shipped Swift code.
+//! Excludes server and cloud APIs and confines paired-device transfer to its adapter.
 //!
-//! `docs/adr/keep-records-on-the-device-and-back-up-through-files.md` decides that the app never uses the network.
+//! `docs/adr/exchange-watch-records-with-the-paired-iphone.md` permits Watch Connectivity for the paired companion.
 
 use crate::{
     failure::{Result, ensure},
@@ -36,18 +36,25 @@ fn findings(source: &str, file: &str) -> Vec<String> {
     let mut found = Vec::new();
     for (index, line) in code_only(source).lines().enumerate() {
         let place = format!("{file}:{}", index + 1);
+        if file != "App/CompanionSession.swift"
+            && (names(line, "WatchConnectivity") || names(line, "WCSession"))
+        {
+            found.push(format!(
+                "{place} uses paired-device transport outside its adapter"
+            ));
+        }
         if let Some(module) = line.trim().strip_prefix("import ")
             && REFUSED_IMPORTS.contains(&module.trim())
         {
             found.push(format!(
-                "{place} imports {}, and the app never uses the network",
+                "{place} imports {}, because server and cloud access is excluded",
                 module.trim()
             ));
         }
         for name in REFUSED_NAMES {
             if names(line, name) {
                 found.push(format!(
-                    "{place} names {name}, and the app never uses the network"
+                    "{place} names {name}, because server and cloud access is excluded"
                 ));
             }
         }
@@ -55,7 +62,7 @@ fn findings(source: &str, file: &str) -> Vec<String> {
     found
 }
 
-/// Scans the shipped Swift code and refuses any networking API.
+/// Scans shipped Swift code for server APIs and misplaced paired-device transport.
 pub fn check(root: &Path) -> Result<String> {
     let sources = swift_source::read(root, &SHIPPED)?;
     let found = sources
@@ -74,7 +81,7 @@ pub fn check(root: &Path) -> Result<String> {
         })?;
     }
     Ok(format!(
-        "{} Swift files name no networking API, and {} planted lines fail",
+        "{} Swift files exclude server and cloud APIs, and {} planted lines fail",
         sources.len(),
         PLANTED.len()
     ))
@@ -115,6 +122,27 @@ mod tests {
     }
 
     #[test]
+    fn paired_device_apis_are_confined_to_the_companion_adapter() {
+        for source in [
+            "import WatchConnectivity\n",
+            "let session = WCSession.default\n",
+        ] {
+            assert!(findings(source, "App/CompanionSession.swift").is_empty());
+            for file in ["App/Screen.swift", "Sources/GymemoKit/Transport.swift"] {
+                assert_eq!(findings(source, file).len(), 1, "{file}: {source}");
+            }
+        }
+        assert_eq!(
+            findings(
+                "let session = URLSession.shared\n",
+                "App/CompanionSession.swift"
+            )
+            .len(),
+            1
+        );
+    }
+
+    #[test]
     fn the_shipped_swift_code_passes() -> Result<()> {
         check(&Path::new(env!("CARGO_MANIFEST_DIR")).join("..")).map(|_| ())
     }
@@ -135,7 +163,7 @@ mod tests {
         let tree = shipped("offline-clean", "let file = URL(fileURLWithPath: path)\n")?;
         assert_eq!(
             check(tree.root()),
-            Ok("2 Swift files name no networking API, and 3 planted lines fail".to_owned())
+            Ok("2 Swift files exclude server and cloud APIs, and 3 planted lines fail".to_owned())
         );
         Ok(())
     }
@@ -150,8 +178,8 @@ mod tests {
             check(tree.root()),
             Err(Failure::new(
                 "The shipped code names a networking API:\n\
-                 Sources/GymemoKit/Store.swift:2 imports Network, and the app never uses the network\n\
-                 Sources/GymemoKit/Store.swift:4 names NWPathMonitor, and the app never uses the network"
+                 Sources/GymemoKit/Store.swift:2 imports Network, because server and cloud access is excluded\n\
+                 Sources/GymemoKit/Store.swift:4 names NWPathMonitor, because server and cloud access is excluded"
             ))
         );
         Ok(())
@@ -167,7 +195,7 @@ mod tests {
             check(tree.root()),
             Err(Failure::new(
                 "The shipped code names a networking API:\n\
-                 Sources/GymemoKit/Store.swift:2 names URLSession, and the app never uses the network"
+                 Sources/GymemoKit/Store.swift:2 names URLSession, because server and cloud access is excluded"
             ))
         );
         Ok(())
@@ -181,7 +209,9 @@ mod tests {
         let tree = Tree::new("offline-slashes", &files)?;
         let found = places_after_slashes("Sources/GymemoKit")
             .iter()
-            .map(|place| format!("{place} names URLSession, and the app never uses the network"))
+            .map(|place| {
+                format!("{place} names URLSession, because server and cloud access is excluded")
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             check(tree.root()),
@@ -200,7 +230,9 @@ mod tests {
         let tree = Tree::new("offline-operators", &files)?;
         let found = places_around_operators("Sources/GymemoKit")
             .iter()
-            .map(|place| format!("{place} names URLSession, and the app never uses the network"))
+            .map(|place| {
+                format!("{place} names URLSession, because server and cloud access is excluded")
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             check(tree.root()),
@@ -220,7 +252,9 @@ mod tests {
         let tree = Tree::new("offline-raw-identifiers", &files)?;
         let found = places_around_raw_identifiers("Sources/GymemoKit")
             .iter()
-            .map(|place| format!("{place} names URLSession, and the app never uses the network"))
+            .map(|place| {
+                format!("{place} names URLSession, because server and cloud access is excluded")
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             check(tree.root()),
@@ -244,7 +278,9 @@ mod tests {
             .map(str::to_owned)
             .into_iter()
             .chain(places_after_patterns("Sources/GymemoKit"))
-            .map(|place| format!("{place} names URLSession, and the app never uses the network"))
+            .map(|place| {
+                format!("{place} names URLSession, because server and cloud access is excluded")
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             check(tree.root()),

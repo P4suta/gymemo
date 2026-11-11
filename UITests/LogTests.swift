@@ -2,6 +2,40 @@ import XCTest
 
 final class LogTests: XCTestCase {
   @MainActor
+  func testClearsAPrefilledFieldWithoutResizingItsRow() {
+    let app = Gymemo.launch(store: "log-clear-field", sample: true)
+    let bench = app.rows("Bench Press")
+    let row = app.cells.containing(.textField, identifier: "reps-Bench Press").firstMatch
+      .required("the repetitions row")
+    let height = row.frame.height
+    let clear = app.buttons["clear-reps-Bench Press"]
+    XCTAssertFalse(clear.exists && clear.isHittable)
+
+    bench.reps.scrollAndTap(in: app)
+    clear.requiredHittable("the clear repetitions button")
+    XCTAssertEqual(row.frame.height, height, accuracy: 1)
+    XCTAssertLessThanOrEqual(clear.frame.maxY, app.toolbars.firstMatch.frame.minY)
+    capture("log-number-field-clear")
+    clear.tap()
+    XCTAssertTrue(clear.waitForNonExistence(timeout: 5))
+    XCTAssertFalse(clear.isHittable)
+    XCTAssertEqual(bench.reps.value as? String, bench.reps.placeholderValue)
+    XCTAssertEqual(bench.weight.value as? String, "63.75")
+    XCTAssertEqual(row.frame.height, height, accuracy: 1)
+  }
+
+  @MainActor
+  func testNumberSteppersExposeTheirCurrentValues() {
+    let app = Gymemo.launch(store: "log-stepper-values", sample: true)
+    let weight = app.steppers["step-weight-Bench Press"].required("the weight stepper")
+    let reps = app.steppers["step-reps-Bench Press"].required("the repetitions stepper")
+    XCTAssertEqual(weight.value as? String, "63.75 kg")
+    XCTAssertEqual(reps.value as? String, "6 reps")
+    weight.buttons["step-weight-Bench Press-Increment"].tap()
+    XCTAssertEqual(weight.value as? String, "66.25 kg")
+  }
+
+  @MainActor
   func testLogsSetsFromAnEmptyDayAndKeepsThemAfterARelaunch() {
     var app = Gymemo.launch(store: "log-flow")
     app.any("empty-day").required("the empty day's guidance")

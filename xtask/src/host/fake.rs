@@ -95,6 +95,7 @@ pub struct FakeHost {
     unremovable: BTreeSet<PathBuf>,
     files: BTreeMap<PathBuf, String>,
     printed: Vec<(String, String)>,
+    printed_at: BTreeMap<usize, String>,
     written: Vec<(String, PathBuf, String)>,
     endings: Vec<(String, Ending)>,
     containers: BTreeMap<String, Container>,
@@ -133,6 +134,7 @@ impl FakeHost {
             unremovable: BTreeSet::new(),
             files: BTreeMap::new(),
             printed: Vec::new(),
+            printed_at: BTreeMap::new(),
             written: Vec::new(),
             endings: Vec::new(),
             containers: BTreeMap::new(),
@@ -176,6 +178,10 @@ impl FakeHost {
     /// Of the rules that match a command line, the one added last decides, so a test can replace a rule of a prepared host.
     pub fn prints(&mut self, part: &str, text: &str) {
         self.printed.push((part.to_owned(), text.to_owned()));
+    }
+
+    pub fn prints_at(&mut self, position: usize, text: &str) {
+        self.printed_at.insert(position, text.to_owned());
     }
 
     /// Makes each program, or the command of each container, whose command line holds `part` write `text` to `path`.
@@ -407,7 +413,10 @@ impl Host for FakeHost {
         }
         let result = match fault {
             Some(fault) => fault.outcome()?,
-            None => self.succeed(&words, &line),
+            None => match self.printed_at.get(&position) {
+                Some(text) => ended(0, text, ""),
+                None => self.succeed(&words, &line),
+            },
         };
         // Only a captured program hands its output to the caller.
         Ok(match streams {
@@ -459,6 +468,18 @@ impl Host for FakeHost {
     fn read(&mut self, file: &Path) -> io::Result<String> {
         self.transcript.push(format!("read {}", file.display()));
         self.files.get(file).cloned().ok_or_else(missing_file)
+    }
+
+    fn write(&mut self, file: &Path, text: &str) -> io::Result<()> {
+        self.transcript.push(format!("write {}", file.display()));
+        if self.directories.contains_key(file) {
+            return Err(io::Error::new(
+                io::ErrorKind::IsADirectory,
+                "not a regular file",
+            ));
+        }
+        self.files.insert(file.to_owned(), text.to_owned());
+        Ok(())
     }
 
     fn files(&mut self, directory: &Path) -> io::Result<Vec<PathBuf>> {

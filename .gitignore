@@ -3,7 +3,11 @@
 /target/
 /gymemo.xcodeproj/
 /Signing.local.xcconfig
+/Config/Version.xcconfig
+/native-candidate.tar
+/native-candidate.json
 /.swift-mutation-testing-cache/
 /specs/lean/.lake/
 /.mise.local.toml
+/.asc/
 .DS_Store

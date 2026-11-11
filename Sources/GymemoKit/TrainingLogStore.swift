@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GymemoCore
 
@@ -6,7 +7,14 @@ import GymemoCore
 /// `docs/adr/store-the-training-log-in-one-sqlite-file.md` records the design.
 public final class TrainingLogStore {
   /// The number in `PRAGMA user_version` of a file that this code reads and writes.
-  public static let schemaVersion = 1
+  public static let schemaVersion = 2
+
+  private static let receiptSchema = """
+    CREATE TABLE companion_receipt (
+      id TEXT PRIMARY KEY NOT NULL CHECK (typeof(id) = 'text'),
+      fingerprint TEXT NOT NULL CHECK (typeof(fingerprint) = 'text')
+    )
+    """
 
   private static let schema = [
     """
@@ -78,6 +86,52 @@ public final class TrainingLogStore {
     }
   }
 
+  public func receive(_ set: LoggedSet) throws(StoreFailure) -> (
+    log: TrainingLog, receipt: CompanionReceipt
+  ) {
+    do {
+      return try database.transaction { () throws(StoreFailure) in
+        let log = try read()
+        guard let data = try? CompanionCodec.encode(.entry(set)) else {
+          throw .corruptRow(table: "companion_receipt")
+        }
+        let fingerprint = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let stored = try database.query(
+          "SELECT fingerprint FROM companion_receipt WHERE id = ?", [.text(set.id.uuid.uuidString)]
+        ) { row throws(StoreFailure) in try row.text(0) }
+        if let previous = stored.first {
+          let outcome: CompanionOutcome = previous == fingerprint ? .saved : .identifierConflict
+          return (log, CompanionReceipt(set: set, outcome: outcome))
+        }
+        if let existing = log.set(set.id), existing != set {
+          return (log, CompanionReceipt(set: set, outcome: .identifierConflict))
+        }
+        var committed = log
+        if log.set(set.id) == nil {
+          switch log.apply(
+            .logSet(
+              id: set.id, exerciseID: set.exerciseID, day: set.day, weight: set.weight,
+              reps: set.reps)
+          ) {
+          case .success(let transition):
+            for change in transition.changes { try write(change) }
+            committed = transition.log
+          case .failure(let refusal):
+            let outcome: CompanionOutcome = refusal == .unknownExercise ? .unknownExercise : .full
+            return (log, CompanionReceipt(set: set, outcome: outcome))
+          }
+        }
+        try database.execute(
+          "INSERT INTO companion_receipt (id, fingerprint) VALUES (?, ?)",
+          [.text(set.id.uuid.uuidString), .text(fingerprint)])
+        return (committed, CompanionReceipt(set: set, outcome: .saved))
+      }
+    } catch {
+      StoreTrace.failed(.apply, error)
+      throw error
+    }
+  }
+
   private static func prepare(
     _ database: SQLiteDatabase, starter: TrainingLog
   ) throws(StoreFailure) {
@@ -85,6 +139,11 @@ public final class TrainingLogStore {
     switch version.first ?? 0 {
     case schemaVersion:
       return
+    case 1:
+      try database.transaction { () throws(StoreFailure) in
+        try database.execute(receiptSchema)
+        try database.execute("PRAGMA user_version = \(schemaVersion)")
+      }
     case 0:
       let objects = try database.query("SELECT count(*) FROM sqlite_master") { row in
         row.integer(0)
@@ -94,6 +153,7 @@ public final class TrainingLogStore {
         for statement in schema {
           try database.execute(statement)
         }
+        try database.execute(receiptSchema)
         try insert(starter, into: database)
         try database.execute("PRAGMA user_version = \(schemaVersion)")
       }

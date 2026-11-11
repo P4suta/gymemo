@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "property-no-unknown": true,
+    "declaration-block-no-duplicate-properties": true,
+    "color-no-hex": true,
+    "function-disallowed-list": ["/./"],
+    "property-disallowed-list": ["background", "background-image", "border", "outline", "box-shadow", "text-shadow", "opacity", "filter", "backdrop-filter", "mix-blend-mode", "background-blend-mode", "/^--/"],
+    "declaration-property-value-allowed-list": {
+      "/color$/": ["black", "white", "currentColor", "inherit"],
+      "fill": ["black", "white", "currentColor", "none"],
+      "stroke": ["black", "white", "currentColor", "none"]
+    }
+  }
+}

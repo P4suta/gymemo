@@ -7,52 +7,85 @@ import SwiftUI
 /// The training days of recent weeks, and each exercise's progress.
 struct AnalysisScreen: View {
   let openLog: () -> Void
+  @State private var selectedExercise: ExerciseID?
+
+  var body: some View {
+    NavigationSplitView {
+      AnalysisList(selectedExercise: $selectedExercise, openLog: openLog)
+    } detail: {
+      AnalysisDetail(exerciseID: selectedExercise)
+    }
+    .navigationSplitViewStyle(.balanced)
+  }
+}
+
+struct AnalysisDetail: View {
+  let exerciseID: ExerciseID?
+
+  var body: some View {
+    if let exerciseID {
+      ExerciseProgressScreen(exerciseID: exerciseID).id(exerciseID)
+    } else {
+      ContentUnavailableView(copy[.chooseExercise], systemImage: "chart.xyaxis.line")
+    }
+  }
+}
+
+struct AnalysisList: View {
+  @Binding var selectedExercise: ExerciseID?
+  let openLog: () -> Void
   @Environment(AppModel.self) private var model
 
   var body: some View {
     let summaries = model.log.exerciseSummaries
-    NavigationStack {
-      List {
-        Section {
-          WeeklyBlock(weeks: model.log.weeklyTrainingDays(through: model.today, weeks: 12))
-        } header: {
-          Text(copy[.weeklyTrainingDays])
-        } footer: {
+    List(selection: $selectedExercise) {
+      Section {
+        WeeklyBlock(weeks: model.log.weeklyTrainingDays(through: model.today, weeks: 12))
+        #if os(macOS)
+          Text(copy[.weeklyCaption]).font(.footnote).foregroundStyle(Color.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        #endif
+      } header: {
+        Text(copy[.weeklyTrainingDays])
+      } footer: {
+        #if !os(macOS)
           Text(copy[.weeklyCaption])
-        }
-        if summaries.isEmpty {
-          Section {
-            ContentUnavailableView {
-              Label(copy[.analysisEmptyTitle], systemImage: "chart.bar")
-                .accessibilityIdentifier("empty-analysis")
-            } description: {
-              Text(copy[.analysisEmpty])
-            } actions: {
-              Button(copy[.startToday], action: openLog)
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("start-today")
-            }
-          }
-          .listRowBackground(Color.clear)
-        } else {
-          Section(copy[.progressByExercise]) {
-            ForEach(summaries) { summary in
-              NavigationLink(value: summary.exercise.id) {
-                StackedRow(
-                  title: summary.exercise.name.text,
-                  subtitle: summary.best.map { copy.scoreLine($0.score) },
-                  caption: copy.lastLogged(summary.lastDay))
-              }
-              .accessibilityIdentifier("progress-\(summary.exercise.name.text)")
-            }
-          }
-        }
+        #endif
       }
-      .navigationTitle(copy[.tabAnalysis])
-      .navigationDestination(for: ExerciseID.self) { id in
-        ExerciseProgressScreen(exerciseID: id)
+      if summaries.isEmpty {
+        Section {
+          ContentUnavailableView {
+            Label(copy[.analysisEmptyTitle], systemImage: "chart.bar")
+              .accessibilityIdentifier("empty-analysis")
+          } description: {
+            Text(copy[.analysisEmpty])
+          } actions: {
+            Button(copy[.startToday], action: openLog)
+              .buttonStyle(.borderedProminent)
+              .accessibilityIdentifier("start-today")
+          }
+        }
+        .listRowBackground(Color.clear)
+      } else {
+        Section(copy[.progressByExercise]) {
+          ForEach(summaries) { summary in
+            NavigationLink(value: summary.exercise.id) {
+              StackedRow(
+                title: summary.exercise.name.text,
+                subtitle: summary.best.map { copy.scoreLine($0.score) },
+                caption: copy.lastLogged(summary.lastDay),
+                isSelected: selectedExercise == summary.exercise.id)
+            }
+            .accessibilityIdentifier("progress-\(summary.exercise.name.text)")
+          }
+        }
       }
     }
+    .navigationTitle(copy[.tabAnalysis])
+    .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 440)
+    #if os(macOS)
+      .listStyle(.inset)
+    #endif
   }
 }
 
@@ -79,7 +112,8 @@ private struct WeeklyBlock: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(headline).font(.title3.bold()).accessibilityIdentifier("weekly-headline")
+      Text(headline).font(.title3.bold()).fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("weekly-headline")
       Chart(weeks) { week in
         BarMark(
           x: .value(copy[.axisWeekStart], copy.day(week.start, .axis)),
@@ -150,10 +184,17 @@ struct ExerciseProgressScreen: View {
           } else {
             ProgressChart(points: points, name: copy.scoreName(progress.kind))
           }
+          #if os(macOS)
+            Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
+              .font(.footnote).foregroundStyle(Color.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          #endif
         } header: {
           Text(copy.progressHeading(progress.kind))
         } footer: {
-          Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
+          #if !os(macOS)
+            Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
+          #endif
         }
         Section(copy[.personalBest]) {
           BestRows(progress: progress)
@@ -168,7 +209,7 @@ struct ExerciseProgressScreen: View {
       }
     }
     .navigationTitle(model.log.exercise(exerciseID)?.name.text ?? copy[.tabAnalysis])
-    .navigationBarTitleDisplayMode(.inline)
+    .toolbarTitleDisplayMode(.inline)
   }
 
   /// The three ranges as a segmented control, or as a menu at the accessibility text sizes, where segment labels can't grow.
@@ -180,6 +221,7 @@ struct ExerciseProgressScreen: View {
         Text(option.title).tag(option)
       }
     }
+    .labelsHidden()
     .accessibilityIdentifier("range")
     if typeSize.isAccessibilitySize {
       picker.pickerStyle(.menu).labelsHidden()

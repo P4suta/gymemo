@@ -23,6 +23,19 @@ private func placeholders(_ format: String) -> [String] {
 }
 
 @Suite struct CatalogTests {
+  @Test(arguments: languages)
+  func keepsTheAppleWatchProductName(language: String) throws {
+    #expect(try copy(language)[.watch] == "Apple Watch")
+  }
+
+  @Test func namesTheExerciseInControlTitles() throws {
+    let name = try ExerciseName.parse("Squat").get()
+    #expect(try copy("en").exerciseControlTitle("Weight", name) == "Weight, Squat")
+    #expect(try copy("ja").exerciseControlTitle("重量", name) == "重量、Squat")
+    #expect(try copy("zh-Hans").exerciseControlTitle("重量", name) == "重量，Squat")
+    #expect(try copy("zh-Hant").exerciseControlTitle("重量", name) == "重量，Squat")
+  }
+
   @Test func offersExactlyTheSupportedLanguages() throws {
     #expect(Copy.languages == languages)
     for language in languages {
@@ -50,7 +63,7 @@ private func placeholders(_ format: String) -> [String] {
   func translatesEveryPlainStringAwayFromEnglish(language: String) throws {
     let english = try copy("en")
     let copy = try copy(language)
-    for key in CopyKey.allCases where key != .kilogramUnit {
+    for key in CopyKey.allCases where key != .kilogramUnit && key != .watch {
       #expect(copy[key] != english[key], "\(language) repeats the English \(key.rawValue)")
     }
   }
@@ -297,7 +310,7 @@ private func placeholders(_ format: String) -> [String] {
     let day = try #require(LocalDay(iso: "2026-11-09"))
     let name = try ExerciseName.parse("Bench Press").get()
     #expect(english.deleteQuestion(name) == "Delete “Bench Press”?")
-    #expect(english.version(marketing: "1.0", build: "1") == "Version 1.0 (1)")
+    #expect(english.version(marketing: "1.0", build: "1") == "1.0 (1)")
     #expect(
       english.replaceMessage(current: 1, incoming: 12)
         == "Your 1 set will be deleted and replaced with the 12 sets in the backup. You can't undo the replacement."

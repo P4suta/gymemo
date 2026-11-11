@@ -1,0 +1,377 @@
+name: Native delivery
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Successful Native candidate run ID
+        type: string
+        required: true
+      source_sha:
+        description: Full source commit of the preserved candidate
+        type: string
+        required: true
+      platform:
+        description: Native App Store platform
+        type: choice
+        required: true
+        options: [iOS, macOS, visionOS]
+      upload:
+        description: Upload to App Store Connect after signing
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: native-delivery-${{ inputs.platform }}
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    name: Verify the preserved candidate before signing
+    if: github.ref == 'refs/heads/main' && github.repository_id == '1453033797'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # Downloads the selected candidate run's preserved artifact.
+      statuses: read # Rechecks the owner's local qualification for the selected source.
+      attestations: read # Verifies the archive and manifest before any signing credentials.
+    env:
+      MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
+    outputs:
+      artifact: ${{ steps.artifact.outputs.artifact-id }}
+      version: ${{ steps.candidate.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: rust just
+      - name: Download and verify the original candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PLATFORM: ${{ inputs.platform }}
+          ARTIFACT_NAME: native-${{ inputs.platform }}-${{ inputs.candidate_run }}-${{ inputs.source_sha }}-attempt-1
+        run: |
+          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name "$ARTIFACT_NAME"
+          gh attestation verify native-candidate.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          gh attestation verify native-candidate.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          mise x -- just verify-native "$PLATFORM" "$SOURCE_SHA" "$CANDIDATE_RUN"
+          printf 'version=%s\n' "$(jq --raw-output .identity.version native-candidate.json)" >> "$GITHUB_OUTPUT"
+      - id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: native-admitted-attempt-${{ github.run_attempt }}
+          path: |
+            native-candidate.tar
+            native-candidate.json
+          if-no-files-found: error
+          retention-days: 30
+  signing:
+    name: Sign the preserved native candidate
+    needs: admission
+    if: github.ref == 'refs/heads/main' && github.repository_id == '1453033797'
+    runs-on: xcode-27
+    timeout-minutes: 30
+    environment: native-signing
+    permissions:
+      contents: read
+      actions: read # Downloads the immutable artifact from the selected candidate run.
+      id-token: write # Attests the signed package without an upload key.
+      attestations: write # Records the signed package and original candidate together.
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      MISE_AUTO_INSTALL: "false"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            mise.toml
+            .github/export-options/visionos.plist
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: github:rorkai/App-Store-Connect-CLI github:anchore/syft
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        if: github.run_attempt == 1
+        with:
+          artifact-ids: ${{ needs.admission.outputs.artifact }}
+          path: candidate
+          digest-mismatch: error
+      - name: Verify the original unsigned archive
+        if: github.run_attempt == 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          gh attestation verify candidate/native-candidate.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          gh attestation verify candidate/native-candidate.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          tar --extract --file candidate/native-candidate.tar --directory candidate
+      - name: Install the expected application signing identity
+        id: application
+        if: github.run_attempt == 1
+        env:
+          DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
+          DOPPLER_CONFIG: ${{ secrets.DOPPLER_CONFIG }}
+          CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          CERTIFICATE_SHA256: ${{ vars.APPLE_DISTRIBUTION_CERTIFICATE_SHA256 }}
+        run: |
+          umask 077
+          test "$DOPPLER_PROJECT" = gymemo
+          test "$DOPPLER_CONFIG" = ci_native_signing
+          test -n "$CERTIFICATE_SHA256"
+          mkdir -p "$RUNNER_TEMP/gymemo-signing"
+          printf %s "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/application.p12"
+          printf %s "$CERTIFICATE_PASSWORD" > "$RUNNER_TEMP/gymemo-signing/application-password"
+          openssl rand -base64 32 > "$RUNNER_TEMP/gymemo-signing/keychain-password"
+          mise x -- asc signing keychain install --identity "$RUNNER_TEMP/gymemo-signing/application.p12" --identity-password-file "$RUNNER_TEMP/gymemo-signing/application-password" --keychain "$RUNNER_TEMP/gymemo-application.keychain-db" --keychain-password-file "$RUNNER_TEMP/gymemo-signing/keychain-password" --expected-certificate-sha256 "$CERTIFICATE_SHA256" --add-to-search-list --confirm
+      - name: Install the iOS and Watch profiles
+        if: github.run_attempt == 1 && inputs.platform == 'iOS'
+        env:
+          IOS_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          WATCH_PROFILE: ${{ secrets.WATCH_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          umask 077
+          printf %s "$IOS_PROFILE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/ios.mobileprovision"
+          printf %s "$WATCH_PROFILE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/watch.mobileprovision"
+          mise x -- asc profiles local install --path "$RUNNER_TEMP/gymemo-signing/ios.mobileprovision"
+          mise x -- asc profiles local install --path "$RUNNER_TEMP/gymemo-signing/watch.mobileprovision"
+      - name: Install the macOS profile and installer identity
+        id: installer
+        if: github.run_attempt == 1 && inputs.platform == 'macOS'
+        env:
+          MAC_PROFILE: ${{ secrets.MAC_PROVISIONING_PROFILE_BASE64 }}
+          INSTALLER_CERTIFICATE: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}
+          INSTALLER_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+          INSTALLER_SHA256: ${{ vars.APPLE_INSTALLER_CERTIFICATE_SHA256 }}
+        run: |
+          umask 077
+          test -n "$INSTALLER_SHA256"
+          printf %s "$MAC_PROFILE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile"
+          mise x -- asc profiles local install --path "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile"
+          printf %s "$INSTALLER_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/installer.p12"
+          printf %s "$INSTALLER_PASSWORD" > "$RUNNER_TEMP/gymemo-signing/installer-password"
+          mise x -- asc signing keychain install --identity "$RUNNER_TEMP/gymemo-signing/installer.p12" --identity-password-file "$RUNNER_TEMP/gymemo-signing/installer-password" --keychain "$RUNNER_TEMP/gymemo-installer.keychain-db" --keychain-password-file "$RUNNER_TEMP/gymemo-signing/keychain-password" --expected-certificate-sha256 "$INSTALLER_SHA256" --add-to-search-list --confirm
+      - name: Install the visionOS profile
+        if: github.run_attempt == 1 && inputs.platform == 'visionOS'
+        env:
+          VISION_PROFILE: ${{ secrets.VISION_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          umask 077
+          test -n "$APPLE_TEAM_ID"
+          printf %s "$VISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/vision.mobileprovision"
+          mise x -- asc profiles local install --path "$RUNNER_TEMP/gymemo-signing/vision.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/gymemo-signing/vision.mobileprovision" > "$RUNNER_TEMP/gymemo-signing/vision-profile.plist"
+          cp .github/export-options/visionos.plist "$RUNNER_TEMP/gymemo-signing/vision-options.plist"
+          plutil -insert teamID -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/vision-options.plist"
+          plutil -insert 'provisioningProfiles.com\.p4suta\.gymemo' -string "$(plutil -extract UUID raw -o - "$RUNNER_TEMP/gymemo-signing/vision-profile.plist")" "$RUNNER_TEMP/gymemo-signing/vision-options.plist"
+      - name: Export a signed iOS package without uploading
+        if: github.run_attempt == 1 && inputs.platform == 'iOS'
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          test -n "$APPLE_TEAM_ID"
+          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --ipa-path signed/gymemo.ipa --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m
+          ditto -x -k signed/gymemo.ipa "$RUNNER_TEMP/gymemo-export"
+          codesign --verify --deep --strict "$RUNNER_TEMP/gymemo-export/Payload/gymemo.app"
+          shasum -a 256 signed/gymemo.ipa > signed/SHA256SUMS
+      - name: Export a signed visionOS package without uploading
+        if: github.run_attempt == 1 && inputs.platform == 'visionOS'
+        run: |
+          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --ipa-path signed/gymemo.ipa --export-options "$RUNNER_TEMP/gymemo-signing/vision-options.plist" --timeout 20m
+          ditto -x -k signed/gymemo.ipa "$RUNNER_TEMP/gymemo-export"
+          codesign --verify --deep --strict "$RUNNER_TEMP/gymemo-export/Payload/gymemo.app"
+          shasum -a 256 signed/gymemo.ipa > signed/SHA256SUMS
+      - name: Export a signed Mac package without uploading
+        if: github.run_attempt == 1 && inputs.platform == 'macOS'
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          test -n "$APPLE_TEAM_ID"
+          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m
+          pkgutil --check-signature signed/gymemo.pkg
+          shasum -a 256 signed/gymemo.pkg > signed/SHA256SUMS
+      - name: Inventory the final signed package contents
+        if: github.run_attempt == 1
+        env:
+          APP_VERSION: ${{ needs.admission.outputs.version }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          if test "$PLATFORM" = macOS; then
+            pkgutil --expand-full signed/gymemo.pkg "$RUNNER_TEMP/gymemo-export"
+          fi
+          mise x -- syft scan "dir:$RUNNER_TEMP/gymemo-export" --source-name gymemo --source-version "$APP_VERSION" --parallelism 2 --output cyclonedx-json=signed/native-sbom.cdx.json
+          shasum -a 256 signed/native-sbom.cdx.json >> signed/SHA256SUMS
+      - name: Preserve the signed package and its original source archive
+        if: github.run_attempt == 1
+        run: tar --create --file native-signed.tar candidate/native-candidate.tar candidate/native-candidate.json signed
+      - if: github.run_attempt == 1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: native-signed.tar
+      - name: Reuse the original signed bytes on a retry
+        if: github.run_attempt > 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name native-signed-attempt-1
+      - name: Verify the preserved signed package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh attestation verify native-signed.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
+      - id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: native-signed-attempt-${{ github.run_attempt }}
+          path: native-signed.tar
+          if-no-files-found: error
+          retention-days: 30
+      - name: Delete the application signing keychain
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/gymemo-application.keychain-db"; then
+            security delete-keychain "$RUNNER_TEMP/gymemo-application.keychain-db"
+          fi
+      - name: Delete the installer signing keychain
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/gymemo-installer.keychain-db"; then
+            security delete-keychain "$RUNNER_TEMP/gymemo-installer.keychain-db"
+          fi
+      - name: Delete the private temporary inputs
+        if: always() && github.run_attempt == 1
+        run: rm -rf -- "$RUNNER_TEMP/gymemo-signing"
+    outputs:
+      artifact: ${{ steps.artifact.outputs.artifact-id }}
+  inspect:
+    name: Verify the final signed dependency inventory
+    needs: [admission, signing]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      attestations: read # Verifies the signed bytes and original source without credentials.
+    env:
+      MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
+    outputs:
+      artifact: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: rust just
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.signing.outputs.artifact }}
+          digest-mismatch: error
+      - name: Verify the signed package, source archive, and dependency inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          APP_VERSION: ${{ needs.admission.outputs.version }}
+        run: |
+          gh attestation verify native-signed.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
+          tar --extract --file native-signed.tar
+          gh attestation verify candidate/native-candidate.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          gh attestation verify candidate/native-candidate.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          shasum -a 256 --check signed/SHA256SUMS
+          mise x -- just check-sbom native "$APP_VERSION" signed/native-sbom.cdx.json
+      - id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: native-inspected-attempt-${{ github.run_attempt }}
+          path: native-signed.tar
+          if-no-files-found: error
+          retention-days: 30
+  upload:
+    name: Upload the preserved native package
+    needs: [admission, inspect]
+    if: inputs.upload
+    runs-on: xcode-27
+    timeout-minutes: 90
+    environment: native-upload
+    permissions:
+      contents: read
+      attestations: read # Verifies the preserved artifacts before accessing the upload key.
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      MISE_AUTO_INSTALL: "false"
+    steps:
+      - name: Require reconciliation of the original upload before a retry
+        if: github.run_attempt > 1
+        run: "false"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: mise.toml
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          version: "2026.11.6"
+          install_args: github:rorkai/App-Store-Connect-CLI
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.inspect.outputs.artifact }}
+          digest-mismatch: error
+      - name: Verify the signed package and original source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          gh attestation verify native-signed.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
+          tar --extract --file native-signed.tar
+          gh attestation verify candidate/native-candidate.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          gh attestation verify candidate/native-candidate.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          shasum -a 256 --check signed/SHA256SUMS
+      - name: Require the upload credential purpose
+        env:
+          DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
+          DOPPLER_CONFIG: ${{ secrets.DOPPLER_CONFIG }}
+        run: |
+          test "$DOPPLER_PROJECT" = gymemo
+          test "$DOPPLER_CONFIG" = ci_native_upload
+      - name: Validate and upload the iOS or visionOS package
+        if: inputs.platform != 'macOS'
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+          ASC_STRICT_AUTH: "true"
+        run: |
+          mise x -- asc xcode validate --ipa signed/gymemo.ipa
+          mise x -- asc builds upload --app 6833008455 --ipa signed/gymemo.ipa --checksum --wait --output json > native-upload-result.json
+      - name: Validate and upload the Mac package
+        if: inputs.platform == 'macOS'
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+          ASC_STRICT_AUTH: "true"
+          BUILD_NUMBER: ${{ inputs.candidate_run }}
+          APP_VERSION: ${{ needs.admission.outputs.version }}
+        run: |
+          mise x -- asc xcode validate --pkg signed/gymemo.pkg
+          mise x -- asc builds upload --app 6833008455 --pkg signed/gymemo.pkg --version "$APP_VERSION" --build-number "$BUILD_NUMBER" --checksum --wait --output json > native-upload-result.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always() && github.run_attempt == 1
+        with:
+          name: native-upload-result
+          path: native-upload-result.json
+          if-no-files-found: error
+          retention-days: 30

@@ -11,7 +11,7 @@ enum Gymemo {
 
   static func launch(
     store: String, reset: Bool = true, sample: Bool = false, tab: String? = nil,
-    textSize: String? = nil, language: String = "en"
+    textSize: String? = nil, language: String = "en", assistive: Bool = false
   ) -> XCUIApplication {
     let app = XCUIApplication()
     var arguments = [
@@ -20,6 +20,7 @@ enum Gymemo {
     ]
     if reset { arguments.append("-gymemo-reset") }
     if sample { arguments.append("-gymemo-sample") }
+    if assistive { arguments.append("-gymemo-assistive") }
     if let tab { arguments += ["-gymemo-tab", tab] }
     if let textSize { arguments += ["-UIPreferredContentSizeCategoryName", textSize] }
     app.launchArguments = arguments
@@ -59,7 +60,7 @@ struct ExerciseRows {
 }
 
 extension XCUIApplication {
-  /// The element with an identifier, whatever kind of element the system made of it.
+  /// Finds an identifier across all element types.
   @MainActor
   func any(_ identifier: String) -> XCUIElement {
     descendants(matching: .any).matching(identifier: identifier).firstMatch
@@ -84,9 +85,19 @@ extension XCUIApplication {
   @MainActor
   func fill(_ field: String, with text: String) {
     hideKeyboard()
-    textFields[field].scrollAndTap(in: self)
-    let clear = buttons["clear-\(field)"]
-    if clear.waitForExistence(timeout: 1) { clear.tap() }
+    let element = textFields[field]
+    element.scrollAndTap(in: self)
+    if let value = element.value as? String, !value.isEmpty, value != element.placeholderValue {
+      let clear = buttons["clear-\(field)"].requiredHittable("the clear button for \(field)")
+      guard clear.isHittable else { return }
+      clear.tap()
+      let cleared = XCTNSPredicateExpectation(
+        predicate: NSPredicate(format: "value == '' OR value == placeholderValue"), object: element)
+      guard XCTWaiter.wait(for: [cleared], timeout: 5) == .completed else {
+        XCTFail("\(field) did not clear")
+        return
+      }
+    }
     if !text.isEmpty { typeText(text) }
     hideKeyboard()
   }
@@ -137,7 +148,22 @@ extension XCUIElement {
     return self
   }
 
-  /// Fails unless the element is gone within the timeout.
+  @MainActor
+  @discardableResult
+  func requiredHittable(
+    _ name: String, timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line
+  ) -> XCUIElement {
+    required(name, timeout: timeout, file: file, line: line)
+    XCTAssertTrue(
+      wait(for: \.isEnabled, toEqual: true, timeout: timeout),
+      "\(name) stayed disabled", file: file, line: line)
+    XCTAssertTrue(
+      wait(for: \.isHittable, toEqual: true, timeout: timeout),
+      "\(name) stayed outside the hit region", file: file, line: line)
+    return self
+  }
+
+  /// Fails unless the element disappears within the timeout.
   @MainActor
   func requiredGone(
     _ name: String, timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line
@@ -146,18 +172,21 @@ extension XCUIElement {
       waitForNonExistence(timeout: timeout), "\(name) stayed on the screen", file: file, line: line)
   }
 
-  /// Scrolls the screen until the element exists and can be tapped, then taps it.
+  /// Scrolls until the whole element appears inside the screen and accepts a tap.
   /// A list makes its rows on demand, so a row below the screen doesn't exist until the list scrolls to it.
   @MainActor
   func scrollAndTap(in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
     app.hideKeyboard()
     var swipes = 0
-    while !(exists && isHittable), swipes < 12 {
+    while !(exists && isHittable && app.frame.contains(frame)), swipes < 12 {
       app.swipeUp(velocity: .slow)
       swipes += 1
     }
-    XCTAssertTrue(
-      exists, "\(identifier.isEmpty ? label : identifier) did not appear", file: file, line: line)
+    guard exists && isHittable && app.frame.contains(frame) else {
+      XCTFail(
+        "\(identifier.isEmpty ? label : identifier) did not become visible", file: file, line: line)
+      return
+    }
     tap()
   }
 

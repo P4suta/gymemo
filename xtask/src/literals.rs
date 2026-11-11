@@ -3,14 +3,85 @@
 //! `docs/adr/localize-with-one-tested-string-catalog.md` decides that every word the app shows comes from the catalog.
 //! A literal in a screen may hold a symbol name, an identifier, or a filename, and never text for a reader.
 //! One lowercase word such as a unit passes the check, and the review of each screen has to catch it.
+//! Compiler-required App Intents metadata literals must reference fully translated catalogs in the canonical adapter.
 
 use crate::{
-    failure::{Result, ensure},
+    failure::{Context, Failure, Result, ensure},
+    json::{self, Value},
     swift_source::{self, Literal},
 };
 use std::path::Path;
 
 const SCREENS: &str = "App";
+const INTENT_ADAPTER: &str = "App/LogShortcut.swift";
+const APPLICATION_NAME: &str = "${applicationName}";
+const LANGUAGES: [&str; 4] = ["en", "ja", "zh-Hans", "zh-Hant"];
+
+struct MetadataCatalogs {
+    titles: Value,
+    phrases: Value,
+}
+
+impl MetadataCatalogs {
+    fn read(root: &Path) -> Result<Self> {
+        fn catalog(root: &Path, file: &str) -> Result<Value> {
+            let path = root.join(file);
+            let text =
+                std::fs::read_to_string(&path).context(|| format!("Read {}", path.display()))?;
+            json::parse(&text)
+                .map_err(|error| Failure::new(format!("Read {}: {error}", path.display())))
+        }
+        Ok(Self {
+            titles: catalog(root, "Sources/GymemoCopy/Localizable.xcstrings")?,
+            phrases: catalog(root, "App/AppShortcuts.xcstrings")?,
+        })
+    }
+
+    fn allows(&self, literal: &Literal, interpolations: &[swift_source::Interpolation]) -> bool {
+        let parameters = interpolations
+            .iter()
+            .filter(|parameter| parameter.line == literal.line)
+            .collect::<Vec<_>>();
+        if let Some(title) = self
+            .titles
+            .get("strings")
+            .and_then(|keys| keys.get(&literal.text))
+        {
+            return parameters.is_empty()
+                && LANGUAGES
+                    .iter()
+                    .all(|language| translated(title, language).is_some());
+        }
+        let Some(phrases) = self.phrases.get("strings").and_then(Value::as_object) else {
+            return false;
+        };
+        parameters.len() == 1
+            && parameters[0].code.trim() == ".applicationName"
+            && phrases.iter().any(|(key, entry)| {
+                key.matches(APPLICATION_NAME).count() == 1
+                    && key.replace(APPLICATION_NAME, "") == literal.text
+                    && LANGUAGES.iter().all(|language| {
+                        translated(entry, language).is_some_and(|value| {
+                            value.matches(APPLICATION_NAME).count() == 1
+                                && (*language != "en" || value == key)
+                        })
+                    })
+            })
+    }
+}
+
+fn translated<'a>(entry: &'a Value, language: &str) -> Option<&'a str> {
+    let unit = entry
+        .get("localizations")?
+        .get(language)?
+        .get("stringUnit")?;
+    if unit.get("state")?.as_str()? != "translated" {
+        return None;
+    }
+    unit.get("value")?
+        .as_str()
+        .filter(|value| !value.trim().is_empty())
+}
 
 /// Literals with capital letters that name a key of the system instead of showing text.
 const SYSTEM_KEYS: [&str; 2] = ["CFBundleShortVersionString", "CFBundleVersion"];
@@ -23,10 +94,11 @@ const PLANTED: [&str; 4] = [
     "Text(\"\\(count) sets\")\n",
 ];
 
-/// Whether a literal's fixed text is a symbol name, an identifier, a filename, or a system key.
+/// Whether a literal's fixed text is a symbol name, an identifier, a filename, a system key, or SwiftUI's external-event wildcard.
 /// An escape writes a character for a reader, and the blank that stands for it in the fixed text makes the literal count as text.
 fn is_name(text: &str) -> bool {
-    SYSTEM_KEYS.contains(&text)
+    text == "*"
+        || SYSTEM_KEYS.contains(&text)
         || text.chars().all(|character| {
             character.is_ascii_lowercase()
                 || character.is_ascii_digit()
@@ -36,9 +108,26 @@ fn is_name(text: &str) -> bool {
 
 /// Each literal in `source` that holds text for a reader, located by its file and its line.
 fn findings(source: &str, file: &str) -> Vec<String> {
+    findings_with_metadata(source, file, None)
+}
+
+fn findings_with_metadata(
+    source: &str,
+    file: &str,
+    catalogs: Option<&MetadataCatalogs>,
+) -> Vec<String> {
+    let metadata = catalogs.filter(|_| Path::new(file) == Path::new(INTENT_ADAPTER));
+    let interpolations = if metadata.is_some() {
+        swift_source::interpolations(source)
+    } else {
+        Vec::new()
+    };
     swift_source::literals(source)
         .into_iter()
-        .filter(|literal| !is_name(&literal.text))
+        .filter(|literal| {
+            !is_name(&literal.text)
+                && !metadata.is_some_and(|catalogs| catalogs.allows(literal, &interpolations))
+        })
         .map(|Literal { line, text }| {
             format!("{file}:{line} writes \"{text}\" as a literal, and the screens read their words from the catalog")
         })
@@ -48,9 +137,14 @@ fn findings(source: &str, file: &str) -> Vec<String> {
 /// Scans the screens and refuses any literal that holds text for a reader.
 pub fn check(root: &Path) -> Result<String> {
     let screens = swift_source::read(root, &[SCREENS])?;
+    let catalogs = screens
+        .iter()
+        .any(|screen| Path::new(&screen.file) == Path::new(INTENT_ADAPTER))
+        .then(|| MetadataCatalogs::read(root))
+        .transpose()?;
     let found = screens
         .iter()
-        .flat_map(|screen| findings(&screen.text, &screen.file))
+        .flat_map(|screen| findings_with_metadata(&screen.text, &screen.file, catalogs.as_ref()))
         .collect::<Vec<_>>();
     ensure(found.is_empty(), || {
         format!(
@@ -82,6 +176,112 @@ mod tests {
         },
     };
 
+    const INTENT_SOURCE: &str = "static let title: LocalizedStringResource = \"openLog\"\nlet phrases = [\"Open the log in \\(.applicationName)\"]\n";
+    const TITLE_CATALOG: &str = r#"{"strings":{"openLog":{"localizations":{
+      "en":{"stringUnit":{"state":"translated","value":"Open Log"}},
+      "ja":{"stringUnit":{"state":"translated","value":"記録を開く"}},
+      "zh-Hans":{"stringUnit":{"state":"translated","value":"打开记录"}},
+      "zh-Hant":{"stringUnit":{"state":"translated","value":"開啟紀錄"}}
+    }}}}"#;
+    const PHRASE_CATALOG: &str = r#"{"strings":{"Open the log in ${applicationName}":{"localizations":{
+      "en":{"stringUnit":{"state":"translated","value":"Open the log in ${applicationName}"}},
+      "ja":{"stringUnit":{"state":"translated","value":"${applicationName}で記録を開く"}},
+      "zh-Hans":{"stringUnit":{"state":"translated","value":"在${applicationName}中打开记录"}},
+      "zh-Hant":{"stringUnit":{"state":"translated","value":"在${applicationName}中開啟紀錄"}}
+    }}}}"#;
+
+    #[test]
+    fn intent_metadata_requires_translated_catalog_keys_and_system_phrase_parameters() -> Result<()>
+    {
+        let tree = Tree::new(
+            "intent-literals",
+            &[
+                ("App/LogShortcut.swift", INTENT_SOURCE),
+                ("Sources/GymemoCopy/Localizable.xcstrings", TITLE_CATALOG),
+                ("App/AppShortcuts.xcstrings", PHRASE_CATALOG),
+            ],
+        )?;
+        assert!(check(tree.root()).is_ok());
+        for source in [
+            INTENT_SOURCE.replace("openLog", "missingKey"),
+            INTENT_SOURCE.replace("Open the log in", "Untranslated words in"),
+            INTENT_SOURCE.replace(".applicationName", "exercise.name"),
+            "Text(\"Untranslated help\")".to_owned(),
+        ] {
+            let tree = Tree::new(
+                "invalid-intent-literals",
+                &[
+                    ("App/LogShortcut.swift", source.as_str()),
+                    ("Sources/GymemoCopy/Localizable.xcstrings", TITLE_CATALOG),
+                    ("App/AppShortcuts.xcstrings", PHRASE_CATALOG),
+                ],
+            )?;
+            assert!(check(tree.root()).is_err(), "{source}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn intent_catalog_admission_never_relaxes_other_screens() -> Result<()> {
+        let tree = Tree::new(
+            "intent-scope",
+            &[
+                ("App/LogShortcut.swift", INTENT_SOURCE),
+                ("App/Other.swift", INTENT_SOURCE),
+                ("Sources/GymemoCopy/Localizable.xcstrings", TITLE_CATALOG),
+                ("App/AppShortcuts.xcstrings", PHRASE_CATALOG),
+            ],
+        )?;
+        assert!(check(tree.root()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn incomplete_or_malformed_intent_catalogs_are_refused() -> Result<()> {
+        for (title, phrases) in [
+            (
+                TITLE_CATALOG.replace("\"ja\"", "\"fr\""),
+                PHRASE_CATALOG.to_owned(),
+            ),
+            (
+                TITLE_CATALOG.replace("translated", "new"),
+                PHRASE_CATALOG.to_owned(),
+            ),
+            (
+                TITLE_CATALOG.to_owned(),
+                PHRASE_CATALOG.replace("\"ja\"", "\"fr\""),
+            ),
+            (
+                TITLE_CATALOG.to_owned(),
+                PHRASE_CATALOG.replace("translated", "new"),
+            ),
+            (
+                TITLE_CATALOG.to_owned(),
+                PHRASE_CATALOG.replace("${applicationName}で", "で"),
+            ),
+            (
+                TITLE_CATALOG.to_owned(),
+                PHRASE_CATALOG.replace(
+                    "${applicationName}で",
+                    "${applicationName}${applicationName}で",
+                ),
+            ),
+            (TITLE_CATALOG.to_owned(), "{".to_owned()),
+            ("{".to_owned(), PHRASE_CATALOG.to_owned()),
+        ] {
+            let tree = Tree::new(
+                "invalid-intent-catalogs",
+                &[
+                    ("App/LogShortcut.swift", INTENT_SOURCE),
+                    ("Sources/GymemoCopy/Localizable.xcstrings", title.as_str()),
+                    ("App/AppShortcuts.xcstrings", phrases.as_str()),
+                ],
+            )?;
+            assert!(check(tree.root()).is_err(), "{title}\n{phrases}");
+        }
+        Ok(())
+    }
+
     #[test]
     fn names_pass_and_text_for_a_reader_fails() {
         for allowed in [
@@ -89,6 +289,7 @@ mod tests {
             ".accessibilityIdentifier(\"set-\\(number)\")\n",
             "let version = info?[\"CFBundleVersion\"] as? String ?? \"\"\n",
             "let name = \"gymemo-backup-\\(model.today.iso)\"\n",
+            ".handlesExternalEvents(preferring: [\"*\"], allowing: [\"*\"])\n",
             "Text(copy[.logSet]) // \"Log set\"\n",
             "/* Text(\"Log set\") */\n",
             "Text(\"\\(copy.day(day, .long))\")\n",

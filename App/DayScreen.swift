@@ -1,3 +1,4 @@
+import Accessibility
 import GymemoCopy
 import GymemoCore
 import SwiftUI
@@ -6,7 +7,7 @@ import SwiftUI
 struct DayScreen: View {
   let day: LocalDay
   @Environment(AppModel.self) private var model
-  @State private var pending: [ExerciseID] = []
+  @Environment(LogDrafts.self) private var drafts
   @State private var isPickingExercise = false
   @State private var isEditingNote = false
   @State private var editedSet: LoggedSet?
@@ -20,7 +21,7 @@ struct DayScreen: View {
 
   private var shown: [Shown] {
     let logged = model.log.sections(on: day).map { Shown(exercise: $0.exercise, sets: $0.sets) }
-    let waiting = pending.filter { id in !logged.contains { $0.id == id } }
+    let waiting = drafts.waiting(on: day).filter { id in !logged.contains { $0.id == id } }
       .compactMap { model.log.exercise($0) }
       .map { Shown(exercise: $0, sets: []) }
     return logged + waiting
@@ -32,6 +33,11 @@ struct DayScreen: View {
     let isToday = day == model.today
     let note = model.log.memo(on: day)
     List {
+      #if os(visionOS)
+        if isToday {
+          Section { Text(copy.day(day, .long)) }
+        }
+      #endif
       if !isToday {
         Section {
           Label(copy[.dayNotToday], systemImage: "calendar")
@@ -69,10 +75,18 @@ struct DayScreen: View {
         .accessibilityIdentifier("edit-note")
       }
     }
-    .scrollDismissesKeyboard(.interactively)
+    #if !os(visionOS)
+      .dismissKeyboardWhenScrolling()
+    #endif
     .navigationTitle(isToday ? copy[.tabLog] : copy.day(day, .long))
-    .navigationSubtitle(isToday ? copy.day(day, .long) : "")
-    .toolbarTitleDisplayMode(isToday ? .large : .inline)
+    #if !os(visionOS)
+      .navigationSubtitle(isToday ? copy.day(day, .long) : "")
+    #endif
+    #if os(iOS)
+      .toolbarTitleDisplayMode(isToday ? .large : .inline)
+    #else
+      .toolbarTitleDisplayMode(.inline)
+    #endif
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button(copy[.addExercise], systemImage: "plus") { isPickingExercise = true }
@@ -82,7 +96,7 @@ struct DayScreen: View {
     .keyboardDismissal()
     .sheet(isPresented: $isPickingExercise) {
       ExercisePicker { exercise in
-        if !pending.contains(exercise.id) { pending.append(exercise.id) }
+        drafts.add(exercise.id, on: day)
       }
     }
     .sheet(isPresented: $isEditingNote) {
@@ -104,6 +118,7 @@ private struct ExerciseSection: View {
   let suggestion: SetEntry?
   let edit: (LoggedSet) -> Void
   @Environment(AppModel.self) private var model
+  @Environment(\.undoManager) private var undoManager
 
   var body: some View {
     let name = exercise.name.text
@@ -131,14 +146,14 @@ private struct ExerciseSection: View {
         .accessibilityIdentifier("set-\(index + 1)-\(name)")
         .swipeActions(edge: .trailing) {
           Button(copy[.delete], systemImage: "trash", role: .destructive) {
-            model.perform(.deleteSet(id: set.id))
+            model.perform(.deleteSet(id: set.id), undoManager: undoManager)
           }
           Button(copy[.edit], systemImage: "pencil") { edit(set) }
         }
         .contextMenu {
           Button(copy[.edit], systemImage: "pencil") { edit(set) }
           Button(copy[.delete], systemImage: "trash", role: .destructive) {
-            model.perform(.deleteSet(id: set.id))
+            model.perform(.deleteSet(id: set.id), undoManager: undoManager)
           }
         }
       }
@@ -155,43 +170,55 @@ private struct ExerciseSection: View {
 private struct SetEntryRows: View {
   let exercise: Exercise
   let day: LocalDay
+  let suggestion: SetEntry?
   @Environment(AppModel.self) private var model
-  @State private var weightText: String
-  @State private var repsText: String
-  @State private var problem: String?
+  @Environment(LogDrafts.self) private var drafts
+  @Environment(\.undoManager) private var undoManager
   @State private var logged = 0
   @State private var refused = 0
 
-  init(exercise: Exercise, day: LocalDay, suggestion: SetEntry?) {
-    self.exercise = exercise
-    self.day = day
-    _weightText = State(initialValue: suggestion.map { copy.weightField($0.weight) } ?? "")
-    _repsText = State(initialValue: suggestion.map { "\($0.reps.count)" } ?? "")
+  private var draft: LogSetDraft {
+    get { drafts.entry(for: exercise.id, on: day, suggestion: suggestion) }
+    nonmutating set { drafts.update(newValue, for: exercise.id, on: day) }
   }
 
   var body: some View {
     let name = exercise.name.text
-    NumberFieldRow(kind: .weight, text: $weightText, identifier: "weight-\(name)")
-    NumberFieldRow(kind: .reps, text: $repsText, identifier: "reps-\(name)")
-    if let problem { InlineProblem(text: problem, identifier: "problem-\(name)") }
+    NumberFieldRow(
+      kind: .weight,
+      text: Binding(get: { draft.weightText }, set: { draft.weightText = $0 }),
+      identifier: "weight-\(name)", exerciseName: exercise.name)
+    NumberFieldRow(
+      kind: .reps,
+      text: Binding(get: { draft.repsText }, set: { draft.repsText = $0 }),
+      identifier: "reps-\(name)", exerciseName: exercise.name)
+    if let problem = draft.problem { InlineProblem(text: problem, identifier: "problem-\(name)") }
     Button(copy[.logSet], systemImage: "plus.circle.fill", action: record)
+      .accessibilityLabel(copy.exerciseControlTitle(copy[.logSet], exercise.name))
+      .accessibilityInputLabels([
+        copy.exerciseControlTitle(copy[.logSet], exercise.name), copy[.logSet],
+      ])
       .accessibilityIdentifier("log-set-\(name)")
       .sensoryFeedback(.success, trigger: logged)
       .sensoryFeedback(.error, trigger: refused)
   }
 
   private func record() {
-    switch SetEntry.parse(weight: weightText, reps: repsText) {
+    switch SetEntry.parse(weight: draft.weightText, reps: draft.repsText) {
     case .failure(let refusal):
-      problem = copy.problem(entry: refusal)
+      draft.problem = copy.problem(entry: refusal)
+      AccessibilityNotification.Announcement(copy.problem(entry: refusal)).post()
       refused += 1
     case .success(let entry):
       let command = Command.logSet(
         id: model.newSetID(), exerciseID: exercise.id, day: day, weight: entry.weight,
         reps: entry.reps)
-      if model.perform(command) == .done {
-        problem = nil
+      if model.perform(command, undoManager: undoManager) == .done {
+        draft.problem = nil
         logged += 1
+        AccessibilityNotification.Announcement(
+          copy.exerciseControlTitle(copy[.setSaved], exercise.name)
+        ).post()
       }
     }
   }
@@ -201,6 +228,7 @@ private struct SetEntryRows: View {
 struct SetEditor: View {
   let set: LoggedSet
   @Environment(AppModel.self) private var model
+  @Environment(\.undoManager) private var undoManager
   @Environment(\.dismiss) private var dismiss
   @State private var weightText: String
   @State private var repsText: String
@@ -229,13 +257,23 @@ struct SetEditor: View {
           }
         }
         Section {
-          Button(copy[.deleteSet], role: .destructive) {
-            if model.perform(.deleteSet(id: set.id)) != .notStored { dismiss() }
+          Button(role: .destructive) {
+            if model.perform(.deleteSet(id: set.id), undoManager: undoManager) != .notStored {
+              dismiss()
+            }
+          } label: {
+            Label {
+              Text(copy[.deleteSet])
+                .foregroundStyle(Color.primary)
+                .accessibilityIdentifier("label-delete-set")
+            } icon: {
+              Image(systemName: "trash").foregroundStyle(.red)
+            }
           }
           .accessibilityIdentifier("delete-set")
         }
       }
-      .scrollDismissesKeyboard(.interactively)
+      .dismissKeyboardWhenScrolling()
       .keyboardDismissal()
       .sheetToolbar(
         title: copy[.editSet], confirmTitle: copy[.save],
@@ -251,7 +289,7 @@ struct SetEditor: View {
       problem = copy.problem(entry: refusal)
     case .success(let entry):
       let command = Command.editSet(id: set.id, weight: entry.weight, reps: entry.reps)
-      if model.perform(command) != .notStored { dismiss() }
+      if model.perform(command, undoManager: undoManager) != .notStored { dismiss() }
     }
   }
 }
@@ -260,6 +298,7 @@ struct SetEditor: View {
 struct NoteEditor: View {
   let day: LocalDay
   @Environment(AppModel.self) private var model
+  @Environment(\.undoManager) private var undoManager
   @Environment(\.dismiss) private var dismiss
   @State private var text: String
   @State private var problem: String?
@@ -284,14 +323,16 @@ struct NoteEditor: View {
           Text(copy[.noteHint])
         }
       }
-      .navigationSubtitle(copy.day(day, .long))
+      #if !os(visionOS)
+        .navigationSubtitle(copy.day(day, .long))
+      #endif
       .sheetToolbar(
         title: copy[.note], confirmTitle: copy[.save], isDirty: text != initialText, confirm: save)
     }
   }
 
   private func save() {
-    switch model.perform(.writeMemo(day: day, text: text)) {
+    switch model.perform(.writeMemo(day: day, text: text), undoManager: undoManager) {
     case .done: dismiss()
     case .refused(let refusal): problem = copy.problem(note: refusal)
     case .notStored: break

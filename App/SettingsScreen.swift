@@ -6,10 +6,19 @@ import UniformTypeIdentifiers
 private enum SettingsRoute: Hashable {
   case exercises
   case backup
+  case privacy
+  case watch
 }
 
 struct SettingsScreen: View {
   @Environment(AppModel.self) private var model
+
+  private var shortcutsURL: URL? {
+    var components = URLComponents()
+    components.scheme = "shortcuts"
+    components.host = ""
+    return components.url
+  }
 
   private var version: String {
     let info = Bundle.main.infoDictionary
@@ -31,13 +40,32 @@ struct SettingsScreen: View {
           .accessibilityIdentifier("open-exercises")
           NavigationLink(copy[.exportAndImport], value: SettingsRoute.backup)
             .accessibilityIdentifier("open-backup")
+          #if os(iOS)
+            NavigationLink(copy[.watch], value: SettingsRoute.watch)
+              .accessibilityIdentifier("open-watch")
+          #endif
+          NavigationLink(copy[.privacyPolicy], value: SettingsRoute.privacy)
+            .accessibilityIdentifier("open-privacy")
+          #if os(iOS) || os(visionOS)
+            if let shortcuts = shortcutsURL {
+              Link(destination: shortcuts) {
+                Text(copy[.shortcuts])
+              }
+              .accessibilityIdentifier("open-shortcuts")
+            }
+          #endif
         }
         Section {
           Text(copy[.storageText])
+            .accessibilityIdentifier("storage-text")
         } header: {
           Text(copy[.storageHeading])
+            .accessibilityIdentifier("storage-heading")
         } footer: {
           Text(version)
+            .accessibilityLabel(copy[.versionLabel])
+            .accessibilityValue(version)
+            .accessibilityIdentifier("app-version")
         }
       }
       .navigationTitle(copy[.tabSettings])
@@ -45,6 +73,14 @@ struct SettingsScreen: View {
         switch route {
         case .exercises: ExerciseListScreen()
         case .backup: BackupScreen()
+        case .privacy: PrivacyScreen()
+        case .watch:
+          List {
+            Section { Text(copy[.watchHelp]) }
+            Section(copy[.watchDelivery]) { Text(copy[.watchWaitingHint]) }
+          }
+          .navigationTitle(copy[.watch])
+          .toolbarTitleDisplayMode(.inline)
         }
       }
     }
@@ -76,7 +112,9 @@ struct ExportDocument: FileDocument {
 /// Writes the log to a JSON or CSV file, and replaces the log with a JSON backup.
 struct BackupScreen: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.undoManager) private var undoManager
   @State private var export: Export?
+  @State private var isExporting = false
   @State private var isImporting = false
   @State private var replacement: TrainingLog?
   @State private var notice: Notice?
@@ -105,6 +143,7 @@ struct BackupScreen: View {
           export = Export(
             document: ExportDocument(data: Backup.write(model.log)), type: .json,
             name: "gymemo-backup-\(model.today.iso)")
+          isExporting = true
         }
         .accessibilityIdentifier("export-backup")
       } footer: {
@@ -115,6 +154,7 @@ struct BackupScreen: View {
           export = Export(
             document: ExportDocument(data: CSVExport.write(model.log, labels: copy.csvLabels)),
             type: .commaSeparatedText, name: "gymemo-\(model.today.iso)")
+          isExporting = true
         }
         .accessibilityIdentifier("export-csv")
       } footer: {
@@ -128,9 +168,9 @@ struct BackupScreen: View {
       }
     }
     .navigationTitle(copy[.exportAndImport])
-    .navigationBarTitleDisplayMode(.inline)
+    .toolbarTitleDisplayMode(.inline)
     .fileExporter(
-      isPresented: Binding(isPresent: $export), document: export?.document,
+      isPresented: $isExporting, document: export?.document,
       contentType: export?.type ?? .json, defaultFilename: export?.name
     ) { result in
       notice =
@@ -138,6 +178,7 @@ struct BackupScreen: View {
         case .success: Notice(text: copy[.exported], isFailure: false)
         case .failure: Notice(text: copy[.exportFailed], isFailure: true)
         }
+      export = nil
     }
     .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
       read(result)
@@ -146,7 +187,7 @@ struct BackupScreen: View {
       copy[.replaceQuestion], isPresented: Binding(isPresent: $replacement), presenting: replacement
     ) { log in
       Button(copy[.replace], role: .destructive) {
-        if model.perform(.replaceAll(log)) == .done {
+        if model.perform(.replaceAll(log), undoManager: undoManager) == .done {
           notice = Notice(text: copy[.imported], isFailure: false)
         }
       }

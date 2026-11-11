@@ -44,7 +44,7 @@ struct ExercisePicker: View {
       }
       .searchable(text: $query)
       .navigationTitle(copy[.chooseExercise])
-      .navigationBarTitleDisplayMode(.inline)
+      .toolbarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button(copy[.cancel], systemImage: "xmark", role: .cancel) { dismiss() }
@@ -56,7 +56,9 @@ struct ExercisePicker: View {
         }
         // The search guidance places search at the bottom of the screen on an iPhone when there is room.
         // See https://developer.apple.com/design/human-interface-guidelines/search-fields.
-        DefaultToolbarItem(kind: .search, placement: .bottomBar)
+        #if os(iOS)
+          DefaultToolbarItem(kind: .search, placement: .bottomBar)
+        #endif
       }
       .navigationDestination(isPresented: $isCreating) {
         ExerciseForm(exercise: nil, isPushed: true) { created in
@@ -93,6 +95,7 @@ struct ExerciseForm: View {
   let isPushed: Bool
   var created: (Exercise) -> Void = { _ in }
   @Environment(AppModel.self) private var model
+  @Environment(\.undoManager) private var undoManager
   @Environment(\.dismiss) private var dismiss
   @State private var name: String
   @State private var bodyPart: BodyPart
@@ -141,7 +144,7 @@ struct ExerciseForm: View {
     if isPushed {
       form
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleDisplayMode(.inline)
         .toolbar {
           ToolbarItem(placement: .confirmationAction) {
             Button(copy[.save], systemImage: "checkmark", role: .confirm, action: save)
@@ -166,7 +169,11 @@ struct ExerciseForm: View {
             titleVisibility: .visible
           ) {
             Button(copy[.delete], role: .destructive) {
-              if model.perform(.deleteExercise(id: exercise.id)) != .notStored { dismiss() }
+              if model.perform(.deleteExercise(id: exercise.id), undoManager: undoManager)
+                != .notStored
+              {
+                dismiss()
+              }
             }
             Button(copy[.cancel], role: .cancel) {}
           }
@@ -182,12 +189,16 @@ struct ExerciseForm: View {
   private func save() {
     if let exercise {
       let edit = Command.editExercise(id: exercise.id, name: name, bodyPart: bodyPart)
-      guard finish(model.perform(edit)) else { return }
+      guard finish(model.perform(edit, undoManager: undoManager)) else { return }
       let archive = Command.setExerciseArchived(id: exercise.id, isArchived: !isSelectable)
-      if finish(model.perform(archive)) { dismiss() }
+      if finish(model.perform(archive, undoManager: undoManager)) { dismiss() }
     } else {
       let id = model.newExerciseID()
-      guard finish(model.perform(.addExercise(id: id, name: name, bodyPart: bodyPart))) else {
+      guard
+        finish(
+          model.perform(
+            .addExercise(id: id, name: name, bodyPart: bodyPart), undoManager: undoManager))
+      else {
         return
       }
       if let added = model.log.exercise(id) { created(added) }
@@ -212,6 +223,7 @@ struct ExerciseForm: View {
 /// Every exercise by body part, for renaming, hiding, and deleting.
 struct ExerciseListScreen: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.undoManager) private var undoManager
   @State private var edited: Exercise?
   @State private var isCreating = false
 
@@ -244,7 +256,7 @@ struct ExerciseListScreen: View {
       }
     }
     .navigationTitle(copy[.exercises])
-    .navigationBarTitleDisplayMode(.inline)
+    .toolbarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button(copy[.newExercise], systemImage: "plus") { isCreating = true }
@@ -260,6 +272,8 @@ struct ExerciseListScreen: View {
   }
 
   private func toggle(_ exercise: Exercise) {
-    model.perform(.setExerciseArchived(id: exercise.id, isArchived: !exercise.isArchived))
+    model.perform(
+      .setExerciseArchived(id: exercise.id, isArchived: !exercise.isArchived),
+      undoManager: undoManager)
   }
 }

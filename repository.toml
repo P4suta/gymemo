@@ -1,8 +1,9 @@
 name = "gymemo"
-summary = "Log weight training sets on an iPhone and see your progress, with no ads, account, or network"
+summary = "Log weight training on Apple devices, with no ads, account, or cloud sync"
 install = """
 mise trust
 mise install
+mise x -- just setup
 mise x -- just check"""
 usage = """
 mise x -- just app -gymemo-sample"""

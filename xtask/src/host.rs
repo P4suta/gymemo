@@ -92,6 +92,9 @@ pub trait Host {
     /// The text of `file`, which must be UTF-8.
     fn read(&mut self, file: &Path) -> io::Result<String>;
 
+    /// Writes UTF-8 text to a file, replacing its previous contents.
+    fn write(&mut self, file: &Path, text: &str) -> io::Result<()>;
+
     /// Every file under `directory` at any depth, in path order, without the directories.
     fn files(&mut self, directory: &Path) -> io::Result<Vec<PathBuf>>;
 
@@ -152,6 +155,10 @@ impl Host for Local {
 
     fn read(&mut self, file: &Path) -> io::Result<String> {
         fs::read_to_string(file)
+    }
+
+    fn write(&mut self, file: &Path, text: &str) -> io::Result<()> {
+        fs::write(file, text)
     }
 
     fn files(&mut self, directory: &Path) -> io::Result<Vec<PathBuf>> {
@@ -389,6 +396,18 @@ mod tests {
         );
         assert!(Local.remove_file(&scratch.path().join("target")).is_err());
         assert!(scratch.path().join("target/mutation").is_dir());
+        Ok(())
+    }
+
+    #[test]
+    fn written_text_replaces_a_file_and_refuses_a_directory() -> io::Result<()> {
+        let scratch = Scratch::new("host-write")?;
+        let file = scratch.path().join("result.txt");
+        Local.write(&file, "first\n")?;
+        assert_eq!(fs::read_to_string(&file)?, "first\n");
+        Local.write(&file, "é\n")?;
+        assert_eq!(fs::read_to_string(&file)?, "é\n");
+        assert!(Local.write(scratch.path(), "a directory").is_err());
         Ok(())
     }
 

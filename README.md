@@ -1,12 +1,13 @@
 # Gymemo
 
-Log weight training sets on an iPhone and see your progress, with no ads, account, or network.
+Log weight training on Apple devices, with no ads, account, or cloud sync.
 
 ## Installation
 
 ```sh
 mise trust
 mise install
+mise x -- just setup
 mise x -- just check
 ```
 

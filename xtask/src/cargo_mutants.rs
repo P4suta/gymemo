@@ -21,7 +21,7 @@ const MUTANTS_PER_SHARD: usize = 100;
 /// Each shard tests its baseline first, so a failing test suite fails the run instead of catching every mutant.
 /// Each shard runs one job, the default of cargo-mutants, since the shard size rests on one job and 2 GiB holds one build.
 /// The run mutates xtask from the manifest of the repository, so a caller can't point it at another crate.
-const OWNED: [&str; 9] = [
+const OWNED: [&str; 10] = [
     "--shard",
     "--output",
     "--list",
@@ -31,6 +31,7 @@ const OWNED: [&str; 9] = [
     "--jobs",
     "--dir",
     "--manifest-path",
+    "--gitignore",
 ];
 /// The short forms of the owned options.
 const OWNED_SHORT: [char; 4] = ['o', 'p', 'j', 'd'];
@@ -168,7 +169,7 @@ fn run(
 
 /// The cargo-mutants command line with the options of the command before `arguments`.
 fn cargo_mutants(options: &[&str], arguments: &[String]) -> Vec<String> {
-    ["cargo", "mutants"]
+    ["cargo", "mutants", "--gitignore=true"]
         .iter()
         .chain(options)
         .map(|word| (*word).to_owned())
@@ -366,6 +367,8 @@ mod tests {
             "--list",
             "--list=true",
             "--in-place",
+            "--gitignore",
+            "--gitignore=false",
             "--package",
             "--package=xtask",
             "-p",
@@ -573,18 +576,18 @@ mod tests {
         assert_eq!(
             commands(&host),
             [
-                "cargo mutants --list --package xtask --file xtask/src/json.rs -- --test-threads 1",
-                "cargo mutants --package xtask --shard 0/2 --output /work/target/mutants/run-3/shard-0 --file xtask/src/json.rs -- --test-threads 1",
-                "cargo mutants --package xtask --shard 1/2 --output /work/target/mutants/run-3/shard-1 --file xtask/src/json.rs -- --test-threads 1",
+                "cargo mutants --gitignore=true --list --package xtask --file xtask/src/json.rs -- --test-threads 1",
+                "cargo mutants --gitignore=true --package xtask --shard 0/2 --output /work/target/mutants/run-3/shard-0 --file xtask/src/json.rs -- --test-threads 1",
+                "cargo mutants --gitignore=true --package xtask --shard 1/2 --output /work/target/mutants/run-3/shard-1 --file xtask/src/json.rs -- --test-threads 1",
             ]
         );
-        let lines = host.transcript();
+        let lines = &host.transcript()[2..];
         assert_eq!(
             lines[0],
             "capture \"docker\" \"build\" \"--quiet\" \"--tag\" \"gymemo-rust:proofs\" \"/repo/xtask/proofs/rust\""
         );
         assert!(lines[1].contains(
-            "\"--volume\" \"/repo:/work\" \"--workdir\" \"/work\" \"--env\" \"CARGO_TARGET_DIR=/work/target/container\""
+            "\"--volume\" \"/repo:/work\" \"--volume\" \"/repo/target/verification-cargo/registry:/usr/local/cargo/registry:ro\" \"--workdir\" \"/work\" \"--env\" \"CARGO_TARGET_DIR=/tmp/gymemo-target\" \"--env\" \"CARGO_NET_OFFLINE=true\""
         ));
         assert!(lines[2].starts_with("capture \"docker\" \"start\""));
         assert_eq!(
@@ -688,7 +691,7 @@ mod tests {
         assert_eq!(
             stopped,
             Err(Failure::inconclusive(
-                "`cargo mutants --package xtask --shard 0/2 --output /work/target/mutants/run-1/shard-0` reached the memory limit of 2 GiB without swap"
+                "`cargo mutants --gitignore=true --package xtask --shard 0/2 --output /work/target/mutants/run-1/shard-0` reached the memory limit of 2 GiB without swap"
             ))
         );
         assert_eq!(commands(&host).len(), 2);
@@ -715,7 +718,7 @@ mod tests {
         assert_eq!(
             mutate(&mut host, root, &[]),
             Err(Failure::new(
-                "`cargo mutants --package xtask --shard 0/2 --output /work/target/mutants/run-1/shard-0` failed with exit code 4 in its container"
+                "`cargo mutants --gitignore=true --package xtask --shard 0/2 --output /work/target/mutants/run-1/shard-0` failed with exit code 4 in its container"
             ))
         );
         assert_eq!(commands(&host).len(), 2);
@@ -733,15 +736,15 @@ mod tests {
         assert_eq!(
             mutate(&mut host, root, &texts(&["--file", "xtask/src/none.rs"])),
             Err(Failure::new(
-                "`cargo mutants --list --package xtask --file xtask/src/none.rs` found no mutant"
+                "`cargo mutants --gitignore=true --list --package xtask --file xtask/src/none.rs` found no mutant"
             ))
         );
         let mut host = FakeHost::new();
         host.ends("\"--list\"", Ending::Exit(1));
         assert!(mutate(&mut host, root, &[]).is_err_and(|failure| {
-            failure
-                .to_string()
-                .starts_with("`cargo mutants --list --package xtask` failed with exit code 1")
+            failure.to_string().starts_with(
+                "`cargo mutants --gitignore=true --list --package xtask` failed with exit code 1",
+            )
         }));
         let mut host = planned(1, 1, &[shard(1, 0, 0, 0)]);
         host.refuse_listing("/repo/target/mutants");
@@ -760,6 +763,6 @@ mod tests {
         let mut host = planned(1, 1, &[shard(1, 0, 0, 0)]);
         host.fail("\"build\"", Fault::Exit(1, "no daemon"));
         assert!(mutate(&mut host, root, &[]).is_err());
-        assert_eq!(host.transcript().len(), 1);
+        assert_eq!(host.transcript().len(), 3);
     }
 }

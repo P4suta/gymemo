@@ -3,6 +3,8 @@
 public enum CopyKey: String, CaseIterable, Sendable {
   case tabLog, tabHistory, tabAnalysis, tabSettings
   case cancel, save, delete, open, replace, hideKeyboard
+  case next, reviewSet, setSaved, logAnotherSet, done
+  case openLog
   case edit, hide, show, discardQuestion, discardChanges, keepEditing
   case dayEmptyTitle, analysisEmptyTitle, emptyRangeTitle
   case dayNotToday, dayEmpty, addExercise, note, writeNote, editNote
@@ -21,7 +23,13 @@ public enum CopyKey: String, CaseIterable, Sendable {
   case estimatedOneRepMax, mostReps, personalBestEmpty, threeMonths, oneYear, allTime
   case emptyRange, oneRepMaxNote, repsNote, setsByDay, exerciseMissing
   case axisDate, axisWeekStart, axisDays
-  case exportAndImport, storageHeading, storageText
+  case exportAndImport, storageHeading, storageText, shortcuts, versionLabel
+  case privacyPolicy, privacyCollection, privacyCollectionText
+  case privacyOnDevice, privacyOnDeviceText, privacyFiles, privacyFilesText
+  case privacyDeletion, privacyDeletionText
+  case watchDelivery, watchPending, watchSaved, watchRefused, watchNeedsPhone
+  case watchHelp, watchWaitingHint, watchTransferFailed, retry, watch
+  case watchExerciseMissing, watchIdentifierConflict, watchPhoneFull
   case exportBackupText, exportBackup, exportCSVText, exportCSV, importBackupText, importBackup
   case exported, exportFailed, imported, fileUnreadable, replaceQuestion
   case backupTooLarge, backupNotABackup, backupNewer, backupUnsupported, backupDamaged
@@ -39,6 +47,7 @@ public enum CopyKey: String, CaseIterable, Sendable {
 
 /// A sentence of the catalog that takes values, which only the typed accessors of `Copy` fill.
 enum FormatKey: String, CaseIterable {
+  case exerciseControlTitle
   case loadKilograms, kilogramsSpoken, setSummary, setNumber, repsCount, setsCount, daysCount
   case previousSession, noteTooLong, nameTooLong, deleteExerciseQuestion, historyRow
   case weeklyHeadline, weeklyHeadlineSingle, weekOf, lastLogged, oneRepMaxLine, mostRepsLine

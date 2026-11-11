@@ -9,7 +9,7 @@ use crate::{
     failure::{Context, Failure, Result},
     host::{Host, Invocation, Streams},
 };
-use std::path::Path;
+use std::{ffi::OsString, path::Path};
 
 /// The processors of one container.
 pub const CPUS: u32 = 2;
@@ -86,6 +86,7 @@ const GRACE_SECONDS: u32 = 1;
 const TIMED_OUT: i32 = 124;
 /// The exit code of a command that `SIGKILL` ended, which `timeout` reports when the command outlives the grace.
 const KILLED: i32 = 137;
+const CARGO_CACHE: &str = "target/verification-cargo";
 
 impl Toolset {
     /// The directory of the Dockerfile, relative to the repository.
@@ -104,11 +105,14 @@ impl Toolset {
         }
     }
 
-    /// The variables of every container, where a Rust build keeps its artifacts apart from the native builds.
+    /// Rust build caches stay on the container's Linux filesystem for that invocation.
     fn environment(self) -> &'static [&'static str] {
         match self {
             Toolset::Lean => &[],
-            Toolset::Rust => &["CARGO_TARGET_DIR=/work/target/container"],
+            Toolset::Rust => &[
+                "CARGO_TARGET_DIR=/tmp/gymemo-target",
+                "CARGO_NET_OFFLINE=true",
+            ],
         }
     }
 }
@@ -141,6 +145,20 @@ fn captured(host: &mut impl Host, invocation: &Invocation) -> Result<String> {
 
 /// Builds the image of `toolset` under its fixed name and returns its identifier.
 pub fn build(host: &mut impl Host, root: &Path, toolset: Toolset) -> Result<Image> {
+    if toolset == Toolset::Rust {
+        let home = root.join(CARGO_CACHE);
+        host.create_directories(&home.join("registry"))
+            .context(|| "Create the verification dependency cache".into())?;
+        let mut variable = OsString::from("CARGO_HOME=");
+        variable.push(&home);
+        captured(
+            host,
+            &Invocation::new("env")
+                .arg(variable)
+                .args(["cargo", "fetch", "--locked"])
+                .current_dir(root),
+        )?;
+    }
     let context = root.join(toolset.context());
     let printed = captured(
         host,
@@ -170,12 +188,18 @@ fn create(root: &Path, step: &Step) -> Invocation {
         volume.push(":ro");
     }
     let memory = MEMORY_BYTES.to_string();
-    docker()
+    let mut command = docker()
         .args(["create", "--cpus", &CPUS.to_string()])
         .args(["--memory", &memory, "--memory-swap", &memory])
         .args(["--pids-limit", &PIDS.to_string()])
         .args(["--network", "none", "--volume"])
-        .arg(volume)
+        .arg(volume);
+    if step.image.toolset == Toolset::Rust {
+        let mut registry = root.join(CARGO_CACHE).join("registry").into_os_string();
+        registry.push(":/usr/local/cargo/registry:ro");
+        command = command.arg("--volume").arg(registry);
+    }
+    command
         .args(["--workdir", step.directory])
         .args(
             step.image
@@ -287,6 +311,69 @@ mod tests {
     use crate::host::fake::{Ending as Ends, FakeHost, Fault, IMAGE};
 
     const ROOT: &str = "/repo";
+
+    #[test]
+    fn rust_dependencies_are_fetched_before_checks_and_mounted_without_write_access() -> Result<()>
+    {
+        let mut host = FakeHost::new();
+        let root = Path::new(ROOT);
+        let image = build(&mut host, root, Toolset::Rust)?;
+        run(
+            &mut host,
+            root,
+            &Step {
+                image: &image,
+                directory: WORK,
+                command: vec!["cargo".into(), "test".into(), "--locked".into()],
+                reading: Reading::Shown,
+                mount: Mount::ReadOnly,
+            },
+            &[0],
+        )?;
+        let transcript = host.transcript();
+        let fetch = transcript
+            .iter()
+            .position(|line| line.contains("\"cargo\" \"fetch\" \"--locked\""));
+        let build = transcript
+            .iter()
+            .position(|line| line.contains("\"docker\" \"build\""));
+        assert!(fetch.is_some_and(|fetch| build.is_some_and(|build| fetch < build)));
+        let create = transcript
+            .iter()
+            .find(|line| line.contains("\"docker\" \"create\""))
+            .expect("container");
+        assert!(
+            create.contains(
+                "\"/repo/target/verification-cargo/registry:/usr/local/cargo/registry:ro\""
+            )
+        );
+        assert!(create.contains("\"CARGO_NET_OFFLINE=true\""));
+        assert!(create.contains("\"--network\" \"none\""));
+        assert_eq!(host.containers(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn missing_rust_dependencies_stop_before_an_image_or_container_is_created() {
+        let root = Path::new(ROOT);
+        let mut host = FakeHost::new();
+        host.refuse_creating("/repo/target/verification-cargo/registry");
+        assert_eq!(
+            build(&mut host, root, Toolset::Rust).err(),
+            Some(Failure::new(
+                "Create the verification dependency cache: no permission"
+            ))
+        );
+        assert_eq!(host.transcript().len(), 1);
+        for fault in [Fault::Exit(1, "offline"), Fault::Missing, Fault::Garbled] {
+            let mut host = FakeHost::new();
+            host.fail("\"fetch\"", fault);
+            assert!(build(&mut host, root, Toolset::Rust).is_err());
+            assert_eq!(host.transcript().len(), 2);
+            assert!(host.transcript()[1].contains("\"cargo\" \"fetch\" \"--locked\""));
+            assert_eq!(host.containers(), 0);
+        }
+    }
 
     /// The calls of a step in the Lean image that shows its output, with `{id}` for the container.
     const SHOWN: &str = r#"
@@ -401,11 +488,11 @@ capture "docker" "rm" "--force" "{id}"
         );
         assert_eq!(finished.map(|finished| finished.code), Ok(0));
         assert_eq!(
-            host.transcript()[..2],
+            host.transcript()[2..4],
             [
                 "capture \"docker\" \"build\" \"--quiet\" \"--tag\" \"gymemo-rust:proofs\" \"/repo/xtask/proofs/rust\"".to_owned(),
                 format!(
-                    "capture \"docker\" \"create\" \"--cpus\" \"2\" \"--memory\" \"2147483648\" \"--memory-swap\" \"2147483648\" \"--pids-limit\" \"256\" \"--network\" \"none\" \"--volume\" \"/repo:/work\" \"--workdir\" \"/work/specs/lean\" \"--env\" \"CARGO_TARGET_DIR=/work/target/container\" \"{IMAGE}\" \"timeout\" \"--kill-after=1s\" \"900s\" \"cargo\" \"kani\" \"--package\" \"xtask\""
+                    "capture \"docker\" \"create\" \"--cpus\" \"2\" \"--memory\" \"2147483648\" \"--memory-swap\" \"2147483648\" \"--pids-limit\" \"256\" \"--network\" \"none\" \"--volume\" \"/repo:/work\" \"--volume\" \"/repo/target/verification-cargo/registry:/usr/local/cargo/registry:ro\" \"--workdir\" \"/work/specs/lean\" \"--env\" \"CARGO_TARGET_DIR=/tmp/gymemo-target\" \"--env\" \"CARGO_NET_OFFLINE=true\" \"{IMAGE}\" \"timeout\" \"--kill-after=1s\" \"900s\" \"cargo\" \"kani\" \"--package\" \"xtask\""
                 )
             ]
         );
@@ -451,7 +538,7 @@ capture "docker" "rm" "--force" "{id}"
             Ok("Complete - 1 successfully verified harnesses, 0 failures, 1 total.\n".to_owned())
         );
         assert_eq!(
-            host.transcript()[2..],
+            host.transcript()[4..],
             [
                 format!("show \"docker\" \"start\" \"--attach\" \"{id}\""),
                 format!(

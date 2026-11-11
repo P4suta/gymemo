@@ -103,10 +103,10 @@ import Testing
     _ = try TrainingLogStore(url: newer, starter: .starter)
     do {
       let database = try SQLiteDatabase(url: newer)
-      try database.execute("PRAGMA user_version = 2")
+      try database.execute("PRAGMA user_version = 3")
       try database.close()
     }
-    #expect(throws: StoreFailure.unsupportedSchema(version: 2)) {
+    #expect(throws: StoreFailure.unsupportedSchema(version: 3)) {
       try TrainingLogStore(url: newer, starter: .starter)
     }
     let foreign = directory.file("foreign.sqlite")

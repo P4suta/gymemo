@@ -24,14 +24,21 @@ final class BackupTests: XCTestCase {
     }
     save.tap()
     // A file from an earlier run makes the picker ask before it replaces that file.
-    // SpringBoard shows the question, so the app's own elements never include it.
     let notice = app.any("backup-notice")
-    let replace = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Replace"]
-      .firstMatch
+    let replaceButtons = [
+      app.buttons["Replace"].firstMatch,
+      XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Replace"].firstMatch,
+    ]
     for _ in 0..<10 where !notice.waitForExistence(timeout: 2) {
-      if replace.exists { replace.tap() }
+      if let replace = replaceButtons.first(where: { $0.exists }) { replace.tap() }
     }
-    if !notice.exists { capture("export-picker-after-save") }
+    if !notice.exists {
+      let attachment = XCTAttachment(string: app.debugDescription)
+      attachment.name = "export-picker-after-save-hierarchy"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+      capture("export-picker-after-save")
+    }
     XCTAssertEqual(notice.required("the export notice").label, "The file was exported.")
 
     app.open(.log)

@@ -5,8 +5,10 @@ useDefault = true
 description = "Generated build output and compiler caches"
 paths = [
   '''(^|/)\.build/''',
+  '''(^|/)\.swift-mutation-testing-cache/''',
   '''(^|/)DerivedData/''',
   '''(^|/)target/''',
   '''(^|/)\.git/''',
   '''(^|/)gymemo\.xcodeproj/''',
+  '''(^|/)website/(node_modules|test-results|playwright-report|\.wrangler)/''',
 ]

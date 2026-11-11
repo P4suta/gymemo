@@ -102,16 +102,20 @@ pub fn refused(arguments: &[String]) -> Option<&str> {
 }
 
 /// The release of swift-mutation-testing that `mise.toml` pins.
-fn pinned(mise: &str) -> Option<&str> {
-    mise.lines().find_map(|line| {
-        let (key, value) = line.split_once('=')?;
-        let key = key.trim().trim_matches('"');
-        if key.rsplit(['/', ':']).next() != Some(TOOL) {
-            return None;
-        }
-        let release = value.trim().strip_prefix('"')?.strip_suffix('"')?;
-        (!release.is_empty()).then_some(release)
-    })
+fn pinned(mise: &str) -> Option<String> {
+    let document = mise.parse::<toml::Table>().ok()?;
+    let tools = document.get("tools")?.as_table()?;
+    let mut matches = tools
+        .iter()
+        .filter(|(key, _)| key.rsplit(['/', ':']).next() == Some(TOOL));
+    let (_, value) = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    let release = value
+        .as_str()
+        .or_else(|| value.as_table()?.get("version")?.as_str())?;
+    (!release.is_empty()).then(|| release.to_owned())
 }
 
 /// The changes of the report with the release of the tool that wrote it.
@@ -278,9 +282,8 @@ pub fn mutate(host: &mut impl Host, root: &Path, arguments: &[String]) -> Result
     let mise = host
         .read(&root.join(MISE))
         .context(|| format!("Read {MISE}"))?;
-    let pin = pinned(&mise)
-        .ok_or_else(|| Failure::new(format!("{MISE} pins no release of {TOOL}")))?
-        .to_owned();
+    let pin =
+        pinned(&mise).ok_or_else(|| Failure::new(format!("{MISE} pins no release of {TOOL}")))?;
     let directory = root.join(REPORTS);
     host.create_directories(&directory)
         .context(|| format!("Create {}", directory.display()))?;
@@ -477,13 +480,13 @@ mod tests {
 
     #[test]
     fn the_pin_reads_from_the_tools_of_mise() {
-        assert_eq!(pinned(MISE_TOML), Some("1.6.4"));
+        assert_eq!(pinned(MISE_TOML).as_deref(), Some("1.6.4"));
         assert_eq!(
-            pinned("swift-mutation-testing = \"2.0.0\"\n"),
+            pinned("[tools]\nswift-mutation-testing = \"2.0.0\"\n").as_deref(),
             Some("2.0.0")
         );
         assert_eq!(
-            pinned("\"aqua:a/swift-mutation-testing\"=\"3.1\""),
+            pinned("[tools]\n\"aqua:a/swift-mutation-testing\"=\"3.1\"").as_deref(),
             Some("3.1")
         );
         for refused in [
@@ -491,11 +494,47 @@ mod tests {
             "\"github:ericodx/swift-mutation-testing-extra\" = \"1.6.4\"",
             "\"github:ericodx/swift-mutation-testing\" = 1.6.4",
             "\"github:ericodx/swift-mutation-testing\" = \"\"",
-            "\"github:ericodx/swift-mutation-testing\" = { version = \"1.6.4\" }",
             "# \"github:ericodx/swift-mutation-testing\"",
         ] {
             assert_eq!(pinned(refused), None, "{refused:?}");
         }
+        for value in [
+            "{ version = '1.6.4', os = ['macos'] }",
+            "{ os = ['macos'], version = '1.6.4' }",
+            "'1.6.4' # exact pin",
+        ] {
+            assert_eq!(
+                pinned(&format!(
+                    "[tools]\n'github:ericodx/swift-mutation-testing' = {value}\n"
+                ))
+                .as_deref(),
+                Some("1.6.4")
+            );
+        }
+        for value in [
+            "true",
+            "{}",
+            "{ version = 1 }",
+            "['1.6.4']",
+            "{ version = '' }",
+        ] {
+            assert_eq!(
+                pinned(&format!("[tools]\nswift-mutation-testing = {value}")),
+                None
+            );
+        }
+        assert_eq!(
+            pinned(
+                "[tools]\nswift-mutation-testing = '1.6.4'\n'github:ericodx/swift-mutation-testing' = '1.6.4'"
+            ),
+            None
+        );
+        assert_eq!(pinned("[tasks]\nswift-mutation-testing = '1.6.4'"), None);
+    }
+
+    #[test]
+    fn the_repository_pins_the_mutation_tool_in_its_actual_mise_format() {
+        assert!(pinned(include_str!("../../mise.toml")).is_some());
     }
 
     #[test]

@@ -1,8 +1,9 @@
 # Interface design
 
 gymemo follows Apple's system design with Liquid Glass.
-The [Figma file](https://www.figma.com/design/Hid7RVq16U5SizfgMTQRZB/) holds the design system and every screen, built on Apple's iOS and iPadOS 27 kit.
-Each rule names the Apple page that it applies, read on 2026-11-09, or carries the label of a judgment.
+The [Figma file](https://www.figma.com/design/Hid7RVq16U5SizfgMTQRZB/) holds the design system and screens, based on Apple's iOS, iPadOS, macOS, and visionOS kits.
+The Watch library refused component imports, so the editable Watch studies document standard SwiftUI controls using Apple's guidance.
+Each rule names the Apple page that it applies, read on 2026-11-09 or 2026-11-10, or carries the label of a judgment.
 
 ## Foundations
 
@@ -21,8 +22,11 @@ As text, system indigo reaches 5.1:1 on white and 4.8:1 on a dark row.
 The ratios apply the contrast formula of the Web Content Accessibility Guidelines to the values in the same page.
 No other system color reaches 4.5:1 on white.
 On a dark row inside a sheet, indigo reaches 4.0:1 at the default contrast and 6.5:1 with Increase Contrast.
-Destructive actions take system red through their role, and a problem shows a red symbol beside text in the label color.
-Text takes the label colors through `Color.primary` and `Color.secondary`, and the Verification section gives the reason.
+Destructive actions keep their destructive role.
+Set deletion shows a red trash symbol beside text in the label color, because red text failed the contrast check on the sheet's gray row.
+A problem also shows a red symbol beside text in the label color.
+Unselected text takes the label colors through `Color.primary` and `Color.secondary`, and the Verification section gives the reason.
+Selected list rows inherit the system's selection foreground, which keeps their text readable over the selection background.
 
 Text uses the system text styles, so each size follows Dynamic Type.
 A set row shows monospaced digits.
@@ -56,6 +60,8 @@ The [text field guidance](https://developer.apple.com/design/human-interface-gui
 Each row can pair its field with a stepper, which the [stepper guidance](https://developer.apple.com/design/human-interface-guidelines/steppers) suggests beside a text field.
 The weight steps by 2.5 kg and the repetitions step by one.
 The pads have no return key, so a standard toolbar over the keyboard holds one button that puts the keyboard away.
+A number field reserves the clear button's target before focus, so focusing never changes the row's height.
+The scroll view centers the focused row when focus or the available keyboard space changes, keeping the clear button outside the keyboard toolbar.
 An empty weight shows the prompt Bodyweight and logs a bodyweight set.
 
 A set row opens the set editor on a tap.
@@ -103,11 +109,17 @@ The bars start at zero, and the list under the line chart gives every value as t
 
 ## Settings
 
-The Settings tab links to the exercises and to the export and import screen, and states where the records stay.
+The Settings tab links to exercises, export and import, and the local privacy policy, and states where records stay.
+On iPhone and iPad, it also explains paired Apple Watch transfer.
+On iPhone, iPad, and Vision Pro, a standard `Link` opens the Shortcuts app using Apple's [documented URL scheme](https://support.apple.com/guide/shortcuts/apda283236d7/ios).
+The row grows with Dynamic Type.
+On the iOS 26 simulator, `ShortcutsLink` and `ShortcutsUIButton` failed the largest-text-size audit, so the app uses the standard text link.
 The exercise list groups the exercises by body part and marks a hidden one.
 The exercise editor holds the name, the body part in a menu, a switch that shows the exercise in the picker, and a Delete button for an unused exercise.
 The export and import screen has one row for each action, with a footer that explains it.
 The result of an action appears in a row at the top.
+The export document stays alive independently of the presentation binding until completion.
+The [export API](https://developer.apple.com/documentation/swiftui/view/fileexporter(ispresented:document:contenttype:defaultfilename:oncompletion:)) resets that binding before invoking its completion handler.
 
 ## Confirmation
 
@@ -115,7 +127,9 @@ Replacing the log with a backup shows an `alert` with Cancel and a destructive R
 The [guidance for the `alert`](https://developer.apple.com/design/human-interface-guidelines/alerts) reserves it for uncommon destructive actions that a person can't undo.
 Deleting one set shows no `alert`.
 The same page asks apps to avoid one for common actions, even destructive ones.
-A deleted set has no undo, so the choice is a judgment: one button logs the same set again.
+Committed changes register bounded snapshots with the native window's `UndoManager`.
+Undo covers deleted records and imported backups.
+Incoming Watch changes and edits in another window invalidate snapshots that could overwrite those records.
 Deleting an unused exercise asks in a confirmation that opens from the Delete button.
 The adoption guide asks for an action sheet that starts at the control behind it.
 
@@ -140,6 +154,31 @@ Rows hold text that wraps instead of truncating.
 At the accessibility text sizes, a set row moves its personal record mark under the set, and a number row stacks its label, its field, and its stepper.
 At those sizes the range control becomes a menu, and each chart shows fewer dates under its axis.
 The [typography guidance](https://developer.apple.com/design/human-interface-guidelines/typography) asks for layouts that adapt to every text size.
+The weight unit moves beside the heading at accessibility sizes, leaving the field enough width for its Bodyweight prompt.
+The [text field guidance](https://developer.apple.com/design/human-interface-guidelines/text-fields) places the clear button at the field's trailing edge.
+At accessibility sizes, the clear button moves to the trailing edge of the next row so the value and its Bodyweight prompt have the full width.
+The adaptation follows the typography guidance to stack inline controls when larger text crowds the field.
+
+## Native destinations
+
+One SwiftUI target serves iPhone, iPad, Mac, and Vision Pro through [native supported destinations](https://developer.apple.com/documentation/xcode/configuring-a-multiplatform-app-target).
+The main tabs use the [adaptive sidebar style](https://developer.apple.com/documentation/swiftui/sidebaradaptabletabviewstyle).
+History and Analysis use `NavigationSplitView` with typed selections, so wider windows show a list beside its detail and compact windows navigate to the detail.
+The structure follows Apple's [iPhone Duo guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-iphone-duo) to adapt to the available space and preserve state.
+Mac uses native menus, window undo, keyboard commands, and sandboxed system file pickers, following [Mac design guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos).
+Vision Pro uses a resizable shared-space window and standard gaze and pinch controls, following [visionOS design guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos).
+The app introduces no immersive space, head-anchored content, or spatial motion.
+
+Apple Watch uses a separate native target with an exercise list, a set entry screen, and a delivery list.
+Recent exercises lead the bounded catalog from iPhone.
+Standard steppers show body-style values, and the Digital Crown scrolls the list.
+The primary action supports the [double-tap hand gesture](https://developer.apple.com/documentation/swiftui/handgestureshortcut/primaryaction).
+Saving keeps the set locally, gives success feedback, and scrolls to persistent delivery status.
+The interface distinguishes pending, committed, and refused records with words and symbols.
+The [Watch guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-watchos) calls for short interactions and shallow navigation.
+The owner chose paired iPhone storage, so the Watch target requires its companion instead of adopting Apple's recommendation for an independent app.
+
+The app-specific accessibility behavior and verification boundaries are in [Accessibility](accessibility.md).
 
 ## Verification
 
@@ -161,6 +200,14 @@ Apple's Settings app got 11 contrast reports on its About screen at the default 
 The [accessibility guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility) asks an app in that position to reach its contrast ratios with Increase Contrast.
 The same page asks for the check in both appearances.
 The two tours with Increase Contrast audit the contrast of every element that the audit names.
+The set editor's Weight, Reps, kg, and Delete Set labels also have a narrow image check for reports that contradict their rendered primary color.
+The check measures the unrounded [contrast ratio defined by the Web Content Accessibility Guidelines](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio) in the reported label's screenshot bounds and requires at least 4.5:1.
+It refuses missing ink, an ambiguous or colored background, and nonopaque pixels.
+The image check applies only to the four identified primary labels on the set editor, not to arbitrary text, images, or material backgrounds.
+On iOS 26.4, the largest-size audit also reports the fully visible English Bodyweight placeholder as clipped.
+The empty-weight scenario measures its rounded-up bounds with the [system body font](https://developer.apple.com/documentation/uikit/uifont/preferredfont(fortextstyle:compatiblewith:)) at that exact accessibility size.
+The check accepts that identified placeholder only when its measured width and height fit inside the field.
+The scenarios keep screenshots for visual review, and the measurement fixtures reject the narrower field from the original layout.
 
 Each remaining exclusion rests on an observation of 2026-11-09 on the iOS 27.0 simulator.
 A contrast report without an element names no view, and neither the test nor Xcode finds one.
@@ -175,6 +222,9 @@ The audit of clipped text runs only at the largest text size.
 At a smaller size it predicts clipping for headers and footers that the largest size shows whole.
 The audit accepts text without an element on four screens, where the system draws a chart axis, a calendar, or the screen under a sheet.
 
-No check has run on iOS 26, because the simulator runs iOS 27.0.
+The iOS 26.0 checks remain incomplete while its simulator renders Chinese characters as squares.
+`FontTests` checks the system fonts with Core Text before screenshots can count as localization verification.
+Passing accessibility labels alone doesn't establish that the corresponding characters render.
+On iOS 26.4, the font preflight and the Settings audit at the largest text size pass in all four languages.
 No automated check covers Reduce Transparency or Reduce Motion, because `simctl` switches neither.
 One look at the Log tab with the simulator's Reduce Transparency preference showed opaque bars and readable content.

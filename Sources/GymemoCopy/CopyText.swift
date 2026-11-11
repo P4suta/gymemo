@@ -70,6 +70,10 @@ extension Copy {
     self.set(weight: set.weight, reps: set.reps)
   }
 
+  public func exerciseControlTitle(_ title: String, _ name: ExerciseName) -> String {
+    format(.exerciseControlTitle, title, name.text)
+  }
+
   public func sets(_ sets: [LoggedSet]) -> String {
     join(sets.map(set))
   }

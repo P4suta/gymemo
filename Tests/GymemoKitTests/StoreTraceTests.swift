@@ -75,11 +75,13 @@ private struct StoreLogMark {
     let database = try SQLiteDatabase(url: file)
     try database.execute("UPDATE exercise SET body_part = 'wings' WHERE position = 0")
     try database.close()
+    #expect(throws: StoreFailure.corruptRow(table: "exercise")) { try store.receive(stray) }
     #expect(throws: StoreFailure.corruptRow(table: "exercise")) { try store.load() }
     let lines = try #require(try mark.storeLines(), "The log never showed both marks.")
     #expect(
       lines == [
-        "store.open failed code=14", "store.apply failed code=19", "store.load failed code=-5",
+        "store.open failed code=14", "store.apply failed code=19", "store.apply failed code=-5",
+        "store.load failed code=-5",
       ])
   }
 }

@@ -8,7 +8,7 @@ enum LaunchFailure: Error, Equatable {
   case store(StoreFailure)
 }
 
-enum RootTab: String, Hashable, Sendable {
+enum RootTab: String, CaseIterable, Hashable, Sendable {
   case log
   case history
   case analysis
@@ -23,6 +23,7 @@ struct LaunchConfiguration: Sendable {
   var fixedToday: LocalDay?
   var usesSampleLog = false
   var initialTab = RootTab.log
+  var usesAssistiveInterface = false
 
   static let current: LaunchConfiguration = {
     #if DEBUG
@@ -47,6 +48,7 @@ struct LaunchConfiguration: Sendable {
         case "-gymemo-reset": resetsStore = true
         case "-gymemo-today": fixedToday = remaining.next().flatMap(LocalDay.init(iso:))
         case "-gymemo-sample": usesSampleLog = true
+        case "-gymemo-assistive": usesAssistiveInterface = true
         case "-gymemo-tab":
           initialTab = remaining.next().flatMap(RootTab.init(rawValue:)) ?? .log
         default: continue
@@ -97,7 +99,11 @@ enum Launch {
       let url = try configuration.storeURL()
       let store = try TrainingLogStore(url: url, starter: configuration.starter())
       let log = try store.load()
-      return .ready(AppModel(store: store, log: log, currentDay: configuration.currentDay))
+      return .ready(
+        AppModel(
+          store: store, log: log, currentDay: configuration.currentDay,
+          connectsToWatch: configuration.storeName == nil && !configuration.usesSampleLog
+            && configuration.fixedToday == nil))
     } catch let failure as LaunchFailure {
       return .failed(failure)
     } catch let failure as StoreFailure {

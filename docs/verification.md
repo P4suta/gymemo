@@ -6,14 +6,71 @@ gymemo checks its rules with the package tests, source checks, mutation runs, a 
 
 ## The fast gate
 
-`mise x -- just check` runs the lint, the source checks of `xtask`, the package tests, and a simulator build.
-The source checks refuse text outside the String Catalog, effects in the pure core, console output, and networking.
+`mise x -- just check` runs the native, website, store metadata, and workflow checks.
+`mise x -- just check-native` runs the lint, the source checks of `xtask`, the package tests, and builds for iOS, macOS, watchOS, and visionOS.
+`mise x -- just check-website` checks types, HTML, CSS, localization, browser interactions, and the deployment dry run.
+`mise x -- just lint-workflows` checks GitHub Actions syntax and security.
+`mise x -- just check-store` validates the public App Store metadata without credentials or network access.
+`mise x -- just check-dependencies` checks Rust advisories, licenses, and registries.
+The website gate also audits its locked npm dependencies.
+Pull requests and merge groups run the affected fast checks in hosted CI.
+Mutation runs, proofs, sanitizers, and simulator tours run locally before release.
+The source checks refuse text outside the String Catalog, effects in the pure core, console output, and server or cloud APIs.
+Only `App/CompanionSession.swift` can import Watch Connectivity or use `WCSession`.
 They also refuse a required reason API without a declared reason and a color or a material outside the system design.
 They read the Swift sources through one lexer in `xtask/src/swift_source.rs`, which follows the lexical grammar of Swift for comments, string literals, interpolation, raw strings, regular expression literals, and raw identifiers.
 The grammar leaves the reading of a bare regular expression literal to the compiler, so the lexer follows the rules of the compiler.
 The doc comments of the lexer name the source of each rule.
 The module doc of the lexer lists the known exceptions, each with an example, and its `fixture` module holds the planted sources of each family.
 A test of each check plants a violation behind each construct and expects the refusal on the right line.
+
+## Local release qualification
+
+`mise x -- just qualify SHA FLOOR IPAD DUO WATCH VISION` prints the complete local check plan without running a check or changing GitHub.
+`SHA` is a full commit identifier.
+The remaining arguments are available simulator identifiers for an iPhone on iOS 26, an iPad, iPhone Duo, Apple Watch, and Vision Pro.
+`xcrun simctl list devices available` lists those identifiers.
+
+Adding `--run` requires a clean checkout of that commit and confirms that the commit already belongs to the public repository's `main` branch.
+The command checks device types and runtimes before starting expensive work.
+It runs the fast gate, both iPhone runtime tours, native platform scenarios, Watch scenarios, sanitizers, both mutation campaigns, and proofs in order.
+Swift mutation testing uses two workers.
+The command checks the source again after every step and reports `Local qualification` on that commit through GitHub's commit status API.
+A failed, interrupted, or inconclusive step never reports success.
+Distribution signing and upload run in the separate native delivery workflow.
+
+`mise x -- just require-qualification SHA` requires the most recently created `Local qualification` status for that exact source commit to report success under the repository owner's identity.
+An older success can't override a more recent failure.
+The command refuses a status linked to another source commit.
+The command only reads [GitHub commit statuses](https://docs.github.com/en/rest/commits/statuses).
+
+## Native candidates and delivery
+
+The native candidate workflow selects iOS with its companion Watch app, macOS, or visionOS.
+The archive uses the repository-wide GitHub run identifier as its build number and keeps that identity on retries.
+`mise x -- just seal-native PLATFORM SHA RUN` checks the archive's bundle identifiers, versions, deployment floors, architectures, and privacy manifests.
+It inventories the archived dependencies with Syft and preserves the archive, CycloneDX SBOM, and typed candidate manifest.
+The workflow attests the preserved bytes.
+
+`mise x -- just verify-native PLATFORM SHA RUN` rechecks qualification, the successful build run, provenance, checksums, and SBOM before signing.
+The protected signing job uses the selected distribution identities in temporary keychains and exports from that preserved archive.
+visionOS uses explicit export options because the provider CLI can't generate its manual signing options.
+A fresh job validates the signed package's dependency inventory and checksums.
+The upload job requires its own approval and App Store Connect key and receives the verified bytes.
+An uncertain upload requires provider reconciliation before retrying.
+
+## Version preparation
+
+`Config/MarketingVersion.txt` supplies the marketing version for every app target.
+`mise x -- just generate` derives the Xcode configuration, and `mise x -- just prepare-store-metadata` derives the store directory under `target/app-store/`.
+Localized text stays in `metadata/app-store/` without a version in its source paths.
+
+Select `check-access`, `propose`, or `draft` in the version preparation workflow.
+The draft operation creates the source tag and an unpublished GitHub release draft after the version PR merges.
+The tag provides release-please's baseline for later proposals without publishing the draft.
+A tagged source revision stays fixed.
+App Store delivery remains independent of GitHub draft creation.
+An empty first manifest marks the app as unreleased.
 
 ## Mutation runs of the package
 
@@ -32,6 +89,9 @@ The screens get their rules from `GymemoCore`, which the run covers, and the UI 
 ## Mutation runs of xtask
 
 `mise x -- just mutate-xtask` runs cargo-mutants over the `xtask` package inside the Rust image, in shards of at most 100 mutants, and reads the files that each shard wrote.
+The runner fixes `--gitignore=true` and refuses caller overrides, so ignored build caches stay outside the copied tree.
+The [copying policy](https://mutants.rs/build-dirs.html) otherwise leaves Git ignore filtering off by default.
+Linux build outputs stay in the container's `/tmp/gymemo-target`, apart from native build outputs.
 The run passes when the tests caught every mutant, none timed out, and the shards account for every listed mutant.
 `.cargo/mutants.toml` fixes the timeouts and holds one exclusion: the Kani harnesses in the `proofs` module of `xtask/src/swift_source.rs`, which compile under `cfg(kani)` alone, so no test can tell a mutant there from the source.
 The file states the evidence and the condition for reconsidering the exclusion.
@@ -54,7 +114,7 @@ A package test fails while a stored vector differs from the Swift results.
 The model simplifies the code in ways that the vectors can't observe.
 Identifiers are numbers, texts are numbers of a table, and parse results are inputs.
 A day is its number of days since 1970, and a Swift test pins the rendering to that number.
-The SQLite store, the backup format, and the CSV export have no model, and the package tests cover them.
+The SQLite store, paired-device protocol and queue, backup format, and CSV export have no Lean model, and the package tests cover them.
 A change that the vectors can't tell apart, such as a relaxed `Admissible` or a `<` turned into `≤` in the memo days, fails the hand-written proofs instead.
 
 Four Kani harnesses cover the lexer of `xtask/src/swift_source.rs` on every source of up to three characters, where each character is any Unicode scalar value.
@@ -67,6 +127,9 @@ No source over those characters spells a keyword, and a test with expected value
 
 lean, lake, cargo-kani, and cargo-mutants run only in containers that `xtask` builds from `xtask/proofs/lean/Dockerfile` and `xtask/proofs/rust/Dockerfile`.
 Each container gets 2 CPUs, 2 GiB of memory without swap, 256 processes, 900 seconds, and no network.
+Before building the Rust image, the runner fetches the locked dependencies into `target/verification-cargo` on the host.
+Rust containers mount only that cache's registry without write access and set `CARGO_NET_OFFLINE=true`.
+The registry cache stays separate from the owner's Cargo home.
 A run that reaches the time limit or the memory limit ends the command with a message that starts with `INCONCLUSIVE` and exit code 75.
 That outcome is neither a pass nor a failure.
 `xtask` removes each container after every outcome, and the listing and the replay steps mount the repository without write access.
@@ -76,4 +139,23 @@ Two runs at a time share the image names, so the campaigns run one at a time.
 ## Interface tests and sanitizers
 
 `mise x -- just ui-test` runs the UI scenarios and the accessibility audits in the light and the dark appearance, and in both with Increase Contrast.
+`FontTests` checks that public Core Text APIs map sample characters for all four supported languages without missing glyphs.
+Screenshots and accessibility labels don't replace that rendering prerequisite.
 `mise x -- just sanitize` runs the package tests under the address and thread sanitizers.
+
+`mise x -- just native-test -destination 'platform=macOS,arch=arm64'` checks Mac navigation, range selection, standard keyboard commands, Return, Escape, Undo, and Redo.
+The Mac App Intents tests require [the same development signing team](https://developer.apple.com/documentation/appintentstesting/testing-your-app-intents-code) for the app and its UI test runner.
+Set `DEVELOPMENT_TEAM` in the ignored `Signing.local.xcconfig` to select the local development identity.
+XCTest may ask for macOS authentication to enable UI automation.
+The same command accepts an iPad, iPhone Duo, or visionOS Simulator destination from `xcodebuild -showdestinations -scheme gymemoNative`.
+Its history and analysis scenarios check the selected detail and keep screenshots.
+The iOS and visionOS runs audit control descriptions and element detection.
+Swift Charts draws axis text without separate elements, and the audit accepts reports without an element only while the progress chart is present.
+Each chart mark still has a spoken date and value, and the session list supplies the underlying sets as text.
+
+`mise x -- just watch-test -destination DESTINATION` runs the Watch scenarios with a paired destination from `xcodebuild -showdestinations -scheme gymemoWatch`.
+The fixture disables transport and uses a separate journal.
+It checks spoken input values, the local privacy policy, and a pending set after process termination and relaunch.
+The protocol and SQLite tests cover duplicate delivery, conflicting identifiers, failed commits, schema migration, malformed files, queue bounds, and stale receipts.
+Apple requires [paired hardware](https://developer.apple.com/documentation/watchconnectivity/wcsession/transferuserinfo(_:)) for background-transfer validation.
+Simulator success doesn't establish background delivery, installation through TestFlight, or Vision Pro comfort.

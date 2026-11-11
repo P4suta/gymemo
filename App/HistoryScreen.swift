@@ -6,52 +6,82 @@ import SwiftUI
 /// Every recorded day from newest to oldest, under a header for each month.
 struct HistoryScreen: View {
   let openLog: () -> Void
+  @State private var selectedDay: LocalDay?
+  @State private var compactColumn = NavigationSplitViewColumn.sidebar
+
+  var body: some View {
+    NavigationSplitView(preferredCompactColumn: $compactColumn) {
+      HistoryList(selectedDay: $selectedDay, openLog: openLog) { day in
+        selectedDay = day
+        compactColumn = .detail
+      }
+    } detail: {
+      HistoryDetail(day: selectedDay)
+    }
+    .navigationSplitViewStyle(.balanced)
+  }
+}
+
+struct HistoryDetail: View {
+  let day: LocalDay?
+
+  var body: some View {
+    if let day {
+      DayScreen(day: day).id(day)
+    } else {
+      ContentUnavailableView(copy[.chooseDay], systemImage: "calendar")
+    }
+  }
+}
+
+struct HistoryList: View {
+  @Binding var selectedDay: LocalDay?
+  let openLog: () -> Void
+  let openPickedDay: (LocalDay) -> Void
   @Environment(AppModel.self) private var model
-  @State private var path: [LocalDay] = []
   @State private var isPickingDay = false
 
   var body: some View {
     let months = model.log.historyByMonth
-    NavigationStack(path: $path) {
-      List {
-        ForEach(months) { month in
-          Section(copy.day(month.start, .month)) {
-            ForEach(month.days) { summary in
-              NavigationLink(value: summary.day) {
-                DayRow(summary: summary)
-              }
-              .accessibilityIdentifier("day-\(summary.day.iso)")
+    List(selection: $selectedDay) {
+      ForEach(months) { month in
+        Section(copy.day(month.start, .month)) {
+          ForEach(month.days) { summary in
+            NavigationLink(value: summary.day) {
+              DayRow(summary: summary, isSelected: selectedDay == summary.day)
             }
+            .accessibilityIdentifier("day-\(summary.day.iso)")
           }
         }
       }
-      .overlay {
-        if months.isEmpty {
-          ContentUnavailableView {
-            Label(copy[.historyEmpty], systemImage: "clock")
-              .accessibilityIdentifier("empty-history")
-          } actions: {
-            Button(copy[.startToday], action: openLog)
-              .buttonStyle(.borderedProminent)
-              .accessibilityIdentifier("start-today")
-          }
+    }
+    .overlay {
+      if months.isEmpty {
+        ContentUnavailableView {
+          Label(copy[.historyEmpty], systemImage: "clock")
+            .accessibilityIdentifier("empty-history")
+        } actions: {
+          Button(copy[.startToday], action: openLog)
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("start-today")
         }
       }
-      .navigationTitle(copy[.tabHistory])
-      .toolbar {
-        ToolbarItem(placement: .primaryAction) {
-          Button(copy[.logAnotherDay], systemImage: "calendar.badge.plus") { isPickingDay = true }
-            .accessibilityIdentifier("log-another-day")
-        }
+    }
+    .navigationTitle(copy[.tabHistory])
+    .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 440)
+    #if os(macOS)
+      .listStyle(.inset)
+    #endif
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button(copy[.logAnotherDay], systemImage: "calendar.badge.plus") { isPickingDay = true }
+          .accessibilityIdentifier("log-another-day")
       }
-      .navigationDestination(for: LocalDay.self) { day in
-        DayScreen(day: day)
-      }
-      .sheet(isPresented: $isPickingDay) {
-        DayPicker(today: model.today) { day in
-          isPickingDay = false
-          path = [day]
-        }
+    }
+    .sheet(isPresented: $isPickingDay) {
+      DayPicker(today: model.today) { day in
+        isPickingDay = false
+        openPickedDay(day)
       }
     }
   }
@@ -59,6 +89,7 @@ struct HistoryScreen: View {
 
 private struct DayRow: View {
   let summary: DaySummary
+  let isSelected: Bool
 
   var body: some View {
     StackedRow(
@@ -66,7 +97,7 @@ private struct DayRow: View {
       subtitle: summary.setCount > 0
         ? copy.historyRow(exercises: summary.exerciseNames.map(\.text), setCount: summary.setCount)
         : nil,
-      caption: summary.memo?.preview(limit: 60), isEmphasized: true)
+      caption: summary.memo?.preview(limit: 60), isEmphasized: true, isSelected: isSelected)
   }
 }
 

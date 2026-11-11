@@ -278,6 +278,16 @@ pub fn ui_test(
     arguments: &[String],
 ) -> Result<()> {
     let device = device(host)?;
+    tours(host, root, device, only, arguments)
+}
+
+fn tours(
+    host: &mut impl Host,
+    root: &Path,
+    device: String,
+    only: Option<Appearance>,
+    arguments: &[String],
+) -> Result<()> {
     output(
         host,
         &Invocation::new("xcrun").args(["simctl", "bootstatus", &device, "-b"]),
@@ -306,6 +316,18 @@ pub fn ui_test(
     // The simulator returns to the light appearance at the default contrast, and a failure to return follows a test failure without hiding it.
     let restored = restore(host, &device);
     both(outcome, restored)
+}
+
+pub fn ui_test_on(
+    host: &mut impl Host,
+    root: &Path,
+    device: &str,
+    arguments: &[String],
+) -> Result<()> {
+    ensure(is_device_identifier(device), || {
+        "ui-test-on requires a simulator identifier".into()
+    })?;
+    tours(host, root, device.to_owned(), None, arguments)
 }
 
 /// Runs `invocation` with its output on the terminal, and fails with its exit code.
@@ -460,6 +482,46 @@ mod tests {
     use std::{os::unix::process::ExitStatusExt, process::ExitStatus};
 
     const ROOT: &str = "/repo";
+
+    #[test]
+    fn an_explicit_device_gets_all_four_appearances_without_a_device_lookup() -> Result<()> {
+        let mut host = FakeHost::new();
+        ui_test_on(&mut host, Path::new(ROOT), CREATED, &[])?;
+        assert_eq!(host.passes.len(), 4);
+        assert_eq!(display(&host), ("light", "disabled"));
+        let lines = host.transcript();
+        assert!(
+            lines
+                .iter()
+                .all(|line| !line.contains("\"list\" \"devices\""))
+        );
+        assert!(
+            lines
+                .iter()
+                .all(|line| !line.contains("\"simctl\" \"create\""))
+        );
+        assert!(
+            lines
+                .iter()
+                .filter(|line| line.contains("\"xcodebuild\""))
+                .all(|line| line.contains(CREATED))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_explicit_devices_never_reach_the_simulator() {
+        for device in [
+            "",
+            "--all",
+            "../device",
+            "ZZZZZZZZ-0000-4000-8000-0123456789AB",
+        ] {
+            let mut host = FakeHost::new();
+            assert!(ui_test_on(&mut host, Path::new(ROOT), device, &[]).is_err());
+            assert!(host.transcript().is_empty());
+        }
+    }
 
     /// Each appearance with the name that the command line gives it.
     const PASSES: [(Appearance, &str); 4] = [

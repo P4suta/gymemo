@@ -8,9 +8,20 @@ use std::{env, io, process::Command};
 const USAGE: &str = "Usage: xtask <COMMAND>
 
 Commands:
+  generate-version                  Generate the Xcode version setting from the canonical app version
+  prepare-store-metadata            Prepare localized metadata for the canonical app version
+  check-store                       Validate the generated store metadata with the provider CLI
+  check-sbom native|website VERSION FILE
+                                    Validate the preserved product and dependency inventory
+  seal-native PLATFORM SHA RUN
+                                    Inspect and preserve an unsigned archive, SBOM, and candidate manifest
+  verify-native PLATFORM SHA RUN
+                                    Admit preserved candidate bytes before protected signing
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
   ui-test [--only light|dark|contrast|dark-contrast] [XCODEBUILD_ARGUMENT]...
                                     Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast
+  ui-test-on DEVICE [XCODEBUILD_ARGUMENT]...
+                                    Run the same four appearance passes on a selected simulator
   screenshots                       Export the screenshots of the latest UI test run into a new directory
   app [LAUNCH_ARGUMENT]...          Build the app and open it on the dedicated simulator
   proofs                            Build the Lean proofs, hold their theorems to the standard axioms, replay each module, and verify the Kani harnesses, each tool in a bounded container
@@ -18,6 +29,13 @@ Commands:
                                     Mutate the package sources and fail on each change that the package tests miss
   mutate-xtask [CARGO_MUTANTS_ARGUMENT]...
                                     Mutate xtask in bounded containers and fail on each mutant that its tests miss
+  setup-delivery WORKPLACE [--apply] Preview or prepare the website's protected workload identity
+  inspect-delivery WORKPLACE         Inspect delivery integration metadata without reading secret values
+  setup-native-delivery WORKPLACE INTEGRATION signing|upload|version-preparation [--apply]
+                                    Plan or configure the native environment's Doppler Secrets sync
+  qualify SHA FLOOR IPAD DUO WATCH VISION [--run]
+                                    Plan or run the local release checks for a clean main commit and five simulator identifiers
+  require-qualification SHA         Require the owner's successful local checks for the exact main commit
   help                              Print this message
 ";
 
@@ -115,7 +133,7 @@ fn a_refused_command_line_fails_with_its_reason_above_the_usage() -> io::Result<
         ),
         (
             &["mutate-xtask", "--file", "xtask/src/json.rs", "--shard=0/2"][..],
-            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received --shard=0/2",
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, --manifest-path, and --gitignore itself, and it received --shard=0/2",
         ),
         (
             &[
@@ -124,11 +142,15 @@ fn a_refused_command_line_fails_with_its_reason_above_the_usage() -> io::Result<
                 "xtask/src/json.rs",
                 "--baseline=skip",
             ][..],
-            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received --baseline=skip",
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, --manifest-path, and --gitignore itself, and it received --baseline=skip",
         ),
         (
             &["mutate-xtask", "--manifest-path", "../other/Cargo.toml"][..],
-            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, and --manifest-path itself, and it received --manifest-path",
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, --manifest-path, and --gitignore itself, and it received --manifest-path",
+        ),
+        (
+            &["mutate-xtask", "--gitignore=false"][..],
+            "mutate-xtask chooses --shard, --output, --list, --in-place, --package, --baseline, --jobs, --dir, --manifest-path, and --gitignore itself, and it received --gitignore=false",
         ),
     ];
     for (arguments, reason) in refusals {

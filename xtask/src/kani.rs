@@ -1511,7 +1511,7 @@ pub mod tests {
                 "cargo kani --package xtask"
             ]
         );
-        let lines = host.transcript();
+        let lines = &host.transcript()[2..];
         let id = |made: usize| format!("{made:064x}");
         assert_eq!(
             lines[0],
@@ -1519,7 +1519,7 @@ pub mod tests {
         );
         assert_eq!(lines[1], format!("exists {WRITTEN}"));
         assert!(
-            lines[2].ends_with("\"--workdir\" \"/work/xtask\" \"--env\" \"CARGO_TARGET_DIR=/work/target/container\" \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\" \"timeout\" \"--kill-after=1s\" \"900s\" \"cargo\" \"kani\" \"list\" \"--format\" \"json\""),
+            lines[2].ends_with("\"--workdir\" \"/work/xtask\" \"--env\" \"CARGO_TARGET_DIR=/tmp/gymemo-target\" \"--env\" \"CARGO_NET_OFFLINE=true\" \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\" \"timeout\" \"--kill-after=1s\" \"900s\" \"cargo\" \"kani\" \"list\" \"--format\" \"json\""),
             "{}",
             lines[2]
         );
@@ -1537,7 +1537,7 @@ pub mod tests {
             ]
         );
         assert!(
-            lines[9].ends_with("\"--workdir\" \"/work\" \"--env\" \"CARGO_TARGET_DIR=/work/target/container\" \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\" \"timeout\" \"--kill-after=1s\" \"900s\" \"cargo\" \"kani\" \"--package\" \"xtask\""),
+            lines[9].ends_with("\"--workdir\" \"/work\" \"--env\" \"CARGO_TARGET_DIR=/tmp/gymemo-target\" \"--env\" \"CARGO_NET_OFFLINE=true\" \"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\" \"timeout\" \"--kill-after=1s\" \"900s\" \"cargo\" \"kani\" \"--package\" \"xtask\""),
             "{}",
             lines[9]
         );
@@ -1588,7 +1588,7 @@ pub mod tests {
             ))
         );
         assert_eq!(
-            host.transcript()[1..3],
+            host.transcript()[3..5],
             [format!("exists {WRITTEN}"), format!("remove {WRITTEN}")]
         );
         assert_eq!(commands(&host), ["cargo kani list --format json"]);

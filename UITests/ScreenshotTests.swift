@@ -9,13 +9,13 @@ struct ScreenTour {
   var language = "en"
   var textSize: String?
   /// The audits of a tour.
-  /// The tours at the default contrast leave contrast to the tours that run with Increase Contrast, because the system draws secondary text under the contrast minimum by default.
-  /// The accessibility guidance asks an app in that position to reach the minimum when Increase Contrast is on.
+  /// The tours at the default contrast leave contrast to the tours that run with Increase Contrast, because the system draws secondary text below the required ratio by default.
+  /// The accessibility guidance asks an app in that position to reach the required ratio when Increase Contrast is on.
   /// See https://developer.apple.com/design/human-interface-guidelines/accessibility.
   /// Only the tours at the largest text size audit clipped text, because the audit of a smaller size predicts what those tours observe.
   var audits: XCUIAccessibilityAuditType = .all.subtracting([.contrast, .textClipped])
 
-  /// The first starter exercise in each language, which also shows that its name is localized.
+  /// The localized name of the first starter exercise in each language.
   private static let benchPress = [
     "en": "Bench Press", "ja": "ベンチプレス", "zh-Hans": "卧推", "zh-Hant": "臥推",
   ]
@@ -29,6 +29,58 @@ struct ScreenTour {
   private static let systemText = [
     "03-set-editor", "05-day-picker", "06-analysis", "07-exercise-progress",
   ]
+
+  private static let settingsText = [
+    "open-exercises", "open-backup", "open-watch", "open-privacy", "open-shortcuts",
+    "storage-heading", "storage-text", "app-version",
+  ]
+
+  private func visibleSettingsFrame(_ identifier: String, in app: XCUIApplication) -> CGRect {
+    let element = app.any(identifier)
+    for _ in 0..<12 {
+      if element.exists {
+        let frame = element.frame
+        let viewport = CGRect(
+          x: app.frame.minX, y: app.navigationBars.firstMatch.frame.maxY,
+          width: app.frame.width,
+          height: app.tabBars.firstMatch.frame.minY - app.navigationBars.firstMatch.frame.maxY)
+        if frame.height > 0 && viewport.contains(frame) { return frame }
+        if frame.minY < viewport.minY {
+          app.swipeDown(velocity: .slow)
+        } else {
+          app.swipeUp(velocity: .slow)
+        }
+      } else {
+        app.swipeUp(velocity: .slow)
+      }
+    }
+    test.capture("\(prefix)-settings-bounds-\(identifier)")
+    XCTFail("\(identifier) didn't fit fully between the navigation bar and the tab bar")
+    return .zero
+  }
+
+  private func settingsReference() -> [String: CGRect] {
+    guard textSize != nil else { return [:] }
+    let app = Gymemo.launch(
+      store: "settings-reference-\(prefix)", sample: true, tab: "settings",
+      textSize: "UICTContentSizeCategoryL", language: language)
+    return Dictionary(
+      uniqueKeysWithValues: Self.settingsText.map {
+        ($0, visibleSettingsFrame($0, in: app))
+      })
+  }
+
+  private func checkSettingsGrowth(_ app: XCUIApplication, reference: [String: CGRect]) {
+    guard textSize != nil else { return }
+    for identifier in Self.settingsText {
+      let frame = visibleSettingsFrame(identifier, in: app)
+      XCTAssertGreaterThan(
+        frame.height, reference[identifier]?.height ?? .infinity,
+        "\(language): \(identifier) must grow with the largest text size")
+    }
+    app.swipeDown(velocity: .fast)
+    app.swipeDown(velocity: .fast)
+  }
 
   /// Whether the audit reports something that the app can't change.
   private func isSystemDrawn(
@@ -61,15 +113,47 @@ struct ScreenTour {
   private func check(_ app: XCUIApplication, _ name: String) throws {
     test.capture("\(prefix)-\(name)")
     try app.performAccessibilityAudit(for: audits) { issue in
+      if passesMeasuredContrast(issue, on: name, in: app) { return true }
+      if passesMeasuredPlaceholder(issue, on: name) { return true }
       if isSystemDrawn(issue, on: name, in: app) { return true }
       let element = issue.element.map { element in
-        "type \(element.elementType.rawValue) identifier '\(element.identifier)' label '\(element.label)' rows \(Int(element.frame.minY))-\(Int(element.frame.maxY))"
+        "type \(element.elementType.rawValue) identifier '\(element.identifier)' label '\(element.label)' frame \(element.frame)"
       }
       XCTFail(
-        "\(name): \(issue.compactDescription) on \(element ?? "no element"): \(issue.detailedDescription)"
+        "\(prefix)-\(name): \(issue.compactDescription) on \(element ?? "no element"): \(issue.detailedDescription)"
       )
       return true
     }
+  }
+
+  private func passesMeasuredPlaceholder(
+    _ issue: XCUIAccessibilityAuditIssue, on screen: String
+  ) -> Bool {
+    guard issue.auditType == .textClipped, language == "en",
+      textSize == Gymemo.largestTextSize, screen == "01-log-empty-weight",
+      let element = issue.element, element.elementType == .textField,
+      element.identifier == "weight-Bench Press", element.placeholderValue == "Bodyweight",
+      let value = element.value as? String, value.isEmpty || value == "Bodyweight"
+    else { return false }
+    let required = PlaceholderTextFit.requiredSize("Bodyweight")
+    let available = element.frame.size
+    XCTContext.runActivity(
+      named: "Measured placeholder: \(required) within \(available)"
+    ) { _ in }
+    return PlaceholderTextFit.fits("Bodyweight", in: available)
+  }
+
+  private func passesMeasuredContrast(
+    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication
+  ) -> Bool {
+    guard issue.auditType == .contrast, screen == "03-set-editor",
+      let element = issue.element,
+      ["label-edit-weight", "label-edit-reps", "unit-edit-weight", "label-delete-set"].contains(
+        element.identifier),
+      let ratio = PrimaryTextContrast.measure(element, in: app)
+    else { return false }
+    XCTContext.runActivity(named: "Measured \(element.identifier) contrast: \(ratio):1") { _ in }
+    return ratio >= 4.5
   }
 
   /// Checks the part of a screen that the largest text size pushes under the first screenful, then returns to the top.
@@ -81,7 +165,19 @@ struct ScreenTour {
     app.swipeDown(velocity: .fast)
   }
 
+  func runSettings() throws {
+    let reference = settingsReference()
+    let app = Gymemo.launch(
+      store: "settings-\(prefix)", sample: true, tab: "settings", textSize: textSize,
+      language: language)
+    app.buttons["open-exercises"].required("the settings list")
+    checkSettingsGrowth(app, reference: reference)
+    try check(app, "08-settings")
+    try checkBelow(app, "08-settings")
+  }
+
   func run() throws {
+    let reference = settingsReference()
     let bench = Self.benchPress[language] ?? ""
     let app = Gymemo.launch(
       store: "tour-\(prefix)", sample: true, textSize: textSize, language: language)
@@ -89,6 +185,14 @@ struct ScreenTour {
     XCTAssertEqual(app.tabBars.buttons.element(boundBy: 0).label, Self.logTab[language])
     try check(app, "01-log")
     try checkBelow(app, "01-log")
+    if textSize != nil {
+      let identifier = "weight-\(bench)"
+      app.textFields[identifier].scrollAndTap(in: app)
+      let original = try XCTUnwrap(app.textFields[identifier].value as? String)
+      app.fill(identifier, with: "")
+      try check(app, "01-log-empty-weight")
+      app.fill(identifier, with: original)
+    }
 
     app.buttons["add-exercise"].tap()
     app.buttons["create-exercise"].required("the exercise picker")
@@ -118,6 +222,7 @@ struct ScreenTour {
 
     app.open(.settings)
     app.buttons["open-exercises"].required("the settings list")
+    checkSettingsGrowth(app, reference: reference)
     try check(app, "08-settings")
     try checkBelow(app, "08-settings")
     app.buttons["open-exercises"].tap()
@@ -132,10 +237,36 @@ struct ScreenTour {
     app.buttons["export-backup"].required("the backup screen")
     try check(app, "11-backup")
     try checkBelow(app, "11-backup")
+
+    app.goBack()
+    app.buttons["open-privacy"].scrollAndTap(in: app)
+    app.staticTexts["privacy-collection"].required("the privacy policy")
+    try check(app, "12-privacy")
+    var page = 0
+    while !app.staticTexts["privacy-deletion"].isHittable && page < 12 {
+      app.swipeUp()
+      page += 1
+      try check(app, "12-privacy+\(page)")
+    }
+    app.staticTexts["privacy-deletion"].required("the deletion policy")
+    app.goBack()
+    app.buttons["open-watch"].scrollAndTap(in: app)
+    try check(app, "13-watch-help")
+    try checkBelow(app, "13-watch-help")
   }
 }
 
 final class ScreenshotTests: XCTestCase {
+  @MainActor
+  func testSettingsPassesTheAuditAtTheLargestTextSizeInEachLanguage() throws {
+    for language in ["en", "ja", "zh-Hans", "zh-Hant"] {
+      try ScreenTour(
+        test: self, prefix: "settings-large-\(language)", language: language,
+        textSize: Gymemo.largestTextSize, audits: .all.subtracting(.contrast)
+      ).runSettings()
+    }
+  }
+
   @MainActor
   func testEveryScreenPassesTheAudit() throws {
     try ScreenTour(test: self, prefix: "light").run()
@@ -153,6 +284,22 @@ final class ScreenshotTests: XCTestCase {
   func testEveryScreenPassesTheAuditAtTheLargestTextSizeInJapanese() throws {
     try ScreenTour(
       test: self, prefix: "ja-large", language: "ja", textSize: Gymemo.largestTextSize,
+      audits: .all.subtracting(.contrast)
+    ).run()
+  }
+
+  @MainActor
+  func testEveryScreenPassesTheAuditAtTheLargestTextSizeInSimplifiedChinese() throws {
+    try ScreenTour(
+      test: self, prefix: "zh-hans-large", language: "zh-Hans", textSize: Gymemo.largestTextSize,
+      audits: .all.subtracting(.contrast)
+    ).run()
+  }
+
+  @MainActor
+  func testEveryScreenPassesTheAuditAtTheLargestTextSizeInTraditionalChinese() throws {
+    try ScreenTour(
+      test: self, prefix: "zh-hant-large", language: "zh-Hant", textSize: Gymemo.largestTextSize,
       audits: .all.subtracting(.contrast)
     ).run()
   }

@@ -1,0 +1,100 @@
+name: Version preparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Check access, propose a version, or prepare an unpublished draft and its source tag
+        type: choice
+        options: [check-access, propose, draft]
+        default: check-access
+
+permissions: {}
+
+concurrency:
+  group: version-preparation
+  cancel-in-progress: false
+
+jobs:
+  credentials:
+    name: Check proposal access without changing the repository
+    if: github.ref == 'refs/heads/main' && github.repository_id == '1453033797'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    environment: version-preparation
+    permissions: {}
+    steps:
+      - name: Require the preparation credential purpose
+        env:
+          DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
+          DOPPLER_CONFIG: ${{ secrets.DOPPLER_CONFIG }}
+        run: |
+          test "$DOPPLER_PROJECT" = gymemo
+          test "$DOPPLER_CONFIG" = ci_version_preparation
+      - id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          owner: P4suta
+          repositories: gymemo
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+      - name: Require access to the intended repository alone
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh api installation/repositories --jq '.total_count == 1 and .repositories[0].id == 1453033797 and .repositories[0].full_name == "P4suta/gymemo"' | jq --exit-status .
+  propose:
+    name: Prepare a draft version PR
+    needs: credentials
+    if: inputs.operation == 'propose'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    environment: version-preparation
+    permissions: {}
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          owner: P4suta
+          repositories: gymemo
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
+          target-branch: main
+          skip-github-release: true
+  draft:
+    name: Prepare an unpublished release draft and its source tag
+    needs: credentials
+    if: inputs.operation == 'draft'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    environment: version-preparation
+    permissions: {}
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+          owner: P4suta
+          repositories: gymemo
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: read
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: .github/release-please/config.json
+          manifest-file: .github/release-please/manifest.json
+          target-branch: main
+          skip-github-pull-request: true
+          skip-github-release: false
