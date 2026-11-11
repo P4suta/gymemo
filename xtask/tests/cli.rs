@@ -17,6 +17,8 @@ Commands:
                                     Inspect and preserve an unsigned archive, SBOM, and candidate manifest
   verify-native PLATFORM SHA RUN
                                     Admit preserved candidate bytes before protected signing
+  install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256 [--add-to-search-list] [--confirm]
+                                    Plan or import the Mac App Store installer identity from the protected environment
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
   ui-test [--only light|dark|contrast|dark-contrast] [XCODEBUILD_ARGUMENT]...
                                     Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast

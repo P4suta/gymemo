@@ -29,6 +29,11 @@ seal-native *args:
 verify-native *args:
     cargo run --locked -p xtask -- verify-native "$@"
 
+# Plans or imports the expected Mac App Store installer identity.
+[positional-arguments]
+install-mac-installer *args:
+    cargo run --locked -p xtask -- install-mac-installer "$@"
+
 # Checks the Rust dependency advisories, licenses, and registries.
 check-dependencies:
     cargo deny --manifest-path xtask/Cargo.toml --config xtask/deny.toml check
