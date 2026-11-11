@@ -13,6 +13,7 @@ mod kani;
 mod lean;
 mod literals;
 mod logging;
+mod mac_installer;
 mod native_candidate;
 mod offline;
 mod purity;
@@ -45,6 +46,8 @@ Commands:
                                     Inspect and preserve an unsigned archive, SBOM, and candidate manifest
   verify-native PLATFORM SHA RUN
                                     Admit preserved candidate bytes before protected signing
+  install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256 [--add-to-search-list] [--confirm]
+                                    Plan or import the Mac App Store installer identity from the protected environment
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
   ui-test [--only light|dark|contrast|dark-contrast] [XCODEBUILD_ARGUMENT]...
                                     Run the UI tests on the dedicated simulator: light, dark, and both with Increase Contrast
@@ -74,6 +77,7 @@ enum Task {
     CheckSbom(Vec<String>),
     SealNative(Vec<String>),
     VerifyNative(Vec<String>),
+    InstallMacInstaller(Vec<String>),
     Gates,
     UiTest {
         only: Option<Appearance>,
@@ -158,6 +162,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         "check-sbom" => Ok(Task::CheckSbom(arguments.collect())),
         "seal-native" => Ok(Task::SealNative(arguments.collect())),
         "verify-native" => Ok(Task::VerifyNative(arguments.collect())),
+        "install-mac-installer" => Ok(Task::InstallMacInstaller(arguments.collect())),
         "gates" => alone("gates", Task::Gates, arguments),
         "screenshots" => alone("screenshots", Task::Screenshots, arguments),
         "ui-test" => ui_test(arguments),
@@ -272,6 +277,7 @@ fn execute(task: Task, host: &mut impl Host, root: &Path) -> Result<()> {
         Task::CheckSbom(arguments) => sbom::check(host, root, &arguments),
         Task::SealNative(arguments) => native_candidate::run(host, root, &arguments, true),
         Task::VerifyNative(arguments) => native_candidate::run(host, root, &arguments, false),
+        Task::InstallMacInstaller(arguments) => mac_installer::run(host, &arguments),
         Task::Gates => gates(host, root),
         Task::UiTest { only, arguments } => simulator::ui_test(host, root, only, &arguments),
         Task::UiTestOn { device, arguments } => {
