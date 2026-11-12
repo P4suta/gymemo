@@ -27,7 +27,8 @@ A test of each check plants a violation behind each construct and expects the re
 ## Accessibility audits
 
 Privacy tours bind each newly reached fact to a captured text frame.
-With Increase Contrast, the image check requires at least 4.5:1 for every fully visible body text and navigation title, using the [Web Content Accessibility Guidelines contrast calculation](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio).
+With Increase Contrast, the image check requires at least 4.5:1 for fully visible text in the content area and navigation bar.
+The measurement uses the [Web Content Accessibility Guidelines contrast calculation](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio).
 Missing reached facts, ambiguous measurements, and insufficient contrast fail the check.
 The [iOS 26.4 Simulator contrast audit timeout](https://github.com/P4suta/gymemo/issues/27) also occurs when contrast runs alone.
 Privacy tours measure contrast from rendered pixels and keep the remaining [Apple accessibility audits](https://developer.apple.com/documentation/accessibility/performing-accessibility-audits-for-your-app).

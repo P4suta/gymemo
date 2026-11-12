@@ -42,8 +42,7 @@ struct PrivacyAuditSnapshot {
     let visible = frames.flatMap { key, values in
       values.filter { frame in
         !key.label.isEmpty
-          && (viewport.frame.contains(frame)
-            || (key.label == navigationTitle && navigationFrame.contains(frame)))
+          && (viewport.frame.contains(frame) || navigationFrame.contains(frame))
       }.map { (key, $0) }
     }
     let identifiers = Set(visible.map { $0.0.identifier })
