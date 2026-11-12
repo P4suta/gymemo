@@ -38,8 +38,29 @@ struct PrivacyAuditSnapshot {
     return matches.count == 1 ? matches.first : nil
   }
 
-  func contrast(of element: XCUIElement, darkInk: Bool?) -> Double? {
-    guard let frame = frame(for: element) else { return nil }
-    return PrimaryTextContrast.measure(frame: frame, bounds: bounds, image: image, darkInk: darkInk)
+  func assertContrast(for facts: Set<String>, darkInk: Bool) {
+    let visible = frames.flatMap { key, values in
+      values.filter { frame in
+        !key.label.isEmpty
+          && (viewport.frame.contains(frame) || navigationFrame.contains(frame))
+      }.map { (key, $0) }
+    }
+    let identifiers = Set(visible.map { $0.0.identifier })
+    XCTAssertFalse(facts.isEmpty, "Privacy contrast needs the facts reached on the current page")
+    XCTAssertTrue(
+      facts.isSubset(of: identifiers),
+      "Privacy contrast missed reached facts: \(facts.subtracting(identifiers).sorted())")
+    for (key, frame) in visible {
+      let isTitle = key.label == navigationTitle && navigationFrame.contains(frame)
+      guard
+        let ratio = PrimaryTextContrast.measure(
+          frame: frame, bounds: bounds, image: image, darkInk: isTitle ? darkInk : nil)
+      else {
+        XCTFail("Privacy contrast could not be measured for '\(key.identifier)': \(key.label)")
+        continue
+      }
+      XCTContext.runActivity(named: "Measured \(key.identifier) contrast: \(ratio):1") { _ in }
+      XCTAssertGreaterThanOrEqual(ratio, 4.5, "Insufficient privacy contrast: \(key.identifier)")
+    }
   }
 }
