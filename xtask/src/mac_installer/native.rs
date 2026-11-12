@@ -5,15 +5,39 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ring::digest::{SHA1_FOR_LEGACY_USE_ONLY, SHA256, digest};
-use security_framework::{
-    import_export::Pkcs12ImportOptions,
-    os::macos::keychain::{CreateOptions, KeychainSettings, SecKeychain},
-};
 use std::{
     env, fs, io,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
+
+#[cfg(target_os = "macos")]
+pub(super) mod security;
+
+struct ImportedIdentity {
+    der: Vec<u8>,
+    subject: String,
+    private_key: bool,
+}
+
+trait KeychainApi {
+    type Keychain;
+
+    fn create(&mut self, path: &Path, password: &str, prompt_user: bool) -> Result<Self::Keychain>;
+    fn unlock(&mut self, keychain: &mut Self::Keychain, password: &str) -> Result<()>;
+    fn import(
+        &mut self,
+        keychain: &Self::Keychain,
+        data: &[u8],
+        password: &str,
+    ) -> Result<Vec<Option<ImportedIdentity>>>;
+    fn settings(
+        &mut self,
+        keychain: &mut Self::Keychain,
+        lock_on_sleep: bool,
+        interval: u32,
+    ) -> Result<()>;
+}
 
 struct Credentials {
     data: Vec<u8>,
@@ -45,13 +69,15 @@ struct Preferences {
     search: Vec<PathBuf>,
 }
 
-struct Native<'a, H> {
+struct Native<'a, H, A: KeychainApi, E> {
     host: &'a mut H,
+    api: &'a mut A,
+    read_variable: E,
     destination: PathBuf,
     credentials: Option<Credentials>,
     password: String,
     before: Option<Preferences>,
-    keychain: Option<SecKeychain>,
+    keychain: Option<A::Keychain>,
 }
 
 fn variable(name: &str) -> Result<String> {
@@ -142,7 +168,7 @@ fn valid_identities(bytes: &[u8]) -> Result<Vec<String>> {
     Ok(identities)
 }
 
-impl<H: Host> Native<'_, H> {
+impl<H: Host, A: KeychainApi, E> Native<'_, H, A, E> {
     fn command(&mut self, invocation: Invocation, operation: &str) -> Result<Vec<u8>> {
         let output = self
             .host
@@ -174,11 +200,11 @@ impl<H: Host> Native<'_, H> {
     }
 }
 
-impl<H: Host> KeychainPort for Native<'_, H> {
+impl<H: Host, A: KeychainApi, E: Fn(&str) -> Result<String>> KeychainPort for Native<'_, H, A, E> {
     fn prepare(&mut self, request: &Request) -> Result<()> {
         ensure(
-            variable("DOPPLER_PROJECT")? == "gymemo"
-                && variable("DOPPLER_CONFIG")? == "ci_native_signing",
+            (self.read_variable)("DOPPLER_PROJECT")? == "gymemo"
+                && (self.read_variable)("DOPPLER_CONFIG")? == "ci_native_signing",
             || "Installer credentials must come from gymemo/ci_native_signing".into(),
         )?;
         let parent = request
@@ -208,8 +234,8 @@ impl<H: Host> KeychainPort for Native<'_, H> {
         }
         self.password = password_file(&request.password_file)?;
         self.credentials = Some(Credentials::decode(
-            &variable("APPLE_INSTALLER_CERTIFICATE_BASE64")?,
-            variable("APPLE_INSTALLER_CERTIFICATE_PASSWORD")?,
+            &(self.read_variable)("APPLE_INSTALLER_CERTIFICATE_BASE64")?,
+            (self.read_variable)("APPLE_INSTALLER_CERTIFICATE_PASSWORD")?,
         )?);
         let before = self.snapshot()?;
         ensure(
@@ -221,13 +247,7 @@ impl<H: Host> KeychainPort for Native<'_, H> {
     }
 
     fn create(&mut self, _: &Request) -> Result<()> {
-        self.keychain = Some(
-            CreateOptions::new()
-                .password(&self.password)
-                .prompt_user(false)
-                .create(&self.destination)
-                .context(|| "Create the dedicated installer keychain".into())?,
-        );
+        self.keychain = Some(self.api.create(&self.destination, &self.password, false)?);
         Ok(())
     }
 
@@ -236,18 +256,14 @@ impl<H: Host> KeychainPort for Native<'_, H> {
             .keychain
             .as_mut()
             .ok_or_else(|| Failure::new("The installer keychain was not created"))?;
-        keychain
-            .unlock(Some(&self.password))
-            .context(|| "Unlock the installer keychain".into())?;
+        self.api.unlock(keychain, &self.password)?;
         let credentials = self
             .credentials
             .as_ref()
             .ok_or_else(|| Failure::new("The installer credentials were not loaded"))?;
-        let imported = Pkcs12ImportOptions::new()
-            .keychain(keychain.clone())
-            .passphrase(&credentials.password)
-            .import(&credentials.data)
-            .context(|| "Import the installer identity".into())?;
+        let imported = self
+            .api
+            .import(keychain, &credentials.data, &credentials.password)?;
         let destination = self.destination.clone();
         let valid = valid_identities(
             &self.command(
@@ -260,7 +276,7 @@ impl<H: Host> KeychainPort for Native<'_, H> {
         imported
             .into_iter()
             .map(|item| {
-                let Some(identity) = item.identity else {
+                let Some(identity) = item else {
                     return Ok(Identity {
                         fingerprint: String::new(),
                         subject: String::new(),
@@ -268,16 +284,13 @@ impl<H: Host> KeychainPort for Native<'_, H> {
                         trusted: false,
                     });
                 };
-                let certificate = identity
-                    .certificate()
-                    .context(|| "Read the imported installer certificate".into())?;
-                let der = certificate.to_der();
+                let der = identity.der;
                 super::purpose::verify(&der)?;
                 let sha1 = hex(digest(&SHA1_FOR_LEGACY_USE_ONLY, &der).as_ref());
                 Ok(Identity {
                     fingerprint: hex(digest(&SHA256, &der).as_ref()),
-                    subject: certificate.subject_summary(),
-                    private_key: identity.private_key().is_ok(),
+                    subject: identity.subject,
+                    private_key: identity.private_key,
                     trusted: valid.len() == 1 && valid.contains(&sha1),
                 })
             })
@@ -285,14 +298,11 @@ impl<H: Host> KeychainPort for Native<'_, H> {
     }
 
     fn configure(&mut self, request: &Request, _: &VerifiedInstaller) -> Result<()> {
-        let mut settings = KeychainSettings::new();
-        settings.set_lock_on_sleep(true);
-        settings.set_lock_interval(Some(1_800));
-        self.keychain
+        let keychain = self
+            .keychain
             .as_mut()
-            .ok_or_else(|| Failure::new("The installer keychain was not created"))?
-            .set_settings(&settings)
-            .context(|| "Set the installer keychain lock policy".into())?;
+            .ok_or_else(|| Failure::new("The installer keychain was not created"))?;
+        self.api.settings(keychain, true, 1_800)?;
         let destination = self.destination.clone();
         self.command(
             Invocation::new("asc")
@@ -369,11 +379,19 @@ impl<H: Host> KeychainPort for Native<'_, H> {
     }
 }
 
-pub(super) fn run(host: &mut impl Host, request: &Request) -> Result<()> {
-    let _interaction = SecKeychain::disable_user_interaction()
-        .context(|| "Disable interactive keychain prompts".into())?;
+#[cfg(test)]
+mod contracts;
+
+fn execute<H: Host, A: KeychainApi, E: Fn(&str) -> Result<String>>(
+    host: &mut H,
+    request: &Request,
+    api: &mut A,
+    read_variable: E,
+) -> Result<()> {
     let mut port = Native {
         host,
+        api,
+        read_variable,
         destination: PathBuf::new(),
         credentials: None,
         password: String::new(),

@@ -4,7 +4,7 @@ use crate::{
 };
 use std::path::{Component, PathBuf};
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", test))]
 mod native;
 
 #[cfg(any(target_os = "macos", test))]
@@ -181,7 +181,7 @@ pub fn run(host: &mut impl Host, arguments: &[String]) -> Result<()> {
         Operation::Install(request) => {
             #[cfg(target_os = "macos")]
             {
-                native::run(host, &request)
+                native::security::run(host, &request)
             }
             #[cfg(not(target_os = "macos"))]
             {
