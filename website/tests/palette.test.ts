@@ -44,7 +44,7 @@ for (const declaration of prohibited) {
 
 test("the shipped stylesheet satisfies the palette contract", async (): Promise<void> => {
 	const code = await readFile(
-		new URL("../dist/styles.css", import.meta.url),
+		new URL("../public/styles.css", import.meta.url),
 		"utf8",
 	);
 	const result = await stylelint.lint({ code, config });

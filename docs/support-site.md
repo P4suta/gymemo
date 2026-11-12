@@ -1,6 +1,7 @@
 # Support website
 
-`website/` contains the static support and privacy pages, shared assets, and browser tests.
+`website/public/` contains the maintained support and privacy pages and shared assets.
+`website/` also holds their browser tests.
 Japanese uses `/`, English uses `/en/`, Simplified Chinese uses `/zh-Hans/`, and Traditional Chinese uses `/zh-Hant/`.
 Each language has a home page, `/support/`, and `/privacy/`.
 
