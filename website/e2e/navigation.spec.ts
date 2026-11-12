@@ -20,6 +20,7 @@ function headerLink(page: Page, path: string): Locator {
 }
 
 async function requireLayout(page: Page): Promise<void> {
+	await page.waitForLoadState("load");
 	const issues = await page.evaluate((): string[] => {
 		const issues: string[] = [];
 		if (document.documentElement.scrollWidth > window.innerWidth)
@@ -255,6 +256,33 @@ test.describe("without page JavaScript", (): void => {
 			await expect(page).toHaveURL("/en/support/");
 		});
 	}
+});
+
+test("checks layout after a delayed style sheet loads", async ({
+	page,
+}): Promise<void> => {
+	const requested = Promise.withResolvers<void>();
+	const release = Promise.withResolvers<void>();
+	await page.route("**/styles.css", async (route: Route): Promise<void> => {
+		requested.resolve();
+		await release.promise;
+		await route.continue();
+	});
+	await page.goto("/support/", { waitUntil: "commit" });
+	await requested.promise;
+	await expect(page.getByRole("main")).toBeAttached();
+	const checked = requireLayout(page).then(
+		(): undefined => undefined,
+		(error: unknown): unknown => error,
+	);
+	try {
+		expect(await page.evaluate((): string => document.readyState)).not.toBe(
+			"complete",
+		);
+	} finally {
+		release.resolve();
+	}
+	expect(await checked).toBeUndefined();
 });
 
 test("rejects overflow and undersized controls", async ({
