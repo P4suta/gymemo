@@ -2,6 +2,38 @@ import AppIntentsTesting
 import XCTest
 
 final class NativePlatformTests: XCTestCase {
+  @MainActor
+  func testOpensSettingsDestinationsFromTheirRows() {
+    let app = launch("settings-rows", tab: "settings")
+    let backup = app.buttons["open-backup"].firstMatch
+    XCTAssertTrue(backup.waitForExistence(timeout: 10))
+    for identifier in ["open-exercises", "open-privacy"] {
+      let row = app.buttons[identifier].firstMatch
+      XCTAssertEqual(row.frame.minX, backup.frame.minX, accuracy: 1)
+      XCTAssertEqual(row.frame.maxX, backup.frame.maxX, accuracy: 1)
+      XCTAssertFalse(row.label.isEmpty)
+    }
+    keepScreenshot("native-settings", anchoredBy: "open-backup")
+    let tree = XCTAttachment(string: app.debugDescription)
+    tree.name = "native-settings-accessibility"
+    tree.lifetime = .keepAlways
+    add(tree)
+    let storage = app.staticTexts["storage-text"].firstMatch
+    let explanation = "Records stay on each device."
+    XCTAssertTrue(storage.label == explanation || storage.value as? String == explanation)
+    activate(backup)
+    XCTAssertTrue(app.buttons["import-backup"].firstMatch.waitForExistence(timeout: 5))
+    #if os(macOS)
+      activate(app.buttons["chevron.backward"].firstMatch)
+    #else
+      activate(app.buttons["BackButton"].firstMatch)
+    #endif
+    let exercises = app.buttons["open-exercises"].firstMatch
+    XCTAssertTrue(exercises.waitForExistence(timeout: 5))
+    activate(exercises)
+    XCTAssertTrue(app.buttons["create-exercise"].firstMatch.waitForExistence(timeout: 5))
+  }
+
   @available(iOS 27.2, macOS 27.2, visionOS 27.2, *)
   @MainActor
   func testOpensTheLogThroughTheAppIntentsInfrastructure() async throws {

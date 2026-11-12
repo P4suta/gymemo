@@ -118,6 +118,9 @@ final class SettingsTests: XCTestCase {
   func testShowsWhereRecordsAreKeptAndTheBackupActions() throws {
     let app = Gymemo.launch(store: "settings-backup", tab: "settings")
     app.staticTexts["Where Records Are Kept"].required("the storage heading")
+    XCTAssertEqual(
+      app.staticTexts["storage-text"].required("the storage explanation").label,
+      "Records stay on each device.")
     let version = app.staticTexts["app-version"].required("the app version")
     XCTAssertEqual(version.label, "Version")
     let information = try XCTUnwrap(Bundle(for: Self.self).infoDictionary)
