@@ -72,7 +72,7 @@ extension XCUIApplication {
     let keyboard = keyboards.firstMatch
     guard keyboard.exists else { return }
     let button = buttons["hide-keyboard"]
-    if button.exists {
+    if button.waitForExistence(timeout: 3) {
       button.requiredHittable("the keyboard dismissal button").tap()
     }
     keyboard.requiredGone("the keyboard")
