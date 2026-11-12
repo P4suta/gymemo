@@ -167,12 +167,12 @@ for (const [name, source] of [
 
 for (const page of pages) {
 	test(`serves ${page.path} in ${page.language} with working local links`, async (): Promise<void> => {
-		const file = new URL(`../dist${page.path}index.html`, import.meta.url);
+		const file = new URL(`../public${page.path}index.html`, import.meta.url);
 		const source = await readFile(file, "utf8");
 		const nodes = localizedDocument(source, page);
 		const sprite = elements(
 			parse(
-				await readFile(new URL("../dist/icons.svg", import.meta.url), "utf8"),
+				await readFile(new URL("../public/icons.svg", import.meta.url), "utf8"),
 			),
 		);
 		for (const use of nodes.filter((node) => node.tagName === "use")) {
@@ -208,7 +208,7 @@ for (const page of pages) {
 				);
 			}
 			const target = new URL(
-				`../dist${url.pathname}index.html`,
+				`../public${url.pathname}index.html`,
 				import.meta.url,
 			);
 			await access(target);
