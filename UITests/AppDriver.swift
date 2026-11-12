@@ -66,13 +66,16 @@ extension XCUIApplication {
     descendants(matching: .any).matching(identifier: identifier).firstMatch
   }
 
-  /// Puts the keyboard away through the button over it, so that it covers nothing on the screen.
+  /// Dismisses the keyboard or waits for a dismissal already in progress.
   @MainActor
   func hideKeyboard() {
+    let keyboard = keyboards.firstMatch
+    guard keyboard.exists else { return }
     let button = buttons["hide-keyboard"]
-    guard button.exists, button.isHittable else { return }
-    button.tap()
-    _ = keyboards.firstMatch.waitForNonExistence(timeout: 5)
+    if button.waitForExistence(timeout: 3) {
+      button.requiredHittable("the keyboard dismissal button").tap()
+    }
+    keyboard.requiredGone("the keyboard")
   }
 
   @MainActor
