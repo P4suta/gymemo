@@ -5,4 +5,13 @@ minimum_test_timeout = 20.0
 # Exempt as no-decision: the `proofs` module of `xtask/src/swift_source.rs` holds only the Kani harnesses, which compile under `cfg(kani)` alone and decide nothing in the tool.
 # Evidence: `cargo test` compiles no line of that module, so no test can tell a mutant there from the source, and `cargo kani --package xtask` runs each harness itself.
 # Reconsider when a harness moves to code that the tests compile, or when cargo-mutants skips `cfg(kani)` on its own.
-exclude_re = ['^xtask/src/swift_source\.rs:\d+:\d+: replace proofs::']
+exclude_re = [
+  '^xtask/src/swift_source\.rs:\d+:\d+: replace proofs::',
+  # The five macOS API translation functions compile only on macOS.
+  # Linux mutations can't observe their Security framework effects.
+  # Portable controller tests exercise import decisions and reject policy branches in this adapter.
+  # Native tests check keychain creation, unlock refusal, invalid import, lock settings, and cleanup.
+  # The native credential workflow checks the real installer identity through the same adapter.
+  # Reconsider when the bounded runner supports macOS or the adapter gains another operation.
+  '^xtask/src/mac_installer/native/security\.rs:\d+:\d+: replace (<impl KeychainApi for Framework>::(create|unlock|import|settings)|run) ->',
+]

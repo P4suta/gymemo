@@ -1313,6 +1313,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shlex",
+ "syn 2.0.119",
  "toml",
  "ureq",
  "x509-cert",

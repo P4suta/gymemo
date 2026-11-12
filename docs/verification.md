@@ -102,8 +102,14 @@ The runner fixes `--gitignore=true` and refuses caller overrides, so ignored bui
 The [copying policy](https://mutants.rs/build-dirs.html) otherwise leaves Git ignore filtering off by default.
 Linux build outputs stay in the container's `/tmp/gymemo-target`, apart from native build outputs.
 The run passes when the tests caught every mutant, none timed out, and the shards account for every listed mutant.
-`.cargo/mutants.toml` fixes the timeouts and holds one exclusion: the Kani harnesses in the `proofs` module of `xtask/src/swift_source.rs`, which compile under `cfg(kani)` alone, so no test can tell a mutant there from the source.
-The file states the evidence and the condition for reconsidering the exclusion.
+`.cargo/mutants.toml` fixes the timeouts and excludes the Kani harnesses, which compile under `cfg(kani)` alone.
+It also excludes only the five Security framework translation functions in `xtask/src/mac_installer/native/security.rs`.
+Linux can't execute those macOS API effects.
+The portable installer controller keeps credential, destination, identity, preference, and cleanup decisions inside the measured scope.
+A Rust syntax check rejects branches, comparisons, loops, macros, and selected predicate methods in the platform translation.
+Native Mac tests exercise a disposable keychain, wrong-password refusal, invalid import, lock settings, and restored preferences without reading owner credentials.
+The dedicated credential workflow verifies actual certificate import.
+The configuration states each platform boundary and its condition for reconsideration.
 
 ## Proofs
 
