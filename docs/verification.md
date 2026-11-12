@@ -156,6 +156,9 @@ Two runs at a time share the image names, so the campaigns run one at a time.
 `mise x -- just ui-test` runs the UI scenarios and the accessibility audits in the light and the dark appearance, and in both with Increase Contrast.
 `FontTests` checks that public Core Text APIs map sample characters for all four supported languages without missing glyphs.
 Screenshots and accessibility labels don't replace that rendering prerequisite.
+The settings growth check allows 1 image pixel at viewport boundaries for fractional accessibility frames.
+The check derives pixel size in [logical points](https://developer.apple.com/documentation/uikit/uiscreen/scale) from the app frame and screenshot dimensions.
+Larger overlaps, empty frames, and invalid geometry fail the check.
 `mise x -- just sanitize` runs the package tests under the address and thread sanitizers.
 
 `mise x -- just native-test -destination 'platform=macOS,arch=arm64'` checks Mac navigation, range selection, standard keyboard commands, Return, Escape, Undo, and Redo.

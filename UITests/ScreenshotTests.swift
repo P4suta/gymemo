@@ -37,12 +37,21 @@ struct ScreenTour {
 
   private func visibleSettingsFrame(_ identifier: String, in app: XCUIApplication) -> CGRect {
     let element = app.any(identifier)
+    guard let image = app.screenshot().image.cgImage else {
+      XCTFail("the settings screenshot has no image")
+      return .zero
+    }
+    let bounds = app.frame
+    let pixel = CGSize(
+      width: bounds.width / CGFloat(image.width), height: bounds.height / CGFloat(image.height))
+    var lastMeasurement = "no matching element"
     for _ in 0..<12 {
       if element.exists {
         let frame = element.frame
-        let viewport = ContentViewport(app).frame
-        if frame.height > 0 && viewport.contains(frame) { return frame }
-        if frame.minY < viewport.minY {
+        let viewport = ContentViewport(app)
+        lastMeasurement = "frame \(frame), viewport \(viewport.frame), pixel \(pixel)"
+        if viewport.contains(frame, pointSizeOfPixel: pixel) { return frame }
+        if frame.minY < viewport.frame.minY {
           app.swipeDown(velocity: .slow)
         } else {
           app.swipeUp(velocity: .slow)
@@ -52,7 +61,9 @@ struct ScreenTour {
       }
     }
     test.capture("\(prefix)-settings-bounds-\(identifier)")
-    XCTFail("\(identifier) didn't fit fully between the navigation bar and the tab bar")
+    XCTFail(
+      "\(identifier) didn't fit fully between the navigation bar and the tab bar: \(lastMeasurement)"
+    )
     return .zero
   }
 
