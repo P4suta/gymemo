@@ -145,10 +145,11 @@ fn test_port<'a, E>(
 
 #[test]
 fn reads_environment_values_and_rejects_a_missing_variable() -> Result<()> {
-    let (name, expected) = env::vars()
-        .find(|(_, value)| !value.is_empty())
-        .ok_or_else(|| Failure::new("The test environment is empty"))?;
-    assert_eq!(variable(&name)?, expected);
+    let expected = env::var("PATH").context(|| "Read the test command search path".into())?;
+    ensure(!expected.is_empty(), || {
+        "The test command search path is empty".into()
+    })?;
+    assert!(variable("PATH")? == expected);
     let missing = format!("GYMEMO_MISSING_INSTALLER_VARIABLE_{}", std::process::id());
     assert!(env::var(&missing).is_err());
     assert!(variable(&missing).is_err());
