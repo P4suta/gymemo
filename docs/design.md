@@ -113,6 +113,9 @@ The bars start at zero, and the list under the line chart gives every value as t
 ## Settings
 
 The Settings tab links to exercises, export and import, and the local privacy policy, and states where records stay.
+The standard [grouped form](https://developer.apple.com/documentation/swiftui/groupedformstyle) gives related controls a visible group on every platform.
+Settings links explicitly show their [native navigation indicator](https://developer.apple.com/documentation/swiftui/view/navigationlinkindicatorvisibility(_:)), including on Mac, so a destination is distinct from static text without relying on color.
+The storage explanation uses one sentence, following Apple's [writing guidance](https://developer.apple.com/design/human-interface-guidelines/writing) to keep settings clear and simple.
 The privacy policy uses four text groups in a standard `ScrollView` with eager `VStack` content.
 Apple's [stack guidance](https://developer.apple.com/documentation/swiftui/vstack) recommends eager rendering for a few views.
 The list version lost its visible content and accessibility children during repeated audits at the largest text size on iOS 27.

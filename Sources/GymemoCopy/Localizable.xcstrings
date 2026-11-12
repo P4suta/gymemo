@@ -602,10 +602,10 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录的保存位置" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄的儲存位置" } } } },
     "storageText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Records stay on each device. No cloud sync." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録は各端末に保存します。クラウドとは同期しません。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各个设备上。不进行云同步。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄儲存在各部裝置上。不進行雲端同步。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Records stay on each device." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録は各端末に保存します。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各个设备上。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄儲存在各部裝置上。" } } } },
     "exportBackupText" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Saves every exercise, set, and note on this device to one JSON file. Export a backup before changing devices." } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "端末内のすべての種目、セット、メモを1つのJSONファイルに保存します。機種を変える前に書き出してください。" } },

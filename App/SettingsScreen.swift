@@ -30,7 +30,7 @@ struct SettingsScreen: View {
   var body: some View {
     let count = model.log.exercisesByBodyPart.reduce(0) { $0 + $1.exercises.count }
     NavigationStack {
-      List {
+      Form {
         Section {
           NavigationLink(value: SettingsRoute.exercises) {
             LabeledContent(copy[.exercises]) {
@@ -68,6 +68,8 @@ struct SettingsScreen: View {
             .accessibilityIdentifier("app-version")
         }
       }
+      .formStyle(.grouped)
+      .navigationLinkIndicatorVisibility(.visible)
       .navigationTitle(copy[.tabSettings])
       .navigationDestination(for: SettingsRoute.self) { route in
         switch route {
