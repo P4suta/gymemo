@@ -131,11 +131,20 @@ struct ScreenTour {
     return element.identifier == "edit-exercise"
   }
 
-  private func check(_ app: XCUIApplication, _ name: String) throws {
+  private func check(
+    _ app: XCUIApplication, _ name: String, privacyFacts: Set<String> = []
+  ) throws {
     test.capture("\(prefix)-\(name)")
     let snapshot = name.hasPrefix("12-privacy") ? try PrivacyAuditSnapshot(app) : nil
-    try app.performAccessibilityAudit(for: audits) { issue in
-      if passesMeasuredContrast(issue, on: name, in: app, snapshot: snapshot) { return true }
+    let selected: XCUIAccessibilityAuditType
+    if let snapshot, audits.contains(.contrast) {
+      snapshot.assertContrast(for: privacyFacts, darkInk: !prefix.contains("dark"))
+      selected = audits.subtracting(.contrast)
+    } else {
+      selected = audits
+    }
+    try app.performAccessibilityAudit(for: selected) { issue in
+      if passesMeasuredContrast(issue, on: name, in: app) { return true }
       if passesMeasuredPlaceholder(issue, on: name) { return true }
       if isSystemDrawn(issue, on: name, in: app, snapshot: snapshot) { return true }
       let element = issue.element.map { element in
@@ -166,31 +175,15 @@ struct ScreenTour {
   }
 
   private func passesMeasuredContrast(
-    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication,
-    snapshot: PrivacyAuditSnapshot?
+    _ issue: XCUIAccessibilityAuditIssue, on screen: String, in app: XCUIApplication
   ) -> Bool {
     guard issue.auditType == .contrast, let element = issue.element else { return false }
     let editorLabel =
       screen == "03-set-editor"
       && ["label-edit-weight", "label-edit-reps", "unit-edit-weight", "label-delete-set"].contains(
         element.identifier)
-    let privacyText =
-      screen.hasPrefix("12-privacy")
-      && (PrivacyTour.facts.contains(element.identifier)
-        || element.identifier == "privacy-collection-value")
-      && snapshot.map { captured in
-        captured.frame(for: element).map(captured.viewport.frame.contains) == true
-      } == true
-    let privacyTitle =
-      snapshot.map { captured in
-        element.elementType == .staticText && element.label == captured.navigationTitle
-          && captured.frame(for: element).map(captured.navigationFrame.contains) == true
-      } ?? false
-    guard editorLabel || privacyText || privacyTitle else { return false }
-    let measured =
-      snapshot.map {
-        $0.contrast(of: element, darkInk: privacyTitle ? !prefix.contains("dark") : nil)
-      } ?? PrimaryTextContrast.measure(element, in: app)
+    guard editorLabel else { return false }
+    let measured = PrimaryTextContrast.measure(element, in: app)
     guard let ratio = measured else { return false }
     let name = element.identifier.isEmpty ? element.label : element.identifier
     XCTContext.runActivity(named: "Measured \(name) contrast: \(ratio):1") { _ in }
@@ -210,8 +203,8 @@ struct ScreenTour {
     let app = Gymemo.launch(
       store: "privacy-\(prefix)", tab: "settings", textSize: textSize, language: language)
     app.buttons["open-privacy"].scrollAndTap(in: app)
-    try PrivacyTour.read(in: app) { page in
-      try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)")
+    try PrivacyTour.read(in: app) { page, facts in
+      try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)", privacyFacts: facts)
     }
   }
 
@@ -290,8 +283,8 @@ struct ScreenTour {
 
     app.goBack()
     app.buttons["open-privacy"].scrollAndTap(in: app)
-    try PrivacyTour.read(in: app) { page in
-      try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)")
+    try PrivacyTour.read(in: app) { page, facts in
+      try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)", privacyFacts: facts)
     }
     app.goBack()
     app.buttons["open-watch"].scrollAndTap(in: app)

@@ -9,10 +9,12 @@ enum PrivacyTour {
   ]
 
   static func read(in app: XCUIApplication) {
-    read(in: app) { _ in }
+    read(in: app) { _, _ in }
   }
 
-  static func read(in app: XCUIApplication, afterPage: (Int) throws -> Void) rethrows {
+  static func read(
+    in app: XCUIApplication, afterPage: (Int, Set<String>) throws -> Void
+  ) rethrows {
     var unread = Set(facts)
     var page = 0
     var swipesWithoutReading = 0
@@ -27,7 +29,7 @@ enum PrivacyTour {
       if !reached.isEmpty {
         unread.subtract(reached)
         swipesWithoutReading = 0
-        try afterPage(page)
+        try afterPage(page, reached)
         page += 1
         if unread.isEmpty { return }
       }

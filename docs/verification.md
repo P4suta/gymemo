@@ -24,6 +24,15 @@ The doc comments of the lexer name the source of each rule.
 The module doc of the lexer lists the known exceptions, each with an example, and its `fixture` module holds the planted sources of each family.
 A test of each check plants a violation behind each construct and expects the refusal on the right line.
 
+## Accessibility audits
+
+Privacy tours bind each newly reached fact to a captured text frame.
+With Increase Contrast, the image check requires at least 4.5:1 for every fully visible body text and navigation title, using the [Web Content Accessibility Guidelines contrast calculation](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio).
+Missing reached facts, ambiguous measurements, and insufficient contrast fail the check.
+The [iOS 26.4 Simulator contrast audit timeout](https://github.com/P4suta/gymemo/issues/27) also occurs when contrast runs alone.
+Privacy tours measure contrast from rendered pixels and keep the remaining [Apple accessibility audits](https://developer.apple.com/documentation/accessibility/performing-accessibility-audits-for-your-app).
+Other screens keep the SDK contrast audit and their existing measured checks.
+
 ## Local release qualification
 
 `mise x -- just qualify SHA FLOOR IPAD DUO WATCH VISION` prints the complete local check plan without running a check or changing GitHub.
@@ -144,7 +153,7 @@ lean, lake, cargo-kani, and cargo-mutants run only in containers that `xtask` bu
 Each container gets 2 CPUs, 2 GiB of memory without swap, 256 processes, 900 seconds, and no network.
 Before building the Rust image, the runner fetches the locked dependencies into `target/verification-cargo` on the host.
 Rust containers mount only that cache's registry without write access and set `CARGO_NET_OFFLINE=true`.
-The registry cache stays separate from the owner's Cargo home.
+The registry cache uses its own Cargo home.
 A run that reaches the time limit or the memory limit ends the command with a message that starts with `INCONCLUSIVE` and exit code 75.
 That outcome is neither a pass nor a failure.
 `xtask` removes each container after every outcome, and the listing and the replay steps mount the repository without write access.
@@ -156,7 +165,7 @@ Two runs at a time share the image names, so the campaigns run one at a time.
 `mise x -- just ui-test` runs the UI scenarios and the accessibility audits in the light and the dark appearance, and in both with Increase Contrast.
 `FontTests` checks that public Core Text APIs map sample characters for all four supported languages without missing glyphs.
 Screenshots and accessibility labels don't replace that rendering prerequisite.
-The settings growth check allows 1 image pixel at viewport boundaries for fractional accessibility frames.
+The settings growth check accepts 1 image pixel at viewport boundaries for fractional accessibility frames.
 The check derives pixel size in [logical points](https://developer.apple.com/documentation/uikit/uiscreen/scale) from the app frame and screenshot dimensions.
 Larger overlaps, empty frames, and invalid geometry fail the check.
 `mise x -- just sanitize` runs the package tests under the address and thread sanitizers.
