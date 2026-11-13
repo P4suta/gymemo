@@ -100,7 +100,6 @@ final class NativePlatformTests: XCTestCase {
   private func launch(_ app: XCUIApplication) {
     app.launch()
     #if os(macOS)
-      app.activate()
       prepareMacWindow(app)
     #endif
   }
@@ -108,9 +107,10 @@ final class NativePlatformTests: XCTestCase {
   #if os(macOS)
     @MainActor
     private func prepareMacWindow(_ app: XCUIApplication) {
+      app.activate()
       XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
       for remaining in stride(from: app.windows.count - 1, through: 1, by: -1) {
-        app.windows.element(boundBy: remaining).buttons[XCUIIdentifierCloseWindow].click()
+        app.typeKey("w", modifierFlags: .command)
         let closed = expectation(
           for: NSPredicate(format: "count == %d", remaining), evaluatedWith: app.windows)
         wait(for: [closed], timeout: 5)
@@ -139,6 +139,22 @@ final class NativePlatformTests: XCTestCase {
       wait(for: [opened], timeout: 5)
       prepareMacWindow(app)
       XCTAssertEqual(app.windows.count, 1)
+      prepareMacWindow(app)
+      XCTAssertEqual(app.windows.count, 1)
+    }
+
+    @MainActor
+    func testPreparesOneWindowWhenAllWindowsAreMinimized() {
+      let app = launch("minimized-window-preparation", tab: "log")
+      app.typeKey("n", modifierFlags: .command)
+      let opened = expectation(
+        for: NSPredicate(format: "count == 2"), evaluatedWith: app.windows)
+      wait(for: [opened], timeout: 5)
+      app.typeKey("m", modifierFlags: [.command, .option])
+      for window in app.windows.allElementsBoundByIndex {
+        XCTAssertFalse(window.buttons[XCUIIdentifierCloseWindow].isHittable)
+      }
+      XCTAssertEqual(app.windows.count, 2)
       prepareMacWindow(app)
       XCTAssertEqual(app.windows.count, 1)
     }

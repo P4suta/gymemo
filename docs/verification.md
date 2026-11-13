@@ -194,6 +194,8 @@ The native test command cleans that build directory before rebuilding to replace
 Past builds with the same bundle identifier can conflict with App Intents discovery.
 XCTest may ask for macOS authentication to enable UI automation.
 The Mac harness activates the app to open its windows, closes extra windows, and then centers the remaining window after each launch.
+It closes extra windows with [Command-W](https://support.apple.com/en-us/102650).
+The regressions cover two open windows, repeated preparation, and minimized windows with unreachable close buttons.
 It checks that the window fits inside the [primary display](https://developer.apple.com/documentation/appkit/nsscreen/screens).
 The checks preserve screenshot capture and reject an unsuitable window position.
 The same command accepts an iPad, iPhone Duo, or visionOS Simulator destination from `xcodebuild -showdestinations -scheme gymemoNative`.
