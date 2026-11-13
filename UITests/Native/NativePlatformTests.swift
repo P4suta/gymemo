@@ -93,15 +93,6 @@ final class NativePlatformTests: XCTestCase {
     ]
     if assistive { app.launchArguments.append("-gymemo-assistive") }
     launch(app)
-    #if os(macOS)
-      for remaining in stride(from: app.windows.count - 1, through: 1, by: -1) {
-        app.windows.element(boundBy: remaining).buttons[XCUIIdentifierCloseWindow].click()
-        let closed = expectation(
-          for: NSPredicate(format: "count == %d", remaining), evaluatedWith: app.windows)
-        wait(for: [closed], timeout: 5)
-      }
-      XCTAssertEqual(app.windows.count, 1)
-    #endif
     return app
   }
 
@@ -109,6 +100,22 @@ final class NativePlatformTests: XCTestCase {
   private func launch(_ app: XCUIApplication) {
     app.launch()
     #if os(macOS)
+      app.activate()
+      prepareMacWindow(app)
+    #endif
+  }
+
+  #if os(macOS)
+    @MainActor
+    private func prepareMacWindow(_ app: XCUIApplication) {
+      XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+      for remaining in stride(from: app.windows.count - 1, through: 1, by: -1) {
+        app.windows.element(boundBy: remaining).buttons[XCUIIdentifierCloseWindow].click()
+        let closed = expectation(
+          for: NSPredicate(format: "count == %d", remaining), evaluatedWith: app.windows)
+        wait(for: [closed], timeout: 5)
+      }
+      XCTAssertEqual(app.windows.count, 1)
       app.activate()
       let window = app.windows.firstMatch
       XCTAssertTrue(window.waitForExistence(timeout: 10))
@@ -121,8 +128,21 @@ final class NativePlatformTests: XCTestCase {
       XCTAssertTrue(
         bounds.contains(window.frame),
         "The Mac test window \(window.frame) must fit inside the primary display \(bounds)")
-    #endif
-  }
+    }
+
+    @MainActor
+    func testPreparesOneWindowWhenMultipleWindowsAreOpen() {
+      let app = launch("window-preparation", tab: "log")
+      app.typeKey("n", modifierFlags: .command)
+      let opened = expectation(
+        for: NSPredicate(format: "count == 2"), evaluatedWith: app.windows)
+      wait(for: [opened], timeout: 5)
+      prepareMacWindow(app)
+      XCTAssertEqual(app.windows.count, 1)
+      prepareMacWindow(app)
+      XCTAssertEqual(app.windows.count, 1)
+    }
+  #endif
 
   @MainActor
   func testOpensOnlyTheParameterlessLogLink() throws {
