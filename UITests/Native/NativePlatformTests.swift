@@ -1,6 +1,10 @@
 import AppIntentsTesting
 import XCTest
 
+#if os(macOS)
+  import AppKit
+#endif
+
 final class NativePlatformTests: XCTestCase {
   @MainActor
   func testOpensSettingsDestinationsFromTheirRows() {
@@ -88,9 +92,8 @@ final class NativePlatformTests: XCTestCase {
       language == "ja" ? "ja_JP" : "en_US",
     ]
     if assistive { app.launchArguments.append("-gymemo-assistive") }
-    app.launch()
+    launch(app)
     #if os(macOS)
-      XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
       for remaining in stride(from: app.windows.count - 1, through: 1, by: -1) {
         app.windows.element(boundBy: remaining).buttons[XCUIIdentifierCloseWindow].click()
         let closed = expectation(
@@ -100,6 +103,25 @@ final class NativePlatformTests: XCTestCase {
       XCTAssertEqual(app.windows.count, 1)
     #endif
     return app
+  }
+
+  @MainActor
+  private func launch(_ app: XCUIApplication) {
+    app.launch()
+    #if os(macOS)
+      app.activate()
+      let window = app.windows.firstMatch
+      XCTAssertTrue(window.waitForExistence(timeout: 10))
+      app.typeKey("c", modifierFlags: [.control, .function])
+      guard let screen = NSScreen.screens.first else {
+        XCTFail("The Mac test requires a primary display")
+        return
+      }
+      let bounds = CGRect(origin: .zero, size: screen.frame.size)
+      XCTAssertTrue(
+        bounds.contains(window.frame),
+        "The Mac test window \(window.frame) must fit inside the primary display \(bounds)")
+    #endif
   }
 
   @MainActor
@@ -189,7 +211,7 @@ final class NativePlatformTests: XCTestCase {
     keepScreenshot("native-japanese-log", anchoredBy: "set-4-ベンチプレス")
     app.terminate()
     app.launchArguments.removeAll { $0 == "-gymemo-reset" || $0 == "-gymemo-sample" }
-    app.launch()
+    launch(app)
     bringIntoView(added, in: app)
     XCTAssertTrue(added.exists)
   }
