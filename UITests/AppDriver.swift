@@ -176,21 +176,42 @@ extension XCUIElement {
   }
 
   /// Scrolls until the whole element appears inside the screen and accepts a tap.
-  /// A list makes its rows on demand, so a row below the screen doesn't exist until the list scrolls to it.
+  /// A list creates its rows on demand, so a row outside the visible area may not exist yet.
   @MainActor
   func scrollAndTap(in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
     app.hideKeyboard()
-    var swipes = 0
-    while !(exists && isHittable && app.frame.contains(frame)), swipes < 12 {
-      app.swipeUp(velocity: .slow)
-      swipes += 1
+    let searches: [@MainActor () -> Void] = [
+      { app.swipeUp(velocity: .slow) },
+      { app.swipeDown(velocity: .slow) },
+    ]
+    for search in searches {
+      for _ in 0..<12 {
+        if exists {
+          let target = frame
+          let bounds = app.frame
+          if bounds.contains(target), isHittable {
+            tap()
+            return
+          }
+          if target.minY < bounds.minY {
+            app.swipeDown(velocity: .slow)
+            continue
+          }
+          if target.maxY > bounds.maxY {
+            app.swipeUp(velocity: .slow)
+            continue
+          }
+        }
+        search()
+      }
     }
-    guard exists && isHittable && app.frame.contains(frame) else {
-      XCTFail(
-        "\(identifier.isEmpty ? label : identifier) did not become visible", file: file, line: line)
+    if exists, app.frame.contains(frame), isHittable {
+      tap()
       return
     }
-    tap()
+    XCTFail(
+      "The requested element did not become visible after searching both scroll directions",
+      file: file, line: line)
   }
 
   /// Puts the cursor after the last character of a text view that holds a short text.
