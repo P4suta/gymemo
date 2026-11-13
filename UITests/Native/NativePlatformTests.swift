@@ -1,6 +1,10 @@
 import AppIntentsTesting
 import XCTest
 
+#if os(macOS)
+  import AppKit
+#endif
+
 final class NativePlatformTests: XCTestCase {
   @MainActor
   func testOpensSettingsDestinationsFromTheirRows() {
@@ -88,19 +92,73 @@ final class NativePlatformTests: XCTestCase {
       language == "ja" ? "ja_JP" : "en_US",
     ]
     if assistive { app.launchArguments.append("-gymemo-assistive") }
+    launch(app)
+    return app
+  }
+
+  @MainActor
+  private func launch(_ app: XCUIApplication) {
     app.launch()
     #if os(macOS)
+      prepareMacWindow(app)
+    #endif
+  }
+
+  #if os(macOS)
+    @MainActor
+    private func prepareMacWindow(_ app: XCUIApplication) {
+      app.activate()
       XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
       for remaining in stride(from: app.windows.count - 1, through: 1, by: -1) {
-        app.windows.element(boundBy: remaining).buttons[XCUIIdentifierCloseWindow].click()
+        app.typeKey("w", modifierFlags: .command)
         let closed = expectation(
           for: NSPredicate(format: "count == %d", remaining), evaluatedWith: app.windows)
         wait(for: [closed], timeout: 5)
       }
       XCTAssertEqual(app.windows.count, 1)
-    #endif
-    return app
-  }
+      app.activate()
+      let window = app.windows.firstMatch
+      XCTAssertTrue(window.waitForExistence(timeout: 10))
+      app.typeKey("c", modifierFlags: [.control, .function])
+      guard let screen = NSScreen.screens.first else {
+        XCTFail("The Mac test requires a primary display")
+        return
+      }
+      let bounds = CGRect(origin: .zero, size: screen.frame.size)
+      XCTAssertTrue(
+        bounds.contains(window.frame),
+        "The Mac test window \(window.frame) must fit inside the primary display \(bounds)")
+    }
+
+    @MainActor
+    func testPreparesOneWindowWhenMultipleWindowsAreOpen() {
+      let app = launch("window-preparation", tab: "log")
+      app.typeKey("n", modifierFlags: .command)
+      let opened = expectation(
+        for: NSPredicate(format: "count == 2"), evaluatedWith: app.windows)
+      wait(for: [opened], timeout: 5)
+      prepareMacWindow(app)
+      XCTAssertEqual(app.windows.count, 1)
+      prepareMacWindow(app)
+      XCTAssertEqual(app.windows.count, 1)
+    }
+
+    @MainActor
+    func testPreparesOneWindowWhenAllWindowsAreMinimized() {
+      let app = launch("minimized-window-preparation", tab: "log")
+      app.typeKey("n", modifierFlags: .command)
+      let opened = expectation(
+        for: NSPredicate(format: "count == 2"), evaluatedWith: app.windows)
+      wait(for: [opened], timeout: 5)
+      app.typeKey("m", modifierFlags: [.command, .option])
+      for window in app.windows.allElementsBoundByIndex {
+        XCTAssertFalse(window.buttons[XCUIIdentifierCloseWindow].isHittable)
+      }
+      XCTAssertEqual(app.windows.count, 2)
+      prepareMacWindow(app)
+      XCTAssertEqual(app.windows.count, 1)
+    }
+  #endif
 
   @MainActor
   func testOpensOnlyTheParameterlessLogLink() throws {
@@ -189,7 +247,7 @@ final class NativePlatformTests: XCTestCase {
     keepScreenshot("native-japanese-log", anchoredBy: "set-4-ベンチプレス")
     app.terminate()
     app.launchArguments.removeAll { $0 == "-gymemo-reset" || $0 == "-gymemo-sample" }
-    app.launch()
+    launch(app)
     bringIntoView(added, in: app)
     XCTAssertTrue(added.exists)
   }
