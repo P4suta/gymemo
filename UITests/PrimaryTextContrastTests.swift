@@ -113,4 +113,29 @@ final class PrimaryTextContrastTests: XCTestCase {
       PrimaryTextContrast.renderedRatio(
         pixels: Array(repeating: Pixel(80, 80, 80), count: 400), width: 20, darkInk: false))
   }
+
+  func testMeasuresTextInsideWideRowsAndRejectsSparseOrFadedInk() throws {
+    var pixels = Array(repeating: Pixel(255, 255, 255), count: 20_000)
+    for row in 40..<48 {
+      for column in 10..<15 { pixels[row * 200 + column] = Pixel(0, 0, 0) }
+    }
+    XCTAssertNil(PrimaryTextContrast.renderedRatio(pixels: pixels, width: 200, darkInk: true))
+    XCTAssertEqual(
+      try XCTUnwrap(
+        PrimaryTextContrast.renderedRatio(
+          pixels: pixels, width: 200, darkInk: true, extent: .row)),
+      21, accuracy: 0.000_001)
+    pixels[60 * 200 + 12] = Pixel(80, 80, 80)
+    XCTAssertLessThan(
+      try XCTUnwrap(
+        PrimaryTextContrast.renderedRatio(
+          pixels: pixels, width: 200, darkInk: true, extent: .row)),
+      4.5)
+    let isolated =
+      Array(repeating: Pixel(255, 255, 255), count: 20_000)
+      + Array(repeating: Pixel(0, 0, 0), count: 19)
+    XCTAssertNil(
+      PrimaryTextContrast.renderedRatio(
+        pixels: isolated, width: 1, darkInk: true, extent: .row))
+  }
 }

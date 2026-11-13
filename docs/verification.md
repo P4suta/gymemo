@@ -33,6 +33,12 @@ Missing reached facts, ambiguous measurements, and insufficient contrast fail th
 The [iOS 26.4 Simulator contrast audit timeout](https://github.com/P4suta/gymemo/issues/27) also occurs when contrast runs alone.
 Privacy tours measure contrast from rendered pixels and keep the remaining [Apple accessibility audits](https://developer.apple.com/documentation/accessibility/performing-accessibility-audits-for-your-app).
 Other screens keep the SDK contrast audit and their existing measured checks.
+Identified set numbers and exercise-section headers also bind reported contrast issues to unique text frames captured before the audit.
+The frame must fit fully between the captured bars, and the measured primary ink must reach 4.5:1 with the least contrasting background outside its antialiased edge.
+Row-sized headers require at least 20 ink pixels covering 0.1 percent of the frame.
+Other primary text requires 1 percent.
+Regression fixtures reject sparse ink, faded regions, changed labels, duplicate identities, and reports on another screen.
+An unavailable or insufficient measurement leaves the SDK report as a failure.
 
 ## Local release qualification
 

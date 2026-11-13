@@ -135,6 +135,9 @@ struct ScreenTour {
     _ app: XCUIApplication, _ name: String, privacyFacts: Set<String> = []
   ) throws {
     test.capture("\(prefix)-\(name)")
+    let measured =
+      audits.contains(.contrast) && ["01-log", "02-exercise-picker", "09-exercises"].contains(name)
+      ? try ContrastAuditSnapshot(app) : nil
     let snapshot = name.hasPrefix("12-privacy") ? try PrivacyAuditSnapshot(app) : nil
     let selected: XCUIAccessibilityAuditType
     if let snapshot, audits.contains(.contrast) {
@@ -144,6 +147,9 @@ struct ScreenTour {
       selected = audits
     }
     try app.performAccessibilityAudit(for: selected) { issue in
+      if measured?.passes(issue, on: name, darkInk: !prefix.hasPrefix("dark")) == true {
+        return true
+      }
       if passesMeasuredContrast(issue, on: name, in: app) { return true }
       if passesMeasuredPlaceholder(issue, on: name) { return true }
       if isSystemDrawn(issue, on: name, in: app, snapshot: snapshot) { return true }

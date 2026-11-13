@@ -3,6 +3,17 @@ import Foundation
 import XCTest
 
 enum PrimaryTextContrast {
+  enum Extent {
+    case glyphs, row
+
+    var minimumInkFraction: Double {
+      switch self {
+      case .glyphs: 0.01
+      case .row: 0.001
+      }
+    }
+  }
+
   struct Pixel: Hashable {
     let red: UInt8
     let green: UInt8
@@ -63,7 +74,9 @@ enum PrimaryTextContrast {
     return candidates.first?.key
   }
 
-  static func renderedRatio(pixels: [Pixel], width: Int, darkInk: Bool) -> Double? {
+  static func renderedRatio(
+    pixels: [Pixel], width: Int, darkInk: Bool, extent: Extent = .glyphs
+  ) -> Double? {
     guard width > 0, !pixels.isEmpty, pixels.count.isMultiple(of: width) else { return nil }
     let height = pixels.count / width
     func isInk(_ pixel: Pixel) -> Bool {
@@ -72,7 +85,9 @@ enum PrimaryTextContrast {
         : min(pixel.red, pixel.green, pixel.blue) >= 239
     }
     let ink = pixels.filter(isInk)
-    guard ink.count >= 20, Double(ink.count) / Double(pixels.count) >= 0.01 else { return nil }
+    guard ink.count >= 20,
+      Double(ink.count) / Double(pixels.count) >= extent.minimumInkFraction
+    else { return nil }
     var backgrounds: [Double] = []
     for (index, pixel) in pixels.enumerated() where !isInk(pixel) {
       guard max(pixel.red, pixel.green, pixel.blue) - min(pixel.red, pixel.green, pixel.blue) <= 8
@@ -104,7 +119,7 @@ enum PrimaryTextContrast {
   }
 
   static func measure(
-    frame: CGRect, bounds: CGRect, image: CGImage, darkInk: Bool? = nil
+    frame: CGRect, bounds: CGRect, image: CGImage, darkInk: Bool? = nil, extent: Extent = .glyphs
   ) -> Double? {
     guard !frame.isEmpty, bounds.contains(frame) else { return nil }
     let scaleX = Double(image.width) / bounds.width
@@ -137,7 +152,9 @@ enum PrimaryTextContrast {
       guard bytes[index + 3] == 255 else { return nil }
       pixels.append(Pixel(bytes[index], bytes[index + 1], bytes[index + 2]))
     }
-    if let darkInk { return renderedRatio(pixels: pixels, width: width, darkInk: darkInk) }
+    if let darkInk {
+      return renderedRatio(pixels: pixels, width: width, darkInk: darkInk, extent: extent)
+    }
     return ratio(pixels: pixels)
   }
 }

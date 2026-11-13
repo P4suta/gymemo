@@ -20,19 +20,22 @@ struct GymemoApp: App {
 
   var body: some Scene {
     WindowGroup {
-      switch launch {
-      case .ready(let model):
-        #if os(iOS)
-          if LaunchConfiguration.current.usesAssistiveInterface {
-            AssistiveLogScreen().environment(model)
-          } else {
+      Group {
+        switch launch {
+        case .ready(let model):
+          #if os(iOS)
+            if LaunchConfiguration.current.usesAssistiveInterface {
+              AssistiveLogScreen().environment(model)
+            } else {
+              RootView().environment(model)
+            }
+          #else
             RootView().environment(model)
-          }
-        #else
-          RootView().environment(model)
-        #endif
-      case .failed(let failure): LaunchFailureScreen(failure: failure)
+          #endif
+        case .failed(let failure): LaunchFailureScreen(failure: failure)
+        }
       }
+      .modifier(ContrastScrollEdges())
     }
     #if os(macOS) || os(visionOS)
       .defaultSize(width: 1120, height: 760)
@@ -45,11 +48,26 @@ struct GymemoApp: App {
     #endif
     #if os(iOS)
       AssistiveAccess {
-        switch launch {
-        case .ready(let model): AssistiveLogScreen().environment(model)
-        case .failed(let failure): LaunchFailureScreen(failure: failure)
+        Group {
+          switch launch {
+          case .ready(let model): AssistiveLogScreen().environment(model)
+          case .failed(let failure): LaunchFailureScreen(failure: failure)
+          }
         }
+        .modifier(ContrastScrollEdges())
       }
+    #endif
+  }
+}
+
+struct ContrastScrollEdges: ViewModifier {
+  @Environment(\.colorSchemeContrast) private var contrast
+
+  func body(content: Content) -> some View {
+    #if os(iOS)
+      content.scrollEdgeEffectStyle(contrast == .increased ? .hard : .automatic, for: .all)
+    #else
+      content
     #endif
   }
 }

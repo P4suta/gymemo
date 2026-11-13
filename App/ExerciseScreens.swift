@@ -21,20 +21,26 @@ struct ExercisePicker: View {
     NavigationStack {
       List {
         if !recent.isEmpty {
-          Section(copy[.recentExercises]) {
+          Section {
             // A recent exercise also appears under its body part, so the two rows need different identities.
             ForEach(recent, id: \.name) { exercise in
               row(exercise).accessibilityIdentifier("recent-\(exercise.name.text)")
             }
+          } header: {
+            Text(copy[.recentExercises]).foregroundStyle(SecondaryTextStyle())
+              .accessibilityIdentifier("section-recent")
           }
         }
         ForEach(groups) { group in
           let found = group.exercises.filter(matches)
           if !found.isEmpty {
-            Section(copy.bodyPart(group.bodyPart)) {
+            Section {
               ForEach(found) { exercise in
                 row(exercise).accessibilityIdentifier("pick-\(exercise.name.text)")
               }
+            } header: {
+              Text(copy.bodyPart(group.bodyPart)).foregroundStyle(SecondaryTextStyle())
+                .accessibilityIdentifier("section-body-part-\(group.bodyPart)")
             }
           }
         }
@@ -67,6 +73,7 @@ struct ExercisePicker: View {
         }
       }
     }
+    .modifier(ContrastScrollEdges())
   }
 
   private func row(_ exercise: Exercise) -> some View {
@@ -230,7 +237,7 @@ struct ExerciseListScreen: View {
   var body: some View {
     List {
       ForEach(model.log.exercisesByBodyPart) { group in
-        Section(copy.bodyPart(group.bodyPart)) {
+        Section {
           ForEach(group.exercises) { exercise in
             let toggleTitle = exercise.isArchived ? copy[.show] : copy[.hide]
             let toggleSymbol = exercise.isArchived ? "eye" : "eye.slash"
@@ -240,7 +247,7 @@ struct ExerciseListScreen: View {
               HStack {
                 Text(exercise.name.text).foregroundStyle(Color.primary)
                 Spacer(minLength: 8)
-                if exercise.isArchived { Text(copy[.hidden]).foregroundStyle(Color.secondary) }
+                if exercise.isArchived { Text(copy[.hidden]).foregroundStyle(SecondaryTextStyle()) }
               }
             }
             .accessibilityIdentifier("manage-\(exercise.name.text)")
@@ -252,6 +259,9 @@ struct ExerciseListScreen: View {
               Button(copy[.editExercise], systemImage: "pencil") { edited = exercise }
             }
           }
+        } header: {
+          Text(copy.bodyPart(group.bodyPart)).foregroundStyle(SecondaryTextStyle())
+            .accessibilityIdentifier("section-body-part-\(group.bodyPart)")
         }
       }
     }
