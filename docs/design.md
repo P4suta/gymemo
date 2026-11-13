@@ -28,8 +28,16 @@ On a dark row inside a sheet, indigo reaches 4.0:1 at the default contrast and 6
 Destructive actions keep their destructive role.
 Set deletion shows a red trash symbol beside text in the label color, because red text failed the contrast check on the sheet's gray row.
 A problem also shows a red symbol beside text in the label color.
-Unselected text takes the label colors through `Color.primary` and `Color.secondary`, and the Verification section gives the reason.
+Unselected text uses the system label colors.
+Secondary app text uses `SecondaryTextStyle`, which resolves to `Color.secondary` at standard contrast and `Color.primary` with Increase Contrast.
+The exercise picker's and exercise list's section headers use the same style.
+The stronger foreground is a project choice for small text near native bars, following Apple's [contrast guidance](https://developer.apple.com/design/human-interface-guidelines/accessibility).
 Selected list rows inherit the system's selection foreground, which keeps their text readable over the selection background.
+
+With Increase Contrast on iOS, the app uses the native [hard scroll edge effect](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle/hard) to give scrolling content a more opaque boundary under bars.
+The exercise picker applies the same style inside its sheet.
+The normal appearance retains the automatic edge, which Apple's [scroll view guidance](https://developer.apple.com/design/human-interface-guidelines/scroll-views) prefers where suitable.
+The [Increase Contrast studies](https://www.figma.com/design/Hid7RVq16U5SizfgMTQRZB/?node-id=199-10949) show the shared foreground and native edges in both appearances.
 
 Text uses the system text styles, so each size follows Dynamic Type.
 A set row shows monospaced digits.
@@ -195,7 +203,7 @@ The primary action supports the [double-tap hand gesture](https://developer.appl
 Saving keeps the set locally, gives success feedback, and scrolls to persistent delivery status.
 The interface distinguishes pending, committed, and refused records with words and symbols.
 The [Watch guidance](https://developer.apple.com/design/human-interface-guidelines/designing-for-watchos) calls for short interactions and shallow navigation.
-The owner chose paired iPhone storage, so the Watch target requires its companion instead of adopting Apple's recommendation for an independent app.
+The paired iPhone stores the records, so the Watch target requires its companion instead of adopting Apple's recommendation for an independent app.
 
 The app-specific accessibility behavior and verification boundaries are in [Accessibility](accessibility.md).
 
@@ -223,8 +231,15 @@ The set editor's Weight, Reps, kg, and Delete Set labels also have a narrow imag
 The privacy screen's data collection value and native navigation title use the same check for contrast reports observed on iOS 27.
 The check measures the unrounded [contrast ratio defined by the Web Content Accessibility Guidelines](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio) in the reported label's screenshot bounds and requires at least 4.5:1.
 It refuses missing ink, an ambiguous or colored background, and nonopaque pixels.
-The image check applies only to the five identified primary labels and the privacy screen's native navigation title.
-The title must match the system navigation bar's text and bounds.
+Outside privacy, the image check applies to the identified set-editor labels, set numbers, and exercise-section headers on their recorded screens.
+Set numbers and section headers have stable identifiers and bind to their unique text frames and pixels captured before the SDK audit.
+Missing, changed, or duplicated labels can't receive a measured pass.
+Each measured frame must fit fully between the captured native bars.
+The row-sized section headers require at least 20 primary ink pixels covering 0.1 percent of their frame.
+Other primary text requires 1 percent.
+The measurement checks the least contrasting background outside a two-pixel antialiased edge around the ink, so a faded region can still fail.
+The fixtures reject sparse ink, faded regions, and bindings to another label or screen.
+The privacy navigation title must match the system bar's text and bounds.
 Its measurement uses the expected primary ink for the selected appearance and the least contrasting background pixel outside a two-pixel antialiased edge around the ink.
 The fixtures include insufficient contrast and colored background cases that the measurement refuses.
 On iOS 26.4, the largest-size audit also reports the fully visible English Bodyweight placeholder as clipped.

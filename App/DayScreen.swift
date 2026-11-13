@@ -126,7 +126,7 @@ private struct ExerciseSection: View {
       if let previous {
         Text(copy.previous(previous))
           .font(.subheadline)
-          .foregroundStyle(Color.secondary)
+          .foregroundStyle(SecondaryTextStyle())
           .accessibilityIdentifier("previous-session-\(name)")
       }
       ForEach(Array(sets.enumerated()), id: \.element.id) { index, set in

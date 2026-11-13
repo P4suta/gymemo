@@ -2,12 +2,18 @@ import GymemoCopy
 import GymemoCore
 import SwiftUI
 
+struct SecondaryTextStyle: ShapeStyle {
+  func resolve(in environment: EnvironmentValues) -> Color {
+    environment.colorSchemeContrast == .increased ? Color.primary : Color.secondary
+  }
+}
+
 /// The words carry the meaning, and the accent color only draws the eye.
 struct PersonalBestMark: View {
   var body: some View {
     HStack(spacing: 4) {
       Image(systemName: "trophy.fill").foregroundStyle(Color.accentColor)
-      Text(copy[.personalBest]).foregroundStyle(Color.secondary)
+      Text(copy[.personalBest]).foregroundStyle(SecondaryTextStyle())
     }
     .font(.footnote)
     .accessibilityElement(children: .combine)
@@ -28,7 +34,8 @@ struct SetRow: View {
       : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
     layout {
       HStack(alignment: .firstTextBaseline, spacing: 12) {
-        Text(number.formatted(.number.locale(copy.locale))).foregroundStyle(Color.secondary)
+        Text(number.formatted(.number.locale(copy.locale))).foregroundStyle(SecondaryTextStyle())
+          .accessibilityIdentifier("set-number-\(set.id)")
         Text(copy.set(set)).foregroundStyle(Color.primary)
       }
       .monospacedDigit()
@@ -138,7 +145,7 @@ struct NumberFieldRow: View {
         clearSymbol
       }
       .buttonStyle(.plain)
-      .foregroundStyle(Color.secondary)
+      .foregroundStyle(SecondaryTextStyle())
       .accessibilityLabel(kind == .weight ? copy[.clearWeight] : copy[.clearReps])
       .accessibilityIdentifier("clear-\(identifier)")
     } else {
@@ -232,8 +239,10 @@ struct StackedRow: View {
   private func rowText(_ value: String, secondary: Bool) -> some View {
     if isSelected {
       Text(value)
+    } else if secondary {
+      Text(value).foregroundStyle(SecondaryTextStyle())
     } else {
-      Text(value).foregroundStyle(secondary ? Color.secondary : Color.primary)
+      Text(value).foregroundStyle(Color.primary)
     }
   }
 }

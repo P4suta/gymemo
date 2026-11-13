@@ -42,7 +42,7 @@ struct AnalysisList: View {
       Section {
         WeeklyBlock(weeks: model.log.weeklyTrainingDays(through: model.today, weeks: 12))
         #if os(macOS)
-          Text(copy[.weeklyCaption]).font(.footnote).foregroundStyle(Color.secondary)
+          Text(copy[.weeklyCaption]).font(.footnote).foregroundStyle(SecondaryTextStyle())
             .fixedSize(horizontal: false, vertical: true)
         #endif
       } header: {
@@ -186,7 +186,7 @@ struct ExerciseProgressScreen: View {
           }
           #if os(macOS)
             Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
-              .font(.footnote).foregroundStyle(Color.secondary)
+              .font(.footnote).foregroundStyle(SecondaryTextStyle())
               .fixedSize(horizontal: false, vertical: true)
           #endif
         } header: {
@@ -275,7 +275,7 @@ private struct BestRows: View {
         Text(copy.scoreLine(best.score)).font(.headline).accessibilityIdentifier("best-score")
         Text(copy.setOnDay(weight: best.best.weight, reps: best.best.reps, day: best.day))
           .font(.subheadline)
-          .foregroundStyle(Color.secondary)
+          .foregroundStyle(SecondaryTextStyle())
       }
     } else {
       Text(copy[.personalBestEmpty])
