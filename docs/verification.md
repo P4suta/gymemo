@@ -40,6 +40,14 @@ Other primary text requires 1 percent.
 Regression fixtures reject sparse ink, faded regions, changed labels, duplicate identities, and reports on another screen.
 An unavailable or insufficient measurement leaves the SDK report as a failure.
 
+## Navigating test screens
+
+The UI test driver uses the target's frame to choose the scrolling direction.
+When a list omits a row outside the viewport, the driver searches both directions with at most 24 scroll gestures.
+The whole target must fit inside the app and accept a tap.
+The regression returns from the note editor at the bottom of the Japanese log to its first set at the largest text size, then reaches the note editor again.
+The scroll failure message doesn't query the missing target.
+
 ## Local release qualification
 
 `mise x -- just qualify SHA FLOOR IPAD DUO WATCH VISION` prints the complete local check plan without running a check or changing GitHub.
