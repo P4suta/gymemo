@@ -79,7 +79,7 @@ jobs:
   installer-tool:
     name: Build the installer credential importer without secrets
     needs: admission
-    if: inputs.platform == 'macOS' && github.run_attempt == 1
+    if: ${{ !cancelled() && needs.admission.result == 'success' && inputs.platform == 'macOS' && github.run_attempt == 1 }}
     runs-on: xcode-27
     timeout-minutes: 10
     permissions:
@@ -113,7 +113,7 @@ jobs:
   signing:
     name: Sign the preserved native candidate
     needs: [admission, installer-tool]
-    if: always() && github.ref == 'refs/heads/main' && github.repository_id == '1453033797' && needs.admission.result == 'success' && (inputs.platform != 'macOS' || github.run_attempt > 1 || needs.installer-tool.result == 'success')
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.repository_id == '1453033797' && needs.admission.result == 'success' && (inputs.platform != 'macOS' || github.run_attempt > 1 || needs.installer-tool.result == 'success') }}
     runs-on: xcode-27
     timeout-minutes: 30
     environment: native-signing
@@ -305,6 +305,7 @@ jobs:
   inspect:
     name: Verify the final signed dependency inventory
     needs: [admission, signing]
+    if: ${{ !cancelled() && needs.admission.result == 'success' && needs.signing.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
@@ -349,76 +350,40 @@ jobs:
   upload:
     name: Upload the preserved native package
     needs: [admission, inspect]
-    if: inputs.upload
-    runs-on: xcode-27
-    timeout-minutes: 90
-    environment: native-upload
+    if: ${{ !cancelled() && inputs.upload && needs.admission.result == 'success' && needs.inspect.result == 'success' }}
+    # actionlint 1.7.12 lacks the self-repository workflow syntax: https://github.com/rhysd/actionlint/issues/760.
+    uses: ./.github/workflows/native-upload.yml # zizmor: ignore[self-repository]
     permissions:
       contents: read
-      attestations: read # Verifies the preserved artifacts before accessing the upload key.
+      actions: read # Reads the original signed artifact and upload history.
+      statuses: read # Rechecks qualification for the preserved app source.
+      attestations: read # Verifies the package before the upload key becomes available.
+    with:
+      candidate_run: ${{ inputs.candidate_run }}
+      source_sha: ${{ inputs.source_sha }}
+      platform: ${{ inputs.platform }}
+      signing_run: ${{ github.run_id }}
+  complete:
+    name: Require every requested native operation
+    needs: [admission, signing, inspect, upload]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
     steps:
-      - name: Require reconciliation of the original upload before a retry
-        if: github.run_attempt > 1
-        run: "false"
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-          sparse-checkout-cone-mode: false
-          sparse-checkout: mise.toml
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
-          install_args: github:rorkai/App-Store-Connect-CLI
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          artifact-ids: ${{ needs.inspect.outputs.artifact }}
-          digest-mismatch: error
-      - name: Verify the signed package and original source
+          install_args: rust
+      - name: Check requested operations
         env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ inputs.source_sha }}
-        run: |
-          gh attestation verify native-signed.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
-          tar --extract --file native-signed.tar
-          gh attestation verify candidate/native-candidate.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
-          gh attestation verify candidate/native-candidate.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
-          shasum -a 256 --check signed/SHA256SUMS
-      - name: Require the upload credential purpose
-        env:
-          DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
-          DOPPLER_CONFIG: ${{ secrets.DOPPLER_CONFIG }}
-        run: |
-          test "$DOPPLER_PROJECT" = gymemo
-          test "$DOPPLER_CONFIG" = ci_native_upload
-      - name: Validate and upload the iOS or visionOS package
-        if: inputs.platform != 'macOS'
-        env:
-          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          ASC_PRIVATE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
-          ASC_STRICT_AUTH: "true"
-        run: |
-          mise x -- asc xcode validate --ipa signed/gymemo.ipa
-          mise x -- asc builds upload --app 6833008455 --ipa signed/gymemo.ipa --checksum --wait --output json > native-upload-result.json
-      - name: Validate and upload the Mac package
-        if: inputs.platform == 'macOS'
-        env:
-          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          ASC_PRIVATE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
-          ASC_STRICT_AUTH: "true"
-          BUILD_NUMBER: ${{ inputs.candidate_run }}
-          APP_VERSION: ${{ needs.admission.outputs.version }}
-        run: |
-          mise x -- asc xcode validate --pkg signed/gymemo.pkg
-          mise x -- asc builds upload --app 6833008455 --pkg signed/gymemo.pkg --version "$APP_VERSION" --build-number "$BUILD_NUMBER" --checksum --wait --output json > native-upload-result.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always() && github.run_attempt == 1
-        with:
-          name: native-upload-result
-          path: native-upload-result.json
-          if-no-files-found: error
-          retention-days: 30
+          UPLOAD: ${{ inputs.upload }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: mise x -- cargo run --locked -p xtask -- check-native-outcome delivery "$UPLOAD" "$RESULTS"

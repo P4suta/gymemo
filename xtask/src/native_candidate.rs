@@ -10,28 +10,14 @@ use std::collections::BTreeSet;
 use std::num::NonZeroU64;
 use std::path::Path;
 
+mod upload;
+
 const BUILDER: &str = "P4suta/gymemo/.github/workflows/native-candidate.yml@refs/heads/main";
 
 pub fn run(host: &mut impl Host, root: &Path, arguments: &[String], seal: bool) -> Result<()> {
     let selection = Selection::parse(arguments)?;
-    crate::qualification::require(host, root, &selection.source)?;
-    let version = capture(
-        host,
-        root,
-        Invocation::new("git").args([
-            "show",
-            &format!("{}:Config/MarketingVersion.txt", selection.source),
-        ]),
-    )?;
-    let version = AppVersion::parse(version.trim())?;
-    let identity = CandidateIdentity {
-        source: selection.source,
-        version: version.to_string(),
-        platform: selection.platform,
-        run_id: selection.run_id,
-        build_number: selection.run_id,
-        attempt: 1,
-    };
+    let identity = selected_identity(host, root, selection)?;
+    let version = AppVersion::parse(&identity.version)?;
     if seal {
         seal_candidate(host, root, &identity, &version)?;
     } else {
@@ -42,6 +28,35 @@ pub fn run(host: &mut impl Host, root: &Path, arguments: &[String], seal: bool) 
         identity.version, identity.build_number, identity.source
     ));
     Ok(())
+}
+
+pub fn prepare_upload(host: &mut impl Host, root: &Path, arguments: &[String]) -> Result<()> {
+    upload::run(host, root, arguments)
+}
+
+fn selected_identity(
+    host: &mut impl Host,
+    root: &Path,
+    selection: Selection,
+) -> Result<CandidateIdentity> {
+    crate::qualification::require(host, root, &selection.source)?;
+    let version = capture(
+        host,
+        root,
+        Invocation::new("git").args([
+            "show",
+            &format!("{}:Config/MarketingVersion.txt", selection.source),
+        ]),
+    )?;
+    let version = AppVersion::parse(version.trim())?;
+    Ok(CandidateIdentity {
+        source: selection.source,
+        version: version.to_string(),
+        platform: selection.platform,
+        run_id: selection.run_id,
+        build_number: selection.run_id,
+        attempt: 1,
+    })
 }
 
 struct Selection {
@@ -59,21 +74,22 @@ impl Selection {
         ensure(hex(&arguments[1], 40), || {
             "Native candidates require a full lowercase source commit identifier".into()
         })?;
-        let number = |value: &str| -> Result<NonZeroU64> {
-            ensure(
-                !value.starts_with('0') && value.bytes().all(|b| b.is_ascii_digit()),
-                || "Native build and run identifiers require canonical positive integers".into(),
-            )?;
-            value
-                .parse::<NonZeroU64>()
-                .context(|| "Read the native build or run identifier".into())
-        };
         Ok(Self {
             platform,
             source: arguments[1].clone(),
-            run_id: number(&arguments[2])?,
+            run_id: run_number(&arguments[2])?,
         })
     }
+}
+
+fn run_number(value: &str) -> Result<NonZeroU64> {
+    ensure(
+        !value.starts_with('0') && value.bytes().all(|byte| byte.is_ascii_digit()),
+        || "Native build and run identifiers require canonical positive integers".into(),
+    )?;
+    value
+        .parse()
+        .context(|| "Read the native build or run identifier".into())
 }
 
 fn capture(host: &mut impl Host, root: &Path, invocation: Invocation) -> Result<String> {
@@ -319,7 +335,11 @@ fn seal_candidate(
         .context(|| "Preserve the native candidate manifest".into())
 }
 
-fn verify_candidate(host: &mut impl Host, root: &Path, identity: &CandidateIdentity) -> Result<()> {
+fn verify_candidate(
+    host: &mut impl Host,
+    root: &Path,
+    identity: &CandidateIdentity,
+) -> Result<CandidateManifest> {
     for artifact in ["native-candidate.tar", "native-candidate.json"] {
         capture(
             host,
@@ -405,7 +425,8 @@ fn verify_candidate(host: &mut impl Host, root: &Path, identity: &CandidateIdent
         .context(|| "Read back the preserved native SBOM bytes".into())?;
     ensure(digest(host, root, &path)? == manifest.sbom.sha256, || {
         "The preserved SBOM differs from the native manifest".into()
-    })
+    })?;
+    Ok(manifest)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -726,13 +747,13 @@ mod tests {
     use crate::host::fake::{FakeHost, Fault};
     use serde_json::json;
 
-    fn arguments() -> Vec<String> {
+    pub(super) fn arguments() -> Vec<String> {
         ["iOS", "0123456789abcdef0123456789abcdef01234567", "1234"]
             .map(str::to_owned)
             .to_vec()
     }
 
-    fn sbom() -> String {
+    pub(super) fn sbom() -> String {
         json!({"bomFormat":"CycloneDX","specVersion":"1.7","metadata":{"component":{"name":"gymemo","version":"1.0.0"}},"components":[{"type":"library","name":"gymemo","version":"1.0.0"}]}).to_string()
     }
 
@@ -759,7 +780,7 @@ mod tests {
         Ok(())
     }
 
-    fn prepare_verification() -> FakeHost {
+    pub(super) fn prepare_verification() -> FakeHost {
         let mut host = FakeHost::new();
         let source = &arguments()[1];
         host.prints("\"repos/P4suta/gymemo\"",&json!({"id":1453033797,"owner":{"id":42543015},"default_branch":"main","private":false}).to_string());

@@ -29,6 +29,11 @@ seal-native *args:
 verify-native *args:
     cargo run --locked -p xtask -- verify-native "$@"
 
+# Admits preserved signed bytes before the protected upload job.
+[positional-arguments]
+prepare-native-upload *args:
+    cargo run --locked -p xtask -- prepare-native-upload "$@"
+
 # Plans or imports the expected Mac App Store installer identity.
 [positional-arguments]
 install-mac-installer *args:
@@ -89,6 +94,7 @@ lint:
 gates:
     cargo test --locked
     cargo run --locked -p xtask -- gates
+    cargo run --locked -p xtask -- check-native-workflows
 
 test:
     swift test

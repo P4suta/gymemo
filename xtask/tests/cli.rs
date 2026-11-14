@@ -11,12 +11,17 @@ Commands:
   generate-version                  Generate the Xcode version setting from the canonical app version
   prepare-store-metadata            Prepare localized metadata for the canonical app version
   check-store                       Validate the generated store metadata with the provider CLI
+  check-native-workflows            Require cancellation and prerequisite guards for native delivery
+  check-native-outcome delivery|upload true|false RESULTS_JSON
+                                    Refuse a skipped or failed requested native operation
   check-sbom native|website VERSION FILE
                                     Validate the preserved product and dependency inventory
   seal-native PLATFORM SHA RUN
                                     Inspect and preserve an unsigned archive, SBOM, and candidate manifest
   verify-native PLATFORM SHA RUN
                                     Admit preserved candidate bytes before protected signing
+  prepare-native-upload PLATFORM SHA CANDIDATE_RUN SIGNING_RUN CURRENT_RUN OUTPUT_FILE
+                                    Admit preserved signed bytes and refuse unresolved upload attempts
   install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256 [--add-to-search-list] [--confirm]
                                     Plan or import the Mac App Store installer identity from the protected environment
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
@@ -193,5 +198,87 @@ fn the_source_checks_pass_over_the_repository_that_holds_the_crate() -> io::Resu
     assert_eq!((run.code, run.error.as_str()), (Some(0), ""));
     assert_eq!(reported(&run.output, "PASS "), CHECKS);
     assert_eq!(run.output.lines().count(), CHECKS.len());
+    Ok(())
+}
+
+#[test]
+fn the_native_workflow_check_needs_no_external_program() -> io::Result<()> {
+    let run = xtask(&["check-native-workflows"])?;
+    assert_eq!((run.code, run.error.as_str()), (Some(0), ""));
+    assert!(run.output.starts_with("PASS native workflows:"));
+    let refused = xtask(&["check-native-workflows", "extra"])?;
+    assert_eq!(refused.code, Some(1));
+    assert!(!refused.error.is_empty());
+    Ok(())
+}
+
+#[test]
+fn the_outcome_command_checks_requested_operations_and_reports_failures() -> io::Result<()> {
+    let delivery = serde_json::json!({
+        "admission":{"result":"success"},"signing":{"result":"success"},
+        "inspect":{"result":"success"},"upload":{"result":"success"}
+    });
+    let mut sign_only = delivery.clone();
+    sign_only["upload"]["result"] = serde_json::json!("skipped");
+    let upload = serde_json::json!({
+        "admission":{"result":"success"},"upload":{"result":"success"}
+    });
+    for (kind, requested, source) in [
+        ("delivery", "true", delivery.to_string()),
+        ("delivery", "false", sign_only.to_string()),
+        ("upload", "true", upload.to_string()),
+    ] {
+        let run = xtask(&["check-native-outcome", kind, requested, &source])?;
+        assert_eq!((run.code, run.error.as_str()), (Some(0), ""));
+        assert!(run.output.starts_with("PASS native outcome:"));
+    }
+    let delivery = delivery.to_string();
+    let upload = upload.to_string();
+    let skipped = sign_only.to_string();
+    for arguments in [
+        vec!["check-native-outcome", "delivery", "true", &skipped],
+        vec!["check-native-outcome", "upload", "false", &upload],
+        vec!["check-native-outcome", "delivery", "yes", &delivery],
+        vec!["check-native-outcome", "unknown", "true", &delivery],
+        vec!["check-native-outcome"],
+        vec!["check-native-outcome", "delivery", "true"],
+        vec![
+            "check-native-outcome",
+            "delivery",
+            "true",
+            &delivery,
+            "extra",
+        ],
+    ] {
+        let run = xtask(&arguments)?;
+        assert_eq!(run.code, Some(1), "{arguments:?}");
+        assert!(!run.error.is_empty(), "{arguments:?}");
+        assert!(
+            !run.output.contains("PASS native outcome:"),
+            "{arguments:?}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn upload_command_refuses_missing_or_invalid_selection_before_provider_access() -> io::Result<()> {
+    for arguments in [
+        vec!["prepare-native-upload"],
+        vec![
+            "prepare-native-upload",
+            "iOS",
+            "invalid-source",
+            "1234",
+            "11",
+            "12",
+            "/unused",
+        ],
+    ] {
+        let run = xtask(&arguments)?;
+        assert_eq!(run.code, Some(1));
+        assert!(!run.error.is_empty());
+        assert!(!run.output.contains("PASS native upload:"));
+    }
     Ok(())
 }

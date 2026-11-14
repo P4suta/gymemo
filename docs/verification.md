@@ -10,6 +10,7 @@ gymemo checks its rules with the package tests, source checks, mutation runs, a 
 `mise x -- just check-native` runs the lint, the source checks of `xtask`, the package tests, and builds for iOS, macOS, watchOS, and visionOS.
 `mise x -- just check-website` checks types, HTML, CSS, localization, browser interactions, and the deployment dry run.
 `mise x -- just lint-workflows` checks GitHub Actions syntax and security.
+The native source gate checks job prerequisites and upload protection.
 `mise x -- just check-store` validates the public App Store metadata without credentials or network access.
 `mise x -- just check-dependencies` checks Rust advisories, licenses, and registries.
 The website gate also audits its locked npm dependencies.
@@ -117,6 +118,24 @@ visionOS uses explicit export options because the provider CLI can't generate it
 A fresh job validates the signed package's dependency inventory and checksums.
 The upload job requires its own approval and App Store Connect key and receives the verified bytes.
 An uncertain upload requires provider reconciliation before retrying.
+
+Native delivery uses explicit successful prerequisites and [`!cancelled()`](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#status-check-functions) so an optional Mac-only job leaves iOS and visionOS inspection and upload reachable.
+The final job rejects a skipped, failed, or missing requested operation.
+Sign-only delivery requires the upload job to remain skipped.
+The Rust fixtures reproduce the observed successful signing with skipped inspection and upload, and reject weakened conditions and missing prerequisites.
+
+`native-upload.yml` supplies the same protected upload job to normal delivery and recovery.
+For recovery, dispatch it on `main` with the original `candidate_run`, `source_sha`, `platform`, and `signing_run`.
+`mise x -- just prepare-native-upload PLATFORM SHA CANDIDATE_RUN SIGNING_RUN CURRENT_RUN OUTPUT_FILE` verifies the original delivery run, complete job history, successful first-attempt signing, signed provenance, embedded qualified candidate, archive paths, checksums, and final SBOM.
+Recovery requires every original and prior recovery upload job to have remained skipped.
+An attempted or unresolved upload requires provider reconciliation rather than automatic replay.
+The upload job uses a fresh runner and the protected `native-upload` environment without signing credentials.
+Recovery preserves the signed package bytes and never signs or archives the app again.
+
+The reusable workflow uses GitHub's supported [`./.github/workflows/` reference](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
+Pinned actionlint 1.7.12 can't parse the preferred self-repository syntax, as tracked in [actionlint issue 760](https://github.com/rhysd/actionlint/issues/760).
+One `self-repository` Zizmor exception preserves actionlint's reusable-input validation until actionlint supports that syntax.
+The source gate binds the exception to actionlint 1.7.12 and the exact local workflow reference, so a tool upgrade requires reconsideration.
 
 ## Version preparation
 
