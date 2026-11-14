@@ -221,8 +221,7 @@ fn previous_recoveries(
             .ok_or_else(|| Failure::new("Recovery history lacks its signing-run identity"))?;
         let selected = title
             .strip_prefix("Upload signed run ")
-            .map(run_number)
-            .transpose()?;
+            .and_then(|value| run_number(value).ok());
         if selected.is_some_and(|selected| selected != signing) {
             continue;
         }
@@ -498,7 +497,10 @@ mod tests {
     fn admits_the_same_signed_bytes_through_delivery_and_recovery() -> Result<()> {
         for recovery in [false, true] {
             let mut host = prepared(recovery)?;
-            run(&mut host, Path::new("/repo"), &arguments(recovery))?;
+            let task = crate::parse(
+                std::iter::once("prepare-native-upload".to_owned()).chain(arguments(recovery)),
+            )?;
+            crate::execute(task, &mut host, Path::new("/repo"))?;
             let manifest: Value = serde_json::from_str(
                 &host
                     .read(Path::new(&format!("{STAGING}/native-upload.json")))
@@ -638,7 +640,13 @@ mod tests {
 
     #[test]
     fn recovery_requires_complete_prior_history_without_any_upload_attempt() -> Result<()> {
-        for title in ["Upload signed run 11", "Unidentified recovery"] {
+        for title in [
+            "Upload signed run 11",
+            "Unidentified recovery",
+            "Upload signed run 011",
+            "Upload signed run 0",
+            "Upload signed run not-a-run",
+        ] {
             for outcome in ["skipped", "success", "failure", "cancelled"] {
                 let mut host = prepared(true)?;
                 host.prints("native-upload.yml/runs?", &json!([{"total_count":2,"workflow_runs":[
@@ -653,6 +661,63 @@ mod tests {
                 }
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_each_unresolved_prior_scope_before_downloading() -> Result<()> {
+        let original = json!({
+            "id":10,"display_title":"Upload signed run 11","head_branch":"main",
+            "event":"workflow_dispatch","path":".github/workflows/native-upload.yml",
+            "status":"completed"
+        });
+        for (field, value) in [
+            ("head_branch", "feature"),
+            ("event", "pull_request"),
+            ("path", ".github/workflows/other.yml"),
+            ("status", "in_progress"),
+        ] {
+            let mut changed = original.clone();
+            changed[field] = json!(value);
+            let mut host = prepared(true)?;
+            host.prints(
+                "native-upload.yml/runs?",
+                &json!([{
+                    "total_count":2,"workflow_runs":[{"id":12},changed]
+                }])
+                .to_string(),
+            );
+            host.prints("runs/10/jobs?", &jobs("skipped").to_string());
+            assert!(
+                run(&mut host, Path::new("/repo"), &arguments(true)).is_err(),
+                "{field}"
+            );
+            assert!(!host.exists(Path::new(OUTPUT)));
+            assert!(
+                !host
+                    .transcript()
+                    .iter()
+                    .any(|line| line.contains("\"download\""))
+            );
+        }
+        let mut host = prepared(true)?;
+        let mut unrelated = original;
+        unrelated["display_title"] = json!("Upload signed run 13");
+        unrelated["status"] = json!("in_progress");
+        host.prints(
+            "native-upload.yml/runs?",
+            &json!([{
+                "total_count":2,"workflow_runs":[{"id":12},unrelated]
+            }])
+            .to_string(),
+        );
+        run(&mut host, Path::new("/repo"), &arguments(true))?;
+        assert!(
+            !host
+                .transcript()
+                .iter()
+                .any(|line| line.contains("runs/10/jobs?"))
+        );
         Ok(())
     }
 
