@@ -16,6 +16,7 @@ mod logging;
 mod mac_installer;
 mod native_candidate;
 mod native_ui;
+mod native_workflows;
 mod offline;
 mod purity;
 mod qualification;
@@ -41,12 +42,17 @@ Commands:
   generate-version                  Generate the Xcode version setting from the canonical app version
   prepare-store-metadata            Prepare localized metadata for the canonical app version
   check-store                       Validate the generated store metadata with the provider CLI
+  check-native-workflows            Require cancellation and prerequisite guards for native delivery
+  check-native-outcome delivery|upload true|false RESULTS_JSON
+                                    Refuse a skipped or failed requested native operation
   check-sbom native|website VERSION FILE
                                     Validate the preserved product and dependency inventory
   seal-native PLATFORM SHA RUN
                                     Inspect and preserve an unsigned archive, SBOM, and candidate manifest
   verify-native PLATFORM SHA RUN
                                     Admit preserved candidate bytes before protected signing
+  prepare-native-upload PLATFORM SHA CANDIDATE_RUN SIGNING_RUN CURRENT_RUN OUTPUT_FILE
+                                    Admit preserved signed bytes and refuse unresolved upload attempts
   install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256 [--add-to-search-list] [--confirm]
                                     Plan or import the Mac App Store installer identity from the protected environment
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs
@@ -77,9 +83,12 @@ enum Task {
     GenerateVersion,
     PrepareStoreMetadata,
     CheckStore,
+    CheckNativeWorkflows,
+    CheckNativeOutcome(Vec<String>),
     CheckSbom(Vec<String>),
     SealNative(Vec<String>),
     VerifyNative(Vec<String>),
+    PrepareNativeUpload(Vec<String>),
     InstallMacInstaller(Vec<String>),
     Gates,
     UiTest {
@@ -164,9 +173,12 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         "generate-version" => alone("generate-version", Task::GenerateVersion, arguments),
         "prepare-store-metadata" => alone("prepare-store-metadata", Task::PrepareStoreMetadata, arguments),
         "check-store" => alone("check-store", Task::CheckStore, arguments),
+        "check-native-workflows" => alone("check-native-workflows", Task::CheckNativeWorkflows, arguments),
+        "check-native-outcome" => Ok(Task::CheckNativeOutcome(arguments.collect())),
         "check-sbom" => Ok(Task::CheckSbom(arguments.collect())),
         "seal-native" => Ok(Task::SealNative(arguments.collect())),
         "verify-native" => Ok(Task::VerifyNative(arguments.collect())),
+        "prepare-native-upload" => Ok(Task::PrepareNativeUpload(arguments.collect())),
         "install-mac-installer" => Ok(Task::InstallMacInstaller(arguments.collect())),
         "gates" => alone("gates", Task::Gates, arguments),
         "screenshots" => alone("screenshots", Task::Screenshots, arguments),
@@ -287,11 +299,16 @@ fn execute(task: Task, host: &mut impl Host, root: &Path) -> Result<()> {
             Ok(())
         }
         Task::CheckStore => store_metadata::check(host, root),
+        Task::CheckNativeWorkflows => native_workflows::check(host, root),
+        Task::CheckNativeOutcome(arguments) => native_workflows::outcome(host, &arguments),
         Task::RequireMacUi(source) => native_ui::require(host, root, &source),
         Task::CheckMacUiResult(bundle) => native_ui::check_result(host, root, &bundle),
         Task::CheckSbom(arguments) => sbom::check(host, root, &arguments),
         Task::SealNative(arguments) => native_candidate::run(host, root, &arguments, true),
         Task::VerifyNative(arguments) => native_candidate::run(host, root, &arguments, false),
+        Task::PrepareNativeUpload(arguments) => {
+            native_candidate::prepare_upload(host, root, &arguments)
+        }
         Task::InstallMacInstaller(arguments) => mac_installer::run(host, &arguments),
         Task::Gates => gates(host, root),
         Task::UiTest { only, arguments } => simulator::ui_test(host, root, only, &arguments),

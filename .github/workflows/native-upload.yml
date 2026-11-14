@@ -1,0 +1,206 @@
+name: Native upload
+run-name: Upload signed run ${{ inputs.signing_run }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Original Native candidate run ID
+        type: string
+        required: true
+      source_sha:
+        description: Full source commit of the preserved app candidate
+        type: string
+        required: true
+      platform:
+        description: Native App Store platform
+        type: choice
+        required: true
+        options: [iOS, macOS, visionOS]
+      signing_run:
+        description: Native delivery run whose original upload never ran
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      candidate_run:
+        type: string
+        required: true
+      source_sha:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+      signing_run:
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: native-upload-${{ inputs.candidate_run }}
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    name: Verify the preserved package before upload
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.repository_id == '1453033797' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read # Reads the original signed artifact and complete upload history.
+      statuses: read # Requires qualification for the original app source.
+      attestations: read # Verifies the original signing workflow and candidate bytes.
+    env:
+      MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
+    outputs:
+      artifact: ${{ steps.artifact.outputs.artifact-id }}
+      version: ${{ steps.package.outputs.version }}
+      platform: ${{ steps.package.outputs.platform }}
+      source: ${{ steps.package.outputs.source }}
+      signing_source: ${{ steps.package.outputs.signing_source }}
+      candidate_run: ${{ steps.package.outputs.candidate_run }}
+      archive_sha256: ${{ steps.package.outputs.archive_sha256 }}
+      package_sha256: ${{ steps.package.outputs.package_sha256 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          version: "2026.11.6"
+          install_args: rust just
+      - name: Admit original signing and package bytes
+        id: package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ inputs.platform }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          SIGNING_RUN: ${{ inputs.signing_run }}
+        run: mise x -- just prepare-native-upload "$PLATFORM" "$SOURCE_SHA" "$CANDIDATE_RUN" "$SIGNING_RUN" "$GITHUB_RUN_ID" "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        id: artifact
+        with:
+          name: native-ready-attempt-${{ github.run_attempt }}
+          path: |
+            target/native-upload/native-signed.tar
+            target/native-upload/native-upload.json
+          if-no-files-found: error
+          retention-days: 35
+  upload:
+    name: Upload the preserved native package
+    needs: [admission]
+    if: ${{ !cancelled() && needs.admission.result == 'success' }}
+    runs-on: xcode-27
+    timeout-minutes: 90
+    environment: native-upload
+    permissions:
+      contents: read
+      attestations: read # Rechecks provenance before the upload key becomes available.
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      MISE_AUTO_INSTALL: "false"
+      ASC_TELEMETRY_DISABLED: "true"
+      DO_NOT_TRACK: "1"
+    steps:
+      - name: Require provider reconciliation before retrying an upload
+        if: github.run_attempt > 1
+        run: "false"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: mise.toml
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          version: "2026.11.6"
+          install_args: github:rorkai/App-Store-Connect-CLI
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.admission.outputs.artifact }}
+          digest-mismatch: error
+      - name: Verify the admitted package and original source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.admission.outputs.source }}
+          SIGNING_SOURCE: ${{ needs.admission.outputs.signing_source }}
+          ARCHIVE_SHA: ${{ needs.admission.outputs.archive_sha256 }}
+        run: |
+          printf '%s  native-signed.tar\n' "$ARCHIVE_SHA" | shasum -a 256 --check
+          gh attestation verify native-signed.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$SIGNING_SOURCE" --signer-digest "$SIGNING_SOURCE"
+          tar --extract --file native-signed.tar
+          gh attestation verify candidate/native-candidate.tar --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          gh attestation verify candidate/native-candidate.json --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-candidate.yml" --source-ref refs/heads/main --source-digest "$SOURCE_SHA" --signer-digest "$SOURCE_SHA"
+          shasum -a 256 --check signed/SHA256SUMS
+      - name: Require the upload credential purpose
+        env:
+          DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
+          DOPPLER_CONFIG: ${{ secrets.DOPPLER_CONFIG }}
+        run: |
+          test "$DOPPLER_PROJECT" = gymemo
+          test "$DOPPLER_CONFIG" = ci_native_upload
+      - name: Validate and upload the iOS or visionOS package
+        if: needs.admission.outputs.platform != 'macOS'
+        env:
+          ASC_KEY_TYPE: team
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+          ASC_STRICT_AUTH: "true"
+        run: |
+          unset ASC_PROFILE ASC_BYPASS_KEYCHAIN ASC_CONFIG_PATH ASC_BEARER_TOKEN ASC_PRIVATE_KEY_PATH ASC_PRIVATE_KEY
+          mise x -- asc auth status --output json
+          mise x -- asc xcode validate --ipa signed/gymemo.ipa
+          mise x -- asc builds upload --app 6833008455 --ipa signed/gymemo.ipa --checksum --wait --output json > native-upload-result.json
+      - name: Validate and upload the Mac package
+        if: needs.admission.outputs.platform == 'macOS'
+        env:
+          ASC_KEY_TYPE: team
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY_B64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+          ASC_STRICT_AUTH: "true"
+          BUILD_NUMBER: ${{ needs.admission.outputs.candidate_run }}
+          APP_VERSION: ${{ needs.admission.outputs.version }}
+        run: |
+          unset ASC_PROFILE ASC_BYPASS_KEYCHAIN ASC_CONFIG_PATH ASC_BEARER_TOKEN ASC_PRIVATE_KEY_PATH ASC_PRIVATE_KEY
+          mise x -- asc auth status --output json
+          mise x -- asc xcode validate --pkg signed/gymemo.pkg
+          mise x -- asc builds upload --app 6833008455 --pkg signed/gymemo.pkg --version "$APP_VERSION" --build-number "$BUILD_NUMBER" --checksum --wait --output json > native-upload-result.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && github.run_attempt == 1
+        with:
+          name: native-upload-result
+          path: |
+            native-upload-result.json
+            native-upload.json
+          if-no-files-found: error
+          retention-days: 35
+  complete:
+    name: Require the requested native upload
+    needs: [admission, upload]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      MISE_AUTO_INSTALL: "false"
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          version: "2026.11.6"
+          install_args: rust
+      - name: Check requested upload
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: mise x -- cargo run --locked -p xtask -- check-native-outcome upload true "$RESULTS"

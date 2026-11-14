@@ -11,12 +11,17 @@ Commands:
   generate-version                  Generate the Xcode version setting from the canonical app version
   prepare-store-metadata            Prepare localized metadata for the canonical app version
   check-store                       Validate the generated store metadata with the provider CLI
+  check-native-workflows            Require cancellation and prerequisite guards for native delivery
+  check-native-outcome delivery|upload true|false RESULTS_JSON
+                                    Refuse a skipped or failed requested native operation
   check-sbom native|website VERSION FILE
                                     Validate the preserved product and dependency inventory
   seal-native PLATFORM SHA RUN
                                     Inspect and preserve an unsigned archive, SBOM, and candidate manifest
   verify-native PLATFORM SHA RUN
                                     Admit preserved candidate bytes before protected signing
+  prepare-native-upload PLATFORM SHA CANDIDATE_RUN SIGNING_RUN CURRENT_RUN OUTPUT_FILE
+                                    Admit preserved signed bytes and refuse unresolved upload attempts
   install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256 [--add-to-search-list] [--confirm]
                                     Plan or import the Mac App Store installer identity from the protected environment
   gates                             Check the Swift sources for departures from the system design, text outside the catalog, effects in the core, console output, networking, and required reason APIs

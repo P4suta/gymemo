@@ -25,6 +25,7 @@ ureq = { version = "=3.5.1", default-features = false, features = [
   "rustls",
 ] }
 x509-cert = { version = "=0.3.0", default-features = false }
+yaml-rust2 = { version = "=0.13.0", default-features = false }
 
 [dev-dependencies]
 mockito = "=1.7.2"
