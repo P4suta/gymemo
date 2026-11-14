@@ -158,9 +158,8 @@ final class LogTests: XCTestCase {
 
     app.buttons["edit-note"].tap()
     editor.required("the note editor").tapAtEnd()
-    editor.press(forDuration: 1)
-    app.menuItems["Select All"].required("the text selection action").tap()
-    editor.typeText(XCUIKeyboardKey.delete.rawValue)
+    XCTAssertEqual(editor.value as? String, "Felt strong")
+    editor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: "Felt strong".count))
     let cleared = XCTNSPredicateExpectation(
       predicate: NSPredicate(format: "value == ''"), object: editor)
     guard XCTWaiter.wait(for: [cleared], timeout: 5) == .completed else {
