@@ -20,7 +20,7 @@ jobs:
       id-token: write # Attests test products before protected signing.
       attestations: write # Binds the preserved products to this source.
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     outputs:
@@ -132,7 +132,7 @@ jobs:
       contents: read
       attestations: read # Verifies the products before running them without signing secrets.
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     steps:

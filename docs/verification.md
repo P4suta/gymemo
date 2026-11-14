@@ -78,6 +78,16 @@ The signing job verifies provenance, signs the app and nested UI runner with the
 A fresh hosted Mac verifies those products, registers the app with Launch Services, and runs the complete suite without signing credentials.
 No job uploads a build to App Store Connect.
 
+The [runner image][mac-test-image] runs macOS 27.0.1.
+
+Mac UI jobs pin Xcode 27.0 because Xcode 27.2's App Intents Testing referenced a system symbol absent on macOS 27.0.1.
+
+Recheck framework compatibility before moving the test jobs to a newer SDK.
+
+Release archives use Xcode 27.2.
+
+[mac-test-image]: https://github.com/actions/runner-images/blob/xcode-27-arm64/20261104.0337/images/macos/xcode-27-arm64-Readme.md#xcode
+
 `mise x -- just require-mac-ui SHA` requires the most recently created exact-source main run and all three jobs to succeed in the same attempt.
 Pending, failed, missing, or different-source runs fail before the local suites start.
 `mise x -- just check-mac-ui-result BUNDLE` requires all sixteen tests to pass without skips or expected failures on macOS.
