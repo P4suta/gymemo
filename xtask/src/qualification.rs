@@ -10,10 +10,10 @@ use std::{fmt, path::Path};
 const CONTEXT: &str = "Local qualification";
 const REPOSITORY: &str = "repos/P4suta/gymemo";
 
-struct Commit(String);
+pub(crate) struct Commit(String);
 
 impl Commit {
-    fn parse(value: &str) -> Result<Self> {
+    pub(crate) fn parse(value: &str) -> Result<Self> {
         ensure(
             value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()),
             || "Qualification requires a full source commit identifier".into(),
@@ -111,10 +111,10 @@ impl Plan {
             ])
         };
         vec![
+            just(&["require-mac-ui", &self.source.to_string()]),
             just(&["check"]),
             just(&["ui-test"]),
             just(&["ui-test-on", &self.devices[0]]),
-            just(&["native-test", "-destination", "platform=macOS,arch=arm64"]),
             native("iOS Simulator", &self.devices[1]),
             native("iOS Simulator", &self.devices[2]),
             native("visionOS Simulator", &self.devices[4]),
@@ -649,6 +649,9 @@ mod tests {
             .filter(|line| line.starts_with("show "))
             .collect::<Vec<_>>();
         assert_eq!(commands.len(), 12);
+        assert!(commands[0].contains("\"require-mac-ui\""));
+        assert!(commands[0].contains(SOURCE));
+        assert!(commands.iter().all(|line| !line.contains("platform=macOS")));
         for recipe in [
             "\"check\"",
             "\"ui-test\"",
@@ -683,6 +686,31 @@ mod tests {
                 .contains("state=success")
         );
         Ok(())
+    }
+
+    #[test]
+    fn missing_hosted_mac_checks_stop_before_any_local_suite() {
+        let mut host = prepared();
+        host.fail(
+            "\"require-mac-ui\"",
+            Fault::Exit(1, "no hosted Mac UI result"),
+        );
+        assert!(run(&mut host, Path::new("/repo"), &arguments(true)).is_err());
+        let lines = host.transcript();
+        assert_eq!(
+            lines
+                .iter()
+                .filter(|line| line.starts_with("show "))
+                .count(),
+            1
+        );
+        assert!(lines.iter().all(|line| !line.contains("state=success")));
+        assert!(
+            lines
+                .last()
+                .expect("failure status")
+                .contains("state=failure")
+        );
     }
 
     #[test]

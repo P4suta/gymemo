@@ -139,6 +139,24 @@ qualify *args:
 require-qualification *args:
     cargo run --locked -p xtask -- require-qualification "$@"
 
+# Requires the complete hosted Mac UI suite for the exact source.
+[positional-arguments]
+require-mac-ui *args:
+    cargo run --locked -p xtask -- require-mac-ui "$@"
+
+# Validates the complete Mac UI result without skipped tests.
+[positional-arguments]
+check-mac-ui-result *args:
+    cargo run --locked -p xtask -- check-mac-ui-result "$@"
+
+# Builds portable Mac UI products without a private signing identity.
+build-mac-ui: generate
+    xcodebuild build-for-testing -project {{ project }} -scheme gymemoNative -destination 'platform=macOS,arch=arm64' -derivedDataPath target/mac-ui -quiet CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=XMBQLW82L9 ENABLE_DEBUG_DYLIB=NO
+
+# Executes the preserved Mac UI products without rebuilding.
+test-mac-ui:
+    xcodebuild test-without-building -xctestrun target/mac-ui/Build/Products/gymemoNative_macosx*.xctestrun -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -resultBundlePath target/mac-ui.xcresult -quiet
+
 # Runs the native layout and keyboard scenarios on an Xcode destination.
 [positional-arguments]
 native-test *args: generate

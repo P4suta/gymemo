@@ -38,6 +38,8 @@ Commands:
   qualify SHA FLOOR IPAD DUO WATCH VISION [--run]
                                     Plan or run the local release checks for a clean main commit and five simulator identifiers
   require-qualification SHA         Require the owner's successful local checks for the exact main commit
+  require-mac-ui SHA                Require successful hosted Mac UI tests for the exact main commit
+  check-mac-ui-result BUNDLE         Require the complete passing Mac UI result without skipped tests
   help                              Print this message
 ";
 

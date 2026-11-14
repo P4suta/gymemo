@@ -15,6 +15,7 @@ mod literals;
 mod logging;
 mod mac_installer;
 mod native_candidate;
+mod native_ui;
 mod offline;
 mod purity;
 mod qualification;
@@ -67,6 +68,8 @@ Commands:
   qualify SHA FLOOR IPAD DUO WATCH VISION [--run]
                                     Plan or run the local release checks for a clean main commit and five simulator identifiers
   require-qualification SHA         Require the owner's successful local checks for the exact main commit
+  require-mac-ui SHA                Require successful hosted Mac UI tests for the exact main commit
+  check-mac-ui-result BUNDLE         Require the complete passing Mac UI result without skipped tests
   help                              Print this message";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -100,6 +103,8 @@ enum Task {
     InspectDelivery(String),
     SetupNativeDelivery(Vec<String>),
     RequireQualification(String),
+    RequireMacUi(String),
+    CheckMacUiResult(String),
     Help,
 }
 
@@ -180,6 +185,14 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Task> {
         "require-qualification" => {
             let source = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
             alone("require-qualification", Task::RequireQualification(source), arguments)
+        }
+        "require-mac-ui" => {
+            let source = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
+            alone("require-mac-ui", Task::RequireMacUi(source), arguments)
+        }
+        "check-mac-ui-result" => {
+            let bundle = arguments.next().ok_or_else(|| Failure::new(USAGE))?;
+            alone("check-mac-ui-result", Task::CheckMacUiResult(bundle), arguments)
         }
         "proofs" => alone("proofs", Task::Proofs, arguments),
         "mutate" => passed_on(
@@ -274,6 +287,8 @@ fn execute(task: Task, host: &mut impl Host, root: &Path) -> Result<()> {
             Ok(())
         }
         Task::CheckStore => store_metadata::check(host, root),
+        Task::RequireMacUi(source) => native_ui::require(host, root, &source),
+        Task::CheckMacUiResult(bundle) => native_ui::check_result(host, root, &bundle),
         Task::CheckSbom(arguments) => sbom::check(host, root, &arguments),
         Task::SealNative(arguments) => native_candidate::run(host, root, &arguments, true),
         Task::VerifyNative(arguments) => native_candidate::run(host, root, &arguments, false),
@@ -1061,5 +1076,17 @@ mod tests {
         assert!(task(&[]).is_err());
         assert!(task(&["gates", "extra"]).is_err());
         assert!(task(&["deploy"]).is_err());
+        assert_eq!(
+            task(&["require-mac-ui", "source"]),
+            Ok(Task::RequireMacUi("source".into()))
+        );
+        assert_eq!(
+            task(&["check-mac-ui-result", "bundle"]),
+            Ok(Task::CheckMacUiResult("bundle".into()))
+        );
+        for command in ["require-mac-ui", "check-mac-ui-result"] {
+            assert!(task(&[command]).is_err());
+            assert!(task(&[command, "value", "extra"]).is_err());
+        }
     }
 }

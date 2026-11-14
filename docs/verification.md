@@ -15,6 +15,7 @@ gymemo checks its rules with the package tests, source checks, mutation runs, a 
 The website gate also audits its locked npm dependencies.
 Pull requests and merge groups run the affected fast checks in hosted CI.
 Mutation runs, proofs, sanitizers, and simulator tours run locally before release.
+The on-demand Native Mac UI workflow runs the complete Mac suite on an isolated hosted desktop.
 The source checks refuse text outside the String Catalog, effects in the pure core, console output, and server or cloud APIs.
 Only `App/CompanionSession.swift` can import Watch Connectivity or use `WCSession`.
 They also refuse a required reason API without a declared reason and a color or a material outside the system design.
@@ -57,7 +58,8 @@ The remaining arguments are available simulator identifiers for an iPhone on iOS
 
 Adding `--run` requires a clean checkout of that commit and confirms that the commit already belongs to the public repository's `main` branch.
 The command checks device types and runtimes before starting expensive work.
-It runs the fast gate, both iPhone runtime tours, native platform scenarios, Watch scenarios, sanitizers, both mutation campaigns, and proofs in order.
+It first requires a successful Native Mac UI workflow for the exact source commit.
+It then runs the fast gate, both iPhone runtime tours, native simulator scenarios, Watch scenarios, sanitizers, both mutation campaigns, and proofs in order.
 Swift mutation testing uses two workers.
 The command checks the source again after every step and reports `Local qualification` on that commit through GitHub's commit status API.
 A failed, interrupted, or inconclusive step never reports success.
@@ -67,6 +69,20 @@ Distribution signing and upload run in the separate native delivery workflow.
 An older success can't override a more recent failure.
 The command refuses a status linked to another source commit.
 The command only reads [GitHub commit statuses](https://docs.github.com/en/rest/commits/statuses).
+
+## Hosted desktop tests
+
+Dispatch `native-ui.yml` on `main` before starting local release qualification.
+The workflow builds test products without private signing credentials, attests them, and passes them to the protected native-signing environment.
+The signing job verifies provenance, signs the app and nested UI runner with the same genuine team, and attests the signed products.
+A fresh hosted Mac verifies those products, registers the app with Launch Services, and runs the complete suite without signing credentials.
+No job uploads a build to App Store Connect.
+
+`mise x -- just require-mac-ui SHA` requires the most recently created exact-source main run and all three jobs to succeed in the same attempt.
+Pending, failed, missing, or different-source runs fail before the local suites start.
+`mise x -- just check-mac-ui-result BUNDLE` requires all sixteen tests to pass without skips or expected failures on macOS.
+Update that count when changing the suite, and preserve the complete result bundle in CI.
+The [decision record](adr/run-mac-ui-tests-on-an-isolated-hosted-desktop.md) describes the isolation boundary.
 
 ## Native candidates and delivery
 
@@ -186,7 +202,7 @@ Larger overlaps, empty frames, and invalid geometry fail the check.
 `mise x -- just sanitize` runs the package tests under the address and thread sanitizers.
 
 `mise x -- just native-test -destination 'platform=macOS,arch=arm64'` checks Mac navigation, range selection, standard keyboard commands, Return, Escape, Undo, and Redo.
-The Mac App Intents tests require [the same development signing team](https://developer.apple.com/documentation/appintentstesting/testing-your-app-intents-code) for the app and its UI test runner.
+The Mac App Intents tests require [the same signing team](https://developer.apple.com/documentation/appintentstesting/testing-your-app-intents-code) for the app and its UI test runner.
 Set `DEVELOPMENT_TEAM` in the ignored `Signing.local.xcconfig` to select the local development identity.
 Xcode [registers Mac build products](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/ProductPostprocessingTaskProducer.swift#L649-L674) with Launch Services.
 The fast Mac build and native tests share `target/native-test-build`, so a signed test build replaces the unsigned app at the same registered path.
