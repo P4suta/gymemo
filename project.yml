@@ -148,9 +148,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.p4suta.gymemo.NativeUITests
         TEST_TARGET_NAME: gymemo
         GENERATE_INFOPLIST_FILE: YES
-        "IPHONEOS_DEPLOYMENT_TARGET[sdk=iphone*]": "27.2"
-        "XROS_DEPLOYMENT_TARGET[sdk=xr*]": "27.2"
-        "MACOSX_DEPLOYMENT_TARGET[sdk=macosx*]": "27.2"
+        "IPHONEOS_DEPLOYMENT_TARGET[sdk=iphone*]": "27.0"
+        "XROS_DEPLOYMENT_TARGET[sdk=xr*]": "27.0"
+        "MACOSX_DEPLOYMENT_TARGET[sdk=macosx*]": "27.0"
         "TARGETED_DEVICE_FAMILY[sdk=iphone*]": "1,2"
         "TARGETED_DEVICE_FAMILY[sdk=xr*]": "7"
   gymemoWatchUITests:

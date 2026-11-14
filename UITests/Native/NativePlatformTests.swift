@@ -38,7 +38,7 @@ final class NativePlatformTests: XCTestCase {
     XCTAssertTrue(app.buttons["create-exercise"].firstMatch.waitForExistence(timeout: 5))
   }
 
-  @available(iOS 27.2, macOS 27.2, visionOS 27.2, *)
+  @available(iOS 27.0, macOS 27.0, visionOS 27.0, *)
   @MainActor
   func testOpensTheLogThroughTheAppIntentsInfrastructure() async throws {
     let app = launch("shortcut-log", tab: "analysis")
@@ -253,7 +253,7 @@ final class NativePlatformTests: XCTestCase {
   }
 
   #if os(iOS)
-    @available(iOS 27.2, *)
+    @available(iOS 27.0, *)
     @MainActor
     func testKeepsGuidedInputWhenOpeningTheLogShortcut() async throws {
       let app = launch("assistive-shortcut", tab: "log", assistive: true)
