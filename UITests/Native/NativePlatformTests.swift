@@ -108,15 +108,18 @@ final class NativePlatformTests: XCTestCase {
     @MainActor
     private func prepareMacWindow(_ app: XCUIApplication) {
       app.activate()
-      XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
-      for remaining in stride(from: app.windows.count - 1, through: 1, by: -1) {
+      let windows = macWindowMenuItems(in: app)
+      XCTAssertTrue(windows.firstMatch.waitForExistence(timeout: 10))
+      for remaining in stride(from: windows.count - 1, through: 1, by: -1) {
+        restoreMacWindow(app)
         app.typeKey("w", modifierFlags: .command)
         let closed = expectation(
-          for: NSPredicate(format: "count == %d", remaining), evaluatedWith: app.windows)
+          for: NSPredicate(format: "count == %d", remaining), evaluatedWith: windows)
         wait(for: [closed], timeout: 5)
       }
+      restoreMacWindow(app)
+      XCTAssertEqual(windows.count, 1)
       XCTAssertEqual(app.windows.count, 1)
-      app.activate()
       let window = app.windows.firstMatch
       XCTAssertTrue(window.waitForExistence(timeout: 10))
       app.typeKey("c", modifierFlags: [.control, .function])
@@ -128,6 +131,19 @@ final class NativePlatformTests: XCTestCase {
       XCTAssertTrue(
         bounds.contains(window.frame),
         "The Mac test window \(window.frame) must fit inside the primary display \(bounds)")
+    }
+
+    @MainActor
+    private func macWindowMenuItems(in app: XCUIApplication) -> XCUIElementQuery {
+      app.menuBars.menuItems.matching(identifier: "makeKeyAndOrderFront:")
+    }
+
+    @MainActor
+    private func restoreMacWindow(_ app: XCUIApplication) {
+      app.menuBars.menuBarItems.containing(.menuItem, identifier: "makeKeyAndOrderFront:")
+        .firstMatch.click()
+      macWindowMenuItems(in: app).firstMatch.click()
+      XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -154,9 +170,15 @@ final class NativePlatformTests: XCTestCase {
       for window in app.windows.allElementsBoundByIndex {
         XCTAssertFalse(window.buttons[XCUIIdentifierCloseWindow].isHittable)
       }
-      XCTAssertEqual(app.windows.count, 2)
+      XCTAssertEqual(macWindowMenuItems(in: app).count, 2)
       prepareMacWindow(app)
       XCTAssertEqual(app.windows.count, 1)
+      XCTAssertTrue(app.buttons["log-set-Bench Press"].firstMatch.isHittable)
+      app.typeKey("m", modifierFlags: .command)
+      app.terminate()
+      launch(app)
+      XCTAssertEqual(app.windows.count, 1)
+      XCTAssertTrue(app.buttons["log-set-Bench Press"].firstMatch.isHittable)
     }
   #endif
 

@@ -219,9 +219,11 @@ The fast Mac build and native tests share `target/native-test-build`, so a signe
 The native test command cleans that build directory before rebuilding to replace unsigned preview libraries as well.
 Past builds with the same bundle identifier can conflict with App Intents discovery.
 XCTest may ask for macOS authentication to enable UI automation.
-The Mac harness activates the app to open its windows, closes extra windows, and then centers the remaining window after each launch.
+The Mac harness counts windows through their standard Window menu entries, including minimized windows that XCTest excludes from `app.windows`.
+It selects each entry to [restore its window](https://developer.apple.com/documentation/appkit/nswindow/makekeyandorderfront(_:)), closes extra windows, and then centers the remaining window after each launch.
 It closes extra windows with [Command-W](https://support.apple.com/en-us/102650).
-The regressions cover two open windows, repeated preparation, and minimized windows with unreachable close buttons.
+The regressions cover two open windows, repeated preparation, and two minimized windows with unreachable close buttons.
+They also check usable controls after restoring a minimized window and after relaunching the app with a minimized window.
 It checks that the window fits inside the [primary display](https://developer.apple.com/documentation/appkit/nsscreen/screens).
 The checks preserve screenshot capture and reject an unsuitable window position.
 The same command accepts an iPad, iPhone Duo, or visionOS Simulator destination from `xcodebuild -showdestinations -scheme gymemoNative`.
