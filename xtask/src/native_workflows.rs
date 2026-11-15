@@ -428,6 +428,9 @@ mod tests {
         });
         admit_outcome("upload", true, &good.to_string())?;
         assert!(admit_outcome("upload", false, &good.to_string()).is_err());
+        let mut skipped = good.clone();
+        skipped["upload"]["result"] = json!("skipped");
+        assert!(admit_outcome("upload", false, &skipped.to_string()).is_err());
         assert!(admit_outcome("upload", true, "{}").is_err());
         assert!(admit_outcome("unknown", true, &good.to_string()).is_err());
         Ok(())
