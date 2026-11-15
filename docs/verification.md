@@ -122,7 +122,8 @@ Mac packaging reads `Config/Mac.entitlements` from the qualified source commit a
 The workflow embeds the profile and signs the extracted app with the expected distribution identity and those entitlements.
 The installer importer returns its verified certificate name and SHA-256 fingerprint as JSON.
 `productbuild` uses that name and the dedicated installer keychain, following Apple's [Mac App Store packaging procedure](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution).
-The signing and packaging step has a five-minute limit and preserves the original build number.
+App signing and package creation have separate five-minute limits and preserve the original build number.
+Each step verifies its signature before continuing, so a timeout identifies the operation that stopped progressing.
 Before preservation, the workflow expands the package, verifies the app signature, and requires App Sandbox and user-selected file permissions in the final entitlements.
 The native source gate rejects missing profile checks, qualified entitlements, identity metadata, native signing, packaging, and sandbox verification.
 See [Sign Mac packages with Apple tools](adr/sign-mac-packages-with-apple-tools.md).
