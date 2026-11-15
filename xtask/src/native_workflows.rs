@@ -82,6 +82,14 @@ const UPLOAD: &[Guard] = &[
     },
 ];
 
+const UPLOAD_SECRET_NAMES: &[&str] = &[
+    "DOPPLER_PROJECT",
+    "DOPPLER_CONFIG",
+    "APP_STORE_CONNECT_KEY_ID",
+    "APP_STORE_CONNECT_ISSUER_ID",
+    "APP_STORE_CONNECT_PRIVATE_KEY_BASE64",
+];
+
 fn prerequisites(value: &Yaml) -> Result<BTreeSet<&str>> {
     let mut result = BTreeSet::new();
     let values = match value {
@@ -178,6 +186,22 @@ pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
         || "Native delivery must use the shared upload boundary".into(),
     )?;
     let upload = workflow(&source(".github/workflows/native-upload.yml")?, UPLOAD)?;
+    let forwarded = &delivery["jobs"]["upload"]["secrets"];
+    let declared = &upload["on"]["workflow_call"]["secrets"];
+    ensure(
+        forwarded.as_hash().map(|values| values.len()) == Some(UPLOAD_SECRET_NAMES.len())
+            && declared.as_hash().map(|values| values.len()) == Some(UPLOAD_SECRET_NAMES.len()),
+        || "Native upload requires exactly its five named secrets".into(),
+    )?;
+    for &name in UPLOAD_SECRET_NAMES {
+        let reference = format!("${{{{ secrets.{name} }}}}");
+        ensure(forwarded[name].as_str() == Some(reference.as_str()), || {
+            format!("Native upload must forward {name} by name")
+        })?;
+        ensure(declared[name]["required"].as_bool() == Some(true), || {
+            format!("Native upload must require {name}")
+        })?;
+    }
     ensure(
         upload["jobs"]["upload"]["environment"].as_str() == Some("native-upload"),
         || "Native upload requires its protected environment".into(),
@@ -393,6 +417,91 @@ mod tests {
             )
             .is_err()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn actual_gate_refuses_unforwarded_upload_secrets() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let upload = include_str!("../../.github/workflows/native-upload.yml");
+        let pins = include_str!("../../mise.toml");
+        let mut changed = workflow(delivery, DELIVERY)?;
+        let Yaml::Hash(job) = node(&mut changed, &["jobs", "upload"])? else {
+            return Err(Failure::new("The upload fixture requires a mapping"));
+        };
+        job.remove(&Yaml::String("secrets".into()));
+        assert!(
+            check(
+                &mut source_host(&render(&changed)?, upload, pins),
+                Path::new("/repo")
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn actual_gate_checks_each_upload_secret_and_its_declaration() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let upload = include_str!("../../.github/workflows/native-upload.yml");
+        let pins = include_str!("../../mise.toml");
+        let delivery_document = workflow(delivery, DELIVERY)?;
+        let upload_document = workflow(upload, UPLOAD)?;
+        for name in [
+            "DOPPLER_PROJECT",
+            "DOPPLER_CONFIG",
+            "APP_STORE_CONNECT_KEY_ID",
+            "APP_STORE_CONNECT_ISSUER_ID",
+            "APP_STORE_CONNECT_PRIVATE_KEY_BASE64",
+        ] {
+            let mut changed = delivery_document.clone();
+            *node(&mut changed, &["jobs", "upload", "secrets", name])? =
+                Yaml::String("other".into());
+            assert!(
+                check(
+                    &mut source_host(&render(&changed)?, upload, pins),
+                    Path::new("/repo")
+                )
+                .is_err(),
+                "{name}"
+            );
+            let mut changed = upload_document.clone();
+            *node(
+                &mut changed,
+                &["on", "workflow_call", "secrets", name, "required"],
+            )? = Yaml::Boolean(false);
+            assert!(
+                check(
+                    &mut source_host(delivery, &render(&changed)?, pins),
+                    Path::new("/repo")
+                )
+                .is_err(),
+                "{name}"
+            );
+        }
+        for caller in [false, true] {
+            let mut changed = if caller {
+                delivery_document.clone()
+            } else {
+                upload_document.clone()
+            };
+            let path: &[&str] = if caller {
+                &["jobs", "upload", "secrets"]
+            } else {
+                &["on", "workflow_call", "secrets"]
+            };
+            let Yaml::Hash(secrets) = node(&mut changed, path)? else {
+                return Err(Failure::new("The secret fixture requires a mapping"));
+            };
+            secrets.insert(Yaml::String("EXTRA".into()), Yaml::String("other".into()));
+            let rendered = render(&changed)?;
+            let mut host = if caller {
+                source_host(&rendered, upload, pins)
+            } else {
+                source_host(delivery, &rendered, pins)
+            };
+            assert!(check(&mut host, Path::new("/repo")).is_err());
+        }
         Ok(())
     }
 

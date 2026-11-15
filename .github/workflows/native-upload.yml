@@ -35,6 +35,17 @@ on:
       signing_run:
         type: string
         required: true
+    secrets:
+      DOPPLER_PROJECT:
+        required: true
+      DOPPLER_CONFIG:
+        required: true
+      APP_STORE_CONNECT_KEY_ID:
+        required: true
+      APP_STORE_CONNECT_ISSUER_ID:
+        required: true
+      APP_STORE_CONNECT_PRIVATE_KEY_BASE64:
+        required: true
 
 permissions: {}
 

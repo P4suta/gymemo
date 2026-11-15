@@ -373,6 +373,12 @@ jobs:
       source_sha: ${{ inputs.source_sha }}
       platform: ${{ inputs.platform }}
       signing_run: ${{ github.run_id }}
+    secrets:
+      DOPPLER_PROJECT: ${{ secrets.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ secrets.DOPPLER_CONFIG }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
   complete:
     name: Require every requested native operation
     needs: [admission, signing, inspect, upload]

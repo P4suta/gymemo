@@ -101,7 +101,26 @@ fn named(job: &Value, name: &str) -> bool {
         == Some(name)
 }
 
-fn skipped_uploads(jobs: &[&Value]) -> Result<()> {
+fn failed_purpose_without_transfer(job: &Value) -> bool {
+    let Some(steps) = job["steps"].as_array() else {
+        return false;
+    };
+    [
+        ("Require the upload credential purpose", "failure"),
+        ("Validate and upload the iOS or visionOS package", "skipped"),
+        ("Validate and upload the Mac package", "skipped"),
+    ]
+    .into_iter()
+    .all(|(name, outcome)| {
+        let mut matching = steps.iter().filter(|step| step["name"] == name);
+        matching
+            .next()
+            .is_some_and(|step| step["status"] == "completed" && step["conclusion"] == outcome)
+            && matching.next().is_none()
+    })
+}
+
+fn unattempted_uploads(jobs: &[&Value]) -> Result<()> {
     let uploads = jobs
         .iter()
         .filter(|job| named(job, "Upload the preserved native package"))
@@ -110,9 +129,11 @@ fn skipped_uploads(jobs: &[&Value]) -> Result<()> {
         "The original upload history is missing".into()
     })?;
     ensure(
-        uploads
-            .iter()
-            .all(|job| job["status"] == "completed" && job["conclusion"] == "skipped"),
+        uploads.iter().all(|job| {
+            job["status"] == "completed"
+                && (job["conclusion"] == "skipped"
+                    || (job["conclusion"] == "failure" && failed_purpose_without_transfer(job)))
+        }),
         || "An attempted or unresolved upload requires provider reconciliation".into(),
     )
 }
@@ -135,7 +156,7 @@ fn history(pages: &Value, route: &Route) -> Result<()> {
     )?;
     match route {
         Route::Delivery => Ok(()),
-        Route::Recovery => skipped_uploads(&jobs),
+        Route::Recovery => unattempted_uploads(&jobs),
     }
 }
 
@@ -237,7 +258,7 @@ fn previous_recoveries(
             root,
             format!("repos/P4suta/gymemo/actions/runs/{id}/jobs?filter=all&per_page=100"),
         )?;
-        skipped_uploads(&records(&jobs, "jobs")?)?;
+        unattempted_uploads(&records(&jobs, "jobs")?)?;
     }
     Ok(())
 }
@@ -785,6 +806,139 @@ mod tests {
             {"id": 101, "name": "Sign the preserved native candidate", "status": "completed", "conclusion": "success", "run_attempt": 1},
             {"id": 102, "name": "Upload the preserved native package", "status": "completed", "conclusion": upload, "run_attempt": 1},
         ]}])
+    }
+
+    fn failed_purpose() -> Value {
+        let mut value = jobs("failure");
+        value[0]["jobs"][1]["name"] =
+            json!("Upload the preserved native package / Upload the preserved native package");
+        value[0]["jobs"][1]["steps"] = json!([
+            {"name":"Require the upload credential purpose","status":"completed","conclusion":"failure"},
+            {"name":"Validate and upload the iOS or visionOS package","status":"completed","conclusion":"skipped"},
+            {"name":"Validate and upload the Mac package","status":"completed","conclusion":"skipped"},
+        ]);
+        value
+    }
+
+    #[test]
+    fn recovers_preserved_bytes_after_a_failed_purpose_without_provider_execution() -> Result<()> {
+        let mut host = prepared(true)?;
+        let mut source = metadata();
+        source["conclusion"] = json!("failure");
+        host.prints("actions/runs/11\"", &source.to_string());
+        host.prints("runs/11/jobs?", &failed_purpose().to_string());
+        let task = crate::parse(
+            std::iter::once("prepare-native-upload".to_owned()).chain(arguments(true)),
+        )?;
+        crate::execute(task, &mut host, Path::new("/repo"))?;
+        let manifest: Value = serde_json::from_str(
+            &host
+                .read(Path::new(&format!("{STAGING}/native-upload.json")))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(manifest["package"]["sha256"], "a".repeat(64));
+        assert!(
+            !host
+                .transcript()
+                .iter()
+                .any(|call| call.contains("\"xcode\"") || call.contains("\"keychain\""))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn failed_purpose_requires_complete_unambiguous_unattempted_provider_records() -> Result<()> {
+        let good = failed_purpose();
+        history(&good, &Route::Recovery)?;
+        for (field, values) in [
+            ("status", vec!["queued", "in_progress", "waiting", ""]),
+            (
+                "conclusion",
+                vec!["success", "cancelled", "timed_out", "neutral", ""],
+            ),
+        ] {
+            for value in values {
+                let mut changed = good.clone();
+                changed[0]["jobs"][1][field] = json!(value);
+                assert!(
+                    history(&changed, &Route::Recovery).is_err(),
+                    "{field}: {value}"
+                );
+            }
+        }
+        for index in 0..3 {
+            for value in ["queued", "in_progress", "waiting", ""] {
+                let mut changed = good.clone();
+                changed[0]["jobs"][1]["steps"][index]["status"] = json!(value);
+                assert!(
+                    history(&changed, &Route::Recovery).is_err(),
+                    "{index}: {value}"
+                );
+            }
+            let expected = if index == 0 { "failure" } else { "skipped" };
+            for value in [
+                "success",
+                "failure",
+                "skipped",
+                "cancelled",
+                "timed_out",
+                "",
+            ] {
+                if value == expected {
+                    continue;
+                }
+                let mut changed = good.clone();
+                changed[0]["jobs"][1]["steps"][index]["conclusion"] = json!(value);
+                assert!(
+                    history(&changed, &Route::Recovery).is_err(),
+                    "{index}: {value}"
+                );
+            }
+            for duplicate in [false, true] {
+                let mut changed = good.clone();
+                let steps = changed[0]["jobs"][1]["steps"].as_array_mut().unwrap();
+                let removed = steps.remove(index);
+                if duplicate {
+                    steps.extend([removed.clone(), removed]);
+                }
+                assert!(history(&changed, &Route::Recovery).is_err());
+            }
+        }
+        for value in [Value::Null, json!({}), json!([])] {
+            let mut changed = good.clone();
+            changed[0]["jobs"][1]["steps"] = value;
+            assert!(history(&changed, &Route::Recovery).is_err());
+        }
+        let mut mixed = good;
+        mixed[0]["total_count"] = json!(3);
+        mixed[0]["jobs"].as_array_mut().unwrap().push(json!({
+            "id": 103, "name": "Upload the preserved native package",
+            "status": "completed", "conclusion": "success", "run_attempt": 2,
+        }));
+        assert!(history(&mixed, &Route::Recovery).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn recovery_step_names_match_the_actual_upload_workflow() -> Result<()> {
+        let documents = yaml_rust2::YamlLoader::load_from_str(include_str!(
+            "../../../.github/workflows/native-upload.yml"
+        ))
+        .map_err(|error| Failure::new(format!("Parse the upload workflow fixture: {error}")))?;
+        let steps = documents[0]["jobs"]["upload"]["steps"].as_vec().unwrap();
+        for record in failed_purpose()[0]["jobs"][1]["steps"].as_array().unwrap() {
+            let name = record["name"].as_str().unwrap();
+            assert_eq!(
+                steps
+                    .iter()
+                    .filter(|step| step["name"].as_str() == Some(name))
+                    .count(),
+                1,
+                "{name}"
+            );
+        }
+        Ok(())
     }
 
     #[test]

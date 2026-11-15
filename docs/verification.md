@@ -130,10 +130,15 @@ The Rust fixtures reproduce the observed successful signing with skipped inspect
 `native-upload.yml` supplies the same protected upload job to normal delivery and recovery.
 For recovery, dispatch it on `main` with the original `candidate_run`, `source_sha`, `platform`, and `signing_run`.
 `mise x -- just prepare-native-upload PLATFORM SHA CANDIDATE_RUN SIGNING_RUN CURRENT_RUN OUTPUT_FILE` verifies the original delivery run, complete job history, successful first-attempt signing, signed provenance, embedded qualified candidate, archive paths, checksums, and final SBOM.
-Recovery requires every original and prior recovery upload job to have remained skipped.
+Recovery requires complete evidence that original and prior uploads never started a provider transfer.
+Recovery also accepts a failed credential-purpose check when complete job history records both provider steps as completed and skipped.
+Missing, repeated, attempted, or pending provider records refuse recovery.
 An attempted or unresolved upload requires provider reconciliation rather than automatic replay.
 The upload job uses a fresh runner and the protected `native-upload` environment without signing credentials.
 Recovery preserves the signed package bytes and never signs or archives the app again.
+The reusable boundary declares five required upload secret names, and the caller passes only those names.
+[GitHub requires callers to forward environment secret names](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#using-inputs-and-secrets-in-a-reusable-workflow), and the protected upload environment supplies their values.
+The native source gate rejects missing declarations, broader inheritance, and changed references.
 
 The reusable workflow uses GitHub's supported [`./.github/workflows/` reference](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows).
 Pinned actionlint 1.7.12 can't parse the preferred self-repository syntax, as tracked in [actionlint issue 760](https://github.com/rhysd/actionlint/issues/760).
