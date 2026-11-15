@@ -233,11 +233,15 @@ fn the_outcome_command_checks_requested_operations_and_reports_failures() -> io:
         assert!(run.output.starts_with("PASS native outcome:"));
     }
     let delivery = delivery.to_string();
+    let mut unrequested = upload.clone();
+    unrequested["upload"]["result"] = serde_json::json!("skipped");
+    let unrequested = unrequested.to_string();
     let upload = upload.to_string();
     let skipped = sign_only.to_string();
     for arguments in [
         vec!["check-native-outcome", "delivery", "true", &skipped],
         vec!["check-native-outcome", "upload", "false", &upload],
+        vec!["check-native-outcome", "upload", "false", &unrequested],
         vec!["check-native-outcome", "delivery", "yes", &delivery],
         vec!["check-native-outcome", "unknown", "true", &delivery],
         vec!["check-native-outcome"],
