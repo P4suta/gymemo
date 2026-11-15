@@ -258,60 +258,53 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
 #[derive(Clone, Copy)]
 enum ExpressionRegion {
     Text,
-    Code { property: bool },
+    Code,
+    Property,
     SingleQuoted,
 }
 
 fn expression_uses_secrets(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    let mut at = 0;
+    let mut characters = value.chars().peekable();
     let mut region = ExpressionRegion::Text;
-    while at < bytes.len() {
+    while let Some(character) = characters.next() {
         match region {
             ExpressionRegion::Text => {
-                if bytes[at..].starts_with(b"${{") {
-                    region = ExpressionRegion::Code { property: false };
-                    at += 3;
-                } else {
-                    at += 1;
+                if character == '$'
+                    && characters.next_if_eq(&'{').is_some()
+                    && characters.next_if_eq(&'{').is_some()
+                {
+                    region = ExpressionRegion::Code;
                 }
             }
-            ExpressionRegion::Code { property } => {
-                if bytes[at..].starts_with(b"}}") {
+            ExpressionRegion::Code | ExpressionRegion::Property => {
+                if character == '}' && characters.next_if_eq(&'}').is_some() {
                     region = ExpressionRegion::Text;
-                    at += 2;
-                } else if bytes[at] == b'\'' {
+                } else if character == '\'' {
                     region = ExpressionRegion::SingleQuoted;
-                    at += 1;
-                } else if bytes[at].is_ascii_alphabetic() || bytes[at] == b'_' {
-                    let start = at;
-                    at += 1;
-                    while at < bytes.len()
-                        && (bytes[at].is_ascii_alphanumeric() || matches!(bytes[at], b'_' | b'-'))
-                    {
-                        at += 1;
+                } else if character.is_ascii_alphabetic() || character == '_' {
+                    let mut identifier = character.to_string();
+                    while let Some(character) = characters.next_if(|character| {
+                        character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+                    }) {
+                        identifier.push(character);
                     }
-                    if !property && bytes[start..at].eq_ignore_ascii_case(b"secrets") {
+                    if matches!(region, ExpressionRegion::Code)
+                        && identifier.eq_ignore_ascii_case("secrets")
+                    {
                         return true;
                     }
-                    region = ExpressionRegion::Code { property: false };
-                } else {
-                    if !bytes[at].is_ascii_whitespace() {
-                        region = ExpressionRegion::Code {
-                            property: bytes[at] == b'.',
-                        };
-                    }
-                    at += 1;
+                    region = ExpressionRegion::Code;
+                } else if !character.is_ascii_whitespace() {
+                    region = if character == '.' {
+                        ExpressionRegion::Property
+                    } else {
+                        ExpressionRegion::Code
+                    };
                 }
             }
             ExpressionRegion::SingleQuoted => {
-                if bytes[at..].starts_with(b"''") {
-                    at += 2;
-                } else {
-                    if bytes[at] == b'\'' {
-                        region = ExpressionRegion::Code { property: false };
-                    }
-                    at += 1;
+                if character == '\'' && characters.next_if_eq(&'\'').is_none() {
+                    region = ExpressionRegion::Code;
                 }
             }
         }
@@ -962,6 +955,10 @@ mod tests {
             assert!(expression_uses_secrets(expression), "{expression}");
         }
         for expression in [
+            "",
+            "${{",
+            "${{ inputs",
+            "${{ 'unfinished",
             "Build without secrets.PRIVATE",
             "${{ 'secrets' }}",
             "${{ 'it''s secrets.PRIVATE' }}",
@@ -969,10 +966,32 @@ mod tests {
             "${{ inputs . secrets }}",
             "${{ inputs['secrets'] }}",
             "${{ secrets_extra }}",
+            "${{ _secrets }}",
+            "${{ secrets-name }}",
             "secrets.PRIVATE ${{ inputs.value }}",
         ] {
             assert!(!expression_uses_secrets(expression), "{expression}");
         }
+    }
+
+    #[test]
+    fn nested_yaml_secrets_refuse_mixed_collections_and_expression_keys() -> Result<()> {
+        for (source, expected) in [
+            (
+                "root:\n  - true\n  - nested: ${{ secrets.PRIVATE }}\n  - 12",
+                true,
+            ),
+            ("'${{ secrets.PRIVATE }}': public", true),
+            ("${{ toJSON(secrets) }}", true),
+            ("root:\n  - true\n  - 12\n  - plain", false),
+        ] {
+            assert_eq!(
+                yaml_uses_secrets(&workflow(source, &[])?),
+                expected,
+                "{source}"
+            );
+        }
+        Ok(())
     }
 
     #[test]
