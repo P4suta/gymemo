@@ -150,12 +150,71 @@ fn workflow(source: &str, guards: &[Guard]) -> Result<Yaml> {
     Ok(document)
 }
 
+fn mac_sandbox(delivery: &Yaml) -> Result<()> {
+    let steps = delivery["jobs"]["signing"]["steps"]
+        .as_vec()
+        .ok_or_else(|| Failure::new("Native signing requires steps"))?;
+    let step = |name| {
+        steps
+            .iter()
+            .find(|step| step["name"].as_str() == Some(name))
+            .ok_or_else(|| Failure::new(format!("Native signing requires {name}")))
+    };
+    let source = step("Read the qualified Mac sandbox configuration")?;
+    ensure(
+        source["with"]["ref"].as_str() == Some("${{ inputs.source_sha }}")
+            && source["with"]["path"].as_str() == Some("qualified-source")
+            && source["with"]["sparse-checkout"].as_str() == Some("Config/Mac.entitlements")
+            && source["with"]["persist-credentials"].as_bool() == Some(false),
+        || "Mac sandbox permissions must come from the qualified source".into(),
+    )?;
+    let export = step("Export a signed Mac package without uploading")?;
+    ensure(
+        export["env"]["MAC_APP"].as_str()
+            == Some("candidate/gymemo.xcarchive/Products/Applications/gymemo.app"),
+        || "Mac sandbox preparation requires the preserved app".into(),
+    )?;
+    let contracts: [(&str, &[&str]); 2] = [
+        (
+            "Export a signed Mac package without uploading",
+            &[
+                r#"codesign --force --sign - --entitlements qualified-source/Config/Mac.entitlements "$MAC_APP""#,
+                r#"mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --export-options "$RUNNER_TEMP/gymemo-signing/mac-options.plist" --xcodebuild-flag=-verbose --timeout 20m"#,
+            ],
+        ),
+        (
+            "Verify the signed Mac sandbox",
+            &[
+                r#"codesign --verify --deep --strict "$exported_app""#,
+                r#"codesign -d --entitlements - --xml "$exported_app" > "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist""#,
+                r#"test "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist")" = true"#,
+                r#"test "$(plutil -extract 'com\.apple\.security\.files\.user-selected\.read-write' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist")" = true"#,
+            ],
+        ),
+    ];
+    for (name, required) in contracts {
+        let selected = step(name)?;
+        ensure(
+            selected["if"].as_str()
+                == Some("github.run_attempt == 1 && inputs.platform == 'macOS'")
+                && selected["run"].as_str().is_some_and(|run| {
+                    required
+                        .iter()
+                        .all(|command| run.lines().any(|line| line.trim() == *command))
+                }),
+            || format!("Mac signing requires sandbox preparation and verification in {name}"),
+        )?;
+    }
+    Ok(())
+}
+
 pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
     let mut source = |path: &str| {
         host.read(&root.join(path))
             .map_err(|error| Failure::new(format!("Read {path}: {error}")))
     };
     let delivery = workflow(&source(".github/workflows/native-delivery.yml")?, DELIVERY)?;
+    mac_sandbox(&delivery)?;
     let ios_export = delivery["jobs"]["signing"]["steps"]
         .as_vec()
         .and_then(|steps| {
@@ -220,7 +279,7 @@ pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
         || "Review the local workflow compatibility exception when actionlint changes".into(),
     )?;
     host.print(
-        "PASS native workflows: cancellation, prerequisites, iOS export, and upload boundary",
+        "PASS native workflows: cancellation, prerequisites, explicit export, sandbox, and upload boundary",
     );
     Ok(())
 }
@@ -330,6 +389,16 @@ mod tests {
         host.file("/repo/.github/workflows/native-upload.yml", upload);
         host.file("/repo/mise.toml", pins);
         host
+    }
+
+    fn signing_step<'a>(document: &'a mut Yaml, name: &str) -> Result<&'a mut Yaml> {
+        let Yaml::Array(steps) = node(document, &["jobs", "signing", "steps"])? else {
+            return Err(Failure::new("The signing fixture requires steps"));
+        };
+        steps
+            .iter_mut()
+            .find(|step| step["name"].as_str() == Some(name))
+            .ok_or_else(|| Failure::new(format!("The fixture lacks {name}")))
     }
 
     #[test]
@@ -502,6 +571,128 @@ mod tests {
             };
             assert!(check(&mut host, Path::new("/repo")).is_err());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn actual_gate_rejects_mac_export_without_sandbox_preparation() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let upload = include_str!("../../.github/workflows/native-upload.yml");
+        let pins = include_str!("../../mise.toml");
+        let mut changed = workflow(delivery, DELIVERY)?;
+        let step = signing_step(
+            &mut changed,
+            "Export a signed Mac package without uploading",
+        )?;
+        *node(step, &["run"])? = Yaml::String(
+            r#"mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m"#.into(),
+        );
+        assert!(
+            check(
+                &mut source_host(&render(&changed)?, upload, pins),
+                Path::new("/repo")
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn mac_sandbox_requires_the_qualified_source_and_preserved_app() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let original = workflow(delivery, DELIVERY)?;
+        mac_sandbox(&original)?;
+        for (name, path, value) in [
+            (
+                "Read the qualified Mac sandbox configuration",
+                vec!["with", "ref"],
+                Yaml::String("main".into()),
+            ),
+            (
+                "Read the qualified Mac sandbox configuration",
+                vec!["with", "path"],
+                Yaml::String("other".into()),
+            ),
+            (
+                "Read the qualified Mac sandbox configuration",
+                vec!["with", "sparse-checkout"],
+                Yaml::String("Config/Other.entitlements".into()),
+            ),
+            (
+                "Read the qualified Mac sandbox configuration",
+                vec!["with", "persist-credentials"],
+                Yaml::Boolean(true),
+            ),
+            (
+                "Export a signed Mac package without uploading",
+                vec!["env", "MAC_APP"],
+                Yaml::String("other.app".into()),
+            ),
+        ] {
+            let mut changed = original.clone();
+            *node(signing_step(&mut changed, name)?, &path)? = value;
+            assert!(mac_sandbox(&changed).is_err(), "{name}: {path:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn mac_sandbox_rejects_each_missing_preparation_or_verification() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let original = workflow(delivery, DELIVERY)?;
+        for (name, fragment) in [
+            (
+                "Export a signed Mac package without uploading",
+                "codesign --force",
+            ),
+            (
+                "Export a signed Mac package without uploading",
+                "--export-options",
+            ),
+            ("Verify the signed Mac sandbox", "codesign --verify"),
+            ("Verify the signed Mac sandbox", "codesign -d"),
+            ("Verify the signed Mac sandbox", "security\\.app-sandbox"),
+            (
+                "Verify the signed Mac sandbox",
+                "user-selected\\.read-write",
+            ),
+        ] {
+            let mut changed = original.clone();
+            let step = signing_step(&mut changed, name)?;
+            let run = step["run"]
+                .as_str()
+                .ok_or_else(|| Failure::new("The signing fixture requires commands"))?;
+            let weakened = run
+                .lines()
+                .filter(|line| !line.contains(fragment))
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert_ne!(weakened.lines().count(), run.lines().count(), "{fragment}");
+            *node(step, &["run"])? = Yaml::String(weakened);
+            assert!(mac_sandbox(&changed).is_err(), "{fragment}");
+        }
+        for name in [
+            "Read the qualified Mac sandbox configuration",
+            "Export a signed Mac package without uploading",
+            "Verify the signed Mac sandbox",
+        ] {
+            let mut changed = original.clone();
+            *node(signing_step(&mut changed, name)?, &["name"])? = Yaml::Null;
+            assert!(mac_sandbox(&changed).is_err(), "{name}");
+        }
+        for name in [
+            "Export a signed Mac package without uploading",
+            "Verify the signed Mac sandbox",
+        ] {
+            for (path, value) in [("if", Yaml::Boolean(false)), ("run", Yaml::Null)] {
+                let mut changed = original.clone();
+                *node(signing_step(&mut changed, name)?, &[path])? = value;
+                assert!(mac_sandbox(&changed).is_err(), "{name}: {path}");
+            }
+        }
+        let mut changed = original;
+        *node(&mut changed, &["jobs", "signing", "steps"])? = Yaml::Null;
+        assert!(mac_sandbox(&changed).is_err());
         Ok(())
     }
 

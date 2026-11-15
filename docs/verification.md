@@ -118,6 +118,12 @@ visionOS uses explicit export options because the provider CLI can't generate it
 iOS also uses explicit options because the qualified unsigned archive has no embedded provisioning profile for the CLI's [manual-option generation](https://github.com/rorkai/App-Store-Connect-CLI/blob/6.6.0/internal/xcode/export_options.go#L127-L135).
 The workflow binds the installed iPhone and Watch profile UUIDs, preserves the build number, and exports without uploading.
 The native source gate refuses implicit iOS export options.
+Mac export restores `Config/Mac.entitlements` from the qualified source commit on the extracted archive with an ad hoc signature.
+The workflow uses explicit manual export options with the installed Mac profile UUID, both distribution identity selectors, and the original build number.
+Xcode produces the distribution-signed package using Apple's [archive export procedure](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac).
+Before preservation, the workflow expands the package, verifies the app signature, and requires App Sandbox and user-selected file permissions in the final entitlements.
+The native source gate rejects missing qualified entitlements, implicit Mac export options, and omitted sandbox checks.
+See [Restore Mac sandbox permissions before export](adr/restore-mac-sandbox-before-export.md).
 A fresh job validates the signed package's dependency inventory and checksums.
 The upload job requires its own approval and App Store Connect key and receives the verified bytes.
 An uncertain upload requires provider reconciliation before retrying.
