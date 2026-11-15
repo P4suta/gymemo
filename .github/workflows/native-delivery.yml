@@ -258,7 +258,7 @@ jobs:
           ditto -x -k signed/gymemo.ipa "$RUNNER_TEMP/gymemo-export"
           codesign --verify --deep --strict "$RUNNER_TEMP/gymemo-export/Payload/gymemo.app"
           shasum -a 256 signed/gymemo.ipa > signed/SHA256SUMS
-      - name: Export a signed Mac package without uploading
+      - name: Sign the preserved Mac app
         if: github.run_attempt == 1 && inputs.platform == 'macOS'
         timeout-minutes: 5
         env:
@@ -276,6 +276,13 @@ jobs:
           cp "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile"
           codesign --force --sign 'Apple Distribution' --keychain "$RUNNER_TEMP/gymemo-application.keychain-db" --entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist" "$MAC_APP"
           codesign --verify --deep --strict "$MAC_APP"
+      - name: Create the signed Mac package
+        if: github.run_attempt == 1 && inputs.platform == 'macOS'
+        timeout-minutes: 5
+        env:
+          MAC_APP: candidate/gymemo.xcarchive/Products/Applications/gymemo.app
+        run: |
+          set -o pipefail
           installer_identity="$(jq -er '.subject' "$RUNNER_TEMP/gymemo-signing/installer-identity.json")"
           mkdir -p signed
           productbuild --sign "$installer_identity" --keychain "$RUNNER_TEMP/gymemo-installer.keychain-db" --component "$MAC_APP" /Applications signed/gymemo.pkg

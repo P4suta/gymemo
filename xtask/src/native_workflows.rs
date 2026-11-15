@@ -168,14 +168,37 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
             && source["with"]["persist-credentials"].as_bool() == Some(false),
         || "Mac sandbox permissions must come from the qualified source".into(),
     )?;
-    let export = step("Export a signed Mac package without uploading")?;
+    let phases = [
+        "Sign the preserved Mac app",
+        "Create the signed Mac package",
+    ];
     ensure(
-        export["env"]["MAC_APP"].as_str()
-            == Some("candidate/gymemo.xcarchive/Products/Applications/gymemo.app")
-            && export["timeout-minutes"].as_i64() == Some(5),
-        || "Mac signing requires the preserved app and a five-minute limit".into(),
+        steps
+            .iter()
+            .filter_map(|step| step["name"].as_str())
+            .filter(|name| phases.contains(name))
+            .eq(phases),
+        || "Mac app signing must precede one separate packaging step".into(),
     )?;
-    let contracts: [(&str, &[&str]); 3] = [
+    for (name, other) in [
+        (phases[0], "productbuild --sign"),
+        (phases[1], "codesign --force"),
+    ] {
+        let selected = step(name)?;
+        ensure(
+            selected["env"]["MAC_APP"].as_str()
+                == Some("candidate/gymemo.xcarchive/Products/Applications/gymemo.app")
+                && selected["timeout-minutes"].as_i64() == Some(5)
+                && selected["run"]
+                    .as_str()
+                    .is_some_and(|run| !run.contains(other)),
+            || {
+                "Mac signing phases require the preserved app and separate five-minute limits"
+                    .into()
+            },
+        )?;
+    }
+    let contracts: [(&str, &[&str]); 4] = [
         (
             "Install the macOS profile and installer identity",
             &[
@@ -183,7 +206,7 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
             ],
         ),
         (
-            "Export a signed Mac package without uploading",
+            "Sign the preserved Mac app",
             &[
                 "set -o pipefail",
                 r#"test "$(plutil -extract 'TeamIdentifier.0' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-profile.plist")" = "$APPLE_TEAM_ID""#,
@@ -194,8 +217,16 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
                 r#"cp "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile""#,
                 r#"codesign --force --sign 'Apple Distribution' --keychain "$RUNNER_TEMP/gymemo-application.keychain-db" --entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist" "$MAC_APP""#,
                 r#"codesign --verify --deep --strict "$MAC_APP""#,
+            ],
+        ),
+        (
+            "Create the signed Mac package",
+            &[
+                "set -o pipefail",
                 r#"installer_identity="$(jq -er '.subject' "$RUNNER_TEMP/gymemo-signing/installer-identity.json")""#,
                 r#"productbuild --sign "$installer_identity" --keychain "$RUNNER_TEMP/gymemo-installer.keychain-db" --component "$MAC_APP" /Applications signed/gymemo.pkg"#,
+                "pkgutil --check-signature signed/gymemo.pkg",
+                "shasum -a 256 signed/gymemo.pkg > signed/SHA256SUMS",
             ],
         ),
         (
@@ -596,10 +627,7 @@ mod tests {
         let upload = include_str!("../../.github/workflows/native-upload.yml");
         let pins = include_str!("../../mise.toml");
         let mut changed = workflow(delivery, DELIVERY)?;
-        let step = signing_step(
-            &mut changed,
-            "Export a signed Mac package without uploading",
-        )?;
+        let step = signing_step(&mut changed, "Sign the preserved Mac app")?;
         *node(step, &["run"])? = Yaml::String(
             r#"mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m"#.into(),
         );
@@ -614,13 +642,79 @@ mod tests {
     }
 
     #[test]
+    fn mac_signing_and_packaging_have_independent_limits() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let mut document = workflow(delivery, DELIVERY)?;
+        for (name, expected, other) in [
+            (
+                "Sign the preserved Mac app",
+                "codesign --force",
+                "productbuild --sign",
+            ),
+            (
+                "Create the signed Mac package",
+                "productbuild --sign",
+                "codesign --force",
+            ),
+        ] {
+            let stage = signing_step(&mut document, name)?;
+            assert_eq!(stage["timeout-minutes"].as_i64(), Some(5), "{name}");
+            let run = stage["run"]
+                .as_str()
+                .ok_or_else(|| Failure::new("The Mac stage requires commands"))?;
+            assert!(run.contains(expected), "{name}");
+            assert!(!run.contains(other), "{name}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn mac_signing_rejects_combined_reordered_or_repeated_phases() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let original = workflow(delivery, DELIVERY)?;
+        for (name, other) in [
+            ("Sign the preserved Mac app", "productbuild --sign"),
+            ("Create the signed Mac package", "codesign --force"),
+        ] {
+            let mut changed = original.clone();
+            let stage = signing_step(&mut changed, name)?;
+            let run = stage["run"]
+                .as_str()
+                .ok_or_else(|| Failure::new("The Mac stage requires commands"))?;
+            let combined = format!("{run}\n{other} ignored");
+            *node(stage, &["run"])? = Yaml::String(combined);
+            assert!(mac_sandbox(&changed).is_err(), "{name}");
+
+            let mut changed = original.clone();
+            let repeated = signing_step(&mut changed, name)?.clone();
+            let Yaml::Array(steps) = node(&mut changed, &["jobs", "signing", "steps"])? else {
+                return Err(Failure::new("The signing fixture requires steps"));
+            };
+            steps.push(repeated);
+            assert!(mac_sandbox(&changed).is_err(), "{name}");
+        }
+        let mut changed = original;
+        let Yaml::Array(steps) = node(&mut changed, &["jobs", "signing", "steps"])? else {
+            return Err(Failure::new("The signing fixture requires steps"));
+        };
+        let index = |name| {
+            steps
+                .iter()
+                .position(|step| step["name"].as_str() == Some(name))
+                .ok_or_else(|| Failure::new(format!("The signing fixture lacks {name}")))
+        };
+        let signing = index("Sign the preserved Mac app")?;
+        let packaging = index("Create the signed Mac package")?;
+        steps.swap(signing, packaging);
+        assert!(mac_sandbox(&changed).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn mac_export_requires_native_packaging() -> Result<()> {
         let delivery = include_str!("../../.github/workflows/native-delivery.yml");
         let mut changed = workflow(delivery, DELIVERY)?;
-        let step = signing_step(
-            &mut changed,
-            "Export a signed Mac package without uploading",
-        )?;
+        let step = signing_step(&mut changed, "Create the signed Mac package")?;
         let run = step["run"]
             .as_str()
             .ok_or_else(|| Failure::new("The export fixture requires commands"))?;
@@ -638,10 +732,7 @@ mod tests {
     fn mac_export_rejects_an_implicit_installer_identity() -> Result<()> {
         let delivery = include_str!("../../.github/workflows/native-delivery.yml");
         let mut changed = workflow(delivery, DELIVERY)?;
-        let step = signing_step(
-            &mut changed,
-            "Export a signed Mac package without uploading",
-        )?;
+        let step = signing_step(&mut changed, "Create the signed Mac package")?;
         let run = step["run"]
             .as_str()
             .ok_or_else(|| Failure::new("The export fixture requires commands"))?;
@@ -682,17 +773,32 @@ mod tests {
                 Yaml::Boolean(true),
             ),
             (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
                 vec!["env", "MAC_APP"],
                 Yaml::String("other.app".into()),
             ),
             (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
                 vec!["timeout-minutes"],
                 Yaml::Integer(6),
             ),
             (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
+                vec!["timeout-minutes"],
+                Yaml::Null,
+            ),
+            (
+                "Create the signed Mac package",
+                vec!["env", "MAC_APP"],
+                Yaml::String("other.app".into()),
+            ),
+            (
+                "Create the signed Mac package",
+                vec!["timeout-minutes"],
+                Yaml::Integer(6),
+            ),
+            (
+                "Create the signed Mac package",
                 vec!["timeout-minutes"],
                 Yaml::Null,
             ),
@@ -709,54 +815,36 @@ mod tests {
         let delivery = include_str!("../../.github/workflows/native-delivery.yml");
         let original = workflow(delivery, DELIVERY)?;
         for (name, fragment) in [
-            (
-                "Export a signed Mac package without uploading",
-                "set -o pipefail",
-            ),
+            ("Sign the preserved Mac app", "set -o pipefail"),
             (
                 "Install the macOS profile and installer identity",
                 "installer-tool/xtask",
             ),
+            ("Sign the preserved Mac app", "TeamIdentifier.0"),
             (
-                "Export a signed Mac package without uploading",
-                "TeamIdentifier.0",
-            ),
-            (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
                 "Entitlements.com\\.apple\\.application-identifier",
             ),
             (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
                 "cp qualified-source/Config/Mac.entitlements",
             ),
             (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
                 "plutil -insert 'com\\.apple\\.application-identifier'",
             ),
             (
-                "Export a signed Mac package without uploading",
+                "Sign the preserved Mac app",
                 "plutil -insert 'com\\.apple\\.developer\\.team-identifier'",
             ),
-            (
-                "Export a signed Mac package without uploading",
-                "embedded.provisionprofile",
-            ),
-            (
-                "Export a signed Mac package without uploading",
-                "jq -er '.subject'",
-            ),
-            (
-                "Export a signed Mac package without uploading",
-                "codesign --force",
-            ),
-            (
-                "Export a signed Mac package without uploading",
-                "productbuild --sign",
-            ),
-            (
-                "Export a signed Mac package without uploading",
-                "codesign --verify",
-            ),
+            ("Sign the preserved Mac app", "embedded.provisionprofile"),
+            ("Create the signed Mac package", "jq -er '.subject'"),
+            ("Sign the preserved Mac app", "codesign --force"),
+            ("Create the signed Mac package", "productbuild --sign"),
+            ("Create the signed Mac package", "set -o pipefail"),
+            ("Create the signed Mac package", "pkgutil --check-signature"),
+            ("Create the signed Mac package", "shasum -a 256"),
+            ("Sign the preserved Mac app", "codesign --verify"),
             ("Verify the signed Mac sandbox", "codesign --verify"),
             ("Verify the signed Mac sandbox", "codesign -d"),
             ("Verify the signed Mac sandbox", "security\\.app-sandbox"),
@@ -782,7 +870,8 @@ mod tests {
         for name in [
             "Read the qualified Mac sandbox configuration",
             "Install the macOS profile and installer identity",
-            "Export a signed Mac package without uploading",
+            "Sign the preserved Mac app",
+            "Create the signed Mac package",
             "Verify the signed Mac sandbox",
         ] {
             let mut changed = original.clone();
@@ -791,7 +880,8 @@ mod tests {
         }
         for name in [
             "Install the macOS profile and installer identity",
-            "Export a signed Mac package without uploading",
+            "Sign the preserved Mac app",
+            "Create the signed Mac package",
             "Verify the signed Mac sandbox",
         ] {
             for (path, value) in [("if", Yaml::Boolean(false)), ("run", Yaml::Null)] {
