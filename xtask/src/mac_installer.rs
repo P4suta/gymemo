@@ -103,8 +103,9 @@ struct Identity {
 }
 
 #[cfg(any(target_os = "macos", test))]
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct VerifiedInstaller {
+    #[serde(rename = "certificateSha256")]
     fingerprint: String,
     subject: String,
 }

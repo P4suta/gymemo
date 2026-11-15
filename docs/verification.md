@@ -118,15 +118,14 @@ visionOS uses explicit export options because the provider CLI can't generate it
 iOS also uses explicit options because the qualified unsigned archive has no embedded provisioning profile for the CLI's [manual-option generation](https://github.com/rorkai/App-Store-Connect-CLI/blob/6.6.0/internal/xcode/export_options.go#L127-L135).
 The workflow binds the installed iPhone and Watch profile UUIDs, preserves the build number, and exports without uploading.
 The native source gate refuses implicit iOS export options.
-Mac export restores `Config/Mac.entitlements` from the qualified source commit on the extracted archive with an ad hoc signature.
-The workflow uses explicit manual export options with the installed Mac profile UUID, both distribution identity selectors, and the original build number.
-The installer selector comes from the verified certificate in the dedicated keychain because Xcode's automatic selector doesn't resolve the installed certificate.
-SHA-1 identifies the certificate for Xcode.
-The importer still verifies the identity with SHA-256.
-Xcode produces the distribution-signed package using Apple's [archive export procedure](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac).
+Mac packaging reads `Config/Mac.entitlements` from the qualified source commit and checks the profile's team and app identifier.
+The workflow embeds the profile and signs the extracted app with the expected distribution identity and those entitlements.
+The installer importer returns its verified certificate name and SHA-256 fingerprint as JSON.
+`productbuild` uses that name and the dedicated installer keychain, following Apple's [Mac App Store packaging procedure](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution).
+The signing and packaging step has a five-minute limit and preserves the original build number.
 Before preservation, the workflow expands the package, verifies the app signature, and requires App Sandbox and user-selected file permissions in the final entitlements.
-The native source gate rejects missing qualified entitlements, implicit Mac export options, and omitted sandbox checks.
-See [Restore Mac sandbox permissions before export](adr/restore-mac-sandbox-before-export.md).
+The native source gate rejects missing profile checks, qualified entitlements, identity metadata, native signing, packaging, and sandbox verification.
+See [Sign Mac packages with Apple tools](adr/sign-mac-packages-with-apple-tools.md).
 A fresh job validates the signed package's dependency inventory and checksums.
 The upload job requires its own approval and App Store Connect key and receives the verified bytes.
 An uncertain upload requires provider reconciliation before retrying.

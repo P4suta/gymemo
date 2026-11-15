@@ -362,13 +362,17 @@ fn imports_validates_configures_and_reports_the_expected_identity() -> Result<()
     let mut api = Api::new();
     execute(&mut host, &request, &mut api, environment)?;
     assert_eq!(api.steps, ["create", "unlock", "import", "settings"]);
+    let [report] = host.output.as_slice() else {
+        return Err(Failure::new("The installer requires one metadata record"));
+    };
+    let metadata: serde_json::Value = serde_json::from_str(report)
+        .map_err(|error| Failure::new(format!("Decode installer metadata: {error}")))?;
     assert_eq!(
-        host.output,
-        [format!(
-            "Verified Mac App Store installer identity {} ({})",
-            imported().subject,
-            request.fingerprint
-        )]
+        metadata,
+        serde_json::json!({
+            "certificateSha256": request.fingerprint,
+            "subject": imported().subject,
+        })
     );
     let transcript = host.transcript().join("\n");
     assert!(transcript.contains("\"asc\" \"signing\" \"keychain\" \"set-partition-list\""));
