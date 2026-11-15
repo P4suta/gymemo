@@ -133,7 +133,6 @@ jobs:
           sparse-checkout: |
             mise.toml
             .github/export-options/ios.plist
-            .github/export-options/macos.plist
             .github/export-options/visionos.plist
       - name: Read the qualified Mac sandbox configuration
         if: github.run_attempt == 1 && inputs.platform == 'macOS'
@@ -221,7 +220,7 @@ jobs:
           test -n "$INSTALLER_SHA256"
           printf %s "$MAC_PROFILE" | base64 --decode > "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile"
           mise x -- asc profiles local install --path "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile"
-          mise x -- installer-tool/xtask install-mac-installer "$RUNNER_TEMP/gymemo-installer.keychain-db" "$RUNNER_TEMP/gymemo-signing/keychain-password" "$INSTALLER_SHA256" --add-to-search-list --confirm
+          mise x -- installer-tool/xtask install-mac-installer "$RUNNER_TEMP/gymemo-installer.keychain-db" "$RUNNER_TEMP/gymemo-signing/keychain-password" "$INSTALLER_SHA256" --add-to-search-list --confirm > "$RUNNER_TEMP/gymemo-signing/installer-identity.json"
       - name: Install the visionOS profile
         if: github.run_attempt == 1 && inputs.platform == 'visionOS'
         env:
@@ -261,27 +260,27 @@ jobs:
           shasum -a 256 signed/gymemo.ipa > signed/SHA256SUMS
       - name: Export a signed Mac package without uploading
         if: github.run_attempt == 1 && inputs.platform == 'macOS'
+        timeout-minutes: 5
         env:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           MAC_APP: candidate/gymemo.xcarchive/Products/Applications/gymemo.app
         run: |
           set -o pipefail
           test -n "$APPLE_TEAM_ID"
-          codesign --force --sign - --entitlements qualified-source/Config/Mac.entitlements "$MAC_APP"
           security cms -D -i "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" > "$RUNNER_TEMP/gymemo-signing/mac-profile.plist"
-          cp .github/export-options/macos.plist "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
-          plutil -insert teamID -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
-          installer_identity="$(security find-certificate -c '3rd Party Mac Developer Installer' -p "$RUNNER_TEMP/gymemo-installer.keychain-db" | openssl x509 -noout -fingerprint -sha1)"
-          installer_identity="${installer_identity#*=}"
-          installer_identity="${installer_identity//:/}"
-          plutil -insert installerSigningCertificate -string "$installer_identity" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
-          plutil -insert 'provisioningProfiles.com\.p4suta\.gymemo' -string "$(plutil -extract UUID raw -o - "$RUNNER_TEMP/gymemo-signing/mac-profile.plist")" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
-          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --export-options "$RUNNER_TEMP/gymemo-signing/mac-options.plist" --xcodebuild-flag=-verbose --timeout 20m
+          test "$(plutil -extract 'TeamIdentifier.0' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-profile.plist")" = "$APPLE_TEAM_ID"
+          test "$(plutil -extract 'Entitlements.com\.apple\.application-identifier' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-profile.plist")" = "$APPLE_TEAM_ID.com.p4suta.gymemo"
+          cp qualified-source/Config/Mac.entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
+          plutil -insert 'com\.apple\.application-identifier' -string "$APPLE_TEAM_ID.com.p4suta.gymemo" "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
+          plutil -insert 'com\.apple\.developer\.team-identifier' -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
+          cp "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile"
+          codesign --force --sign 'Apple Distribution' --keychain "$RUNNER_TEMP/gymemo-application.keychain-db" --entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist" "$MAC_APP"
+          codesign --verify --deep --strict "$MAC_APP"
+          installer_identity="$(jq -er '.subject' "$RUNNER_TEMP/gymemo-signing/installer-identity.json")"
+          mkdir -p signed
+          productbuild --sign "$installer_identity" --keychain "$RUNNER_TEMP/gymemo-installer.keychain-db" --component "$MAC_APP" /Applications signed/gymemo.pkg
           pkgutil --check-signature signed/gymemo.pkg
           shasum -a 256 signed/gymemo.pkg > signed/SHA256SUMS
-      - name: Print Mac export diagnostics after failure
-        if: failure() && github.run_attempt == 1 && inputs.platform == 'macOS'
-        run: find "$TMPDIR" -type f -path '*/gymemo_*.xcdistributionlogs/*.log' -exec tail -n 160 {} +
       - name: Verify the signed Mac sandbox
         if: github.run_attempt == 1 && inputs.platform == 'macOS'
         run: |

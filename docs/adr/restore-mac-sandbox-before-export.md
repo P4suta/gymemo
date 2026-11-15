@@ -27,6 +27,7 @@ Retaining the current export would omit required permissions.
 
 The signing stage needs the qualified entitlements file.
 No developer certificate or additional permission is required.
+The [CI packaging proposal](sign-mac-packages-with-apple-tools.md) addresses Xcode export timeouts.
 
 ## Confirmation
 

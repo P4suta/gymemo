@@ -399,10 +399,10 @@ fn execute<H: Host, A: KeychainApi, E: Fn(&str) -> Result<String>>(
         keychain: None,
     };
     let identity = install(&mut port, request)?;
-    port.host.print(&format!(
-        "Verified Mac App Store installer identity {} ({})",
-        identity.subject, identity.fingerprint
-    ));
+    port.host.print(
+        &serde_json::to_string(&identity)
+            .context(|| "Encode the verified installer identity".into())?,
+    );
     Ok(())
 }
 
