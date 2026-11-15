@@ -214,7 +214,7 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
                 r#"cp qualified-source/Config/Mac.entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist""#,
                 r#"plutil -insert 'com\.apple\.application-identifier' -string "$APPLE_TEAM_ID.com.p4suta.gymemo" "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist""#,
                 r#"plutil -insert 'com\.apple\.developer\.team-identifier' -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist""#,
-                r#"cp "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile""#,
+                r#"install -m 644 "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile""#,
                 r#"codesign --force --sign 'Apple Distribution' --keychain "$RUNNER_TEMP/gymemo-application.keychain-db" --entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist" "$MAC_APP""#,
                 r#"codesign --verify --deep --strict "$MAC_APP""#,
             ],
@@ -232,6 +232,8 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
         (
             "Verify the signed Mac sandbox",
             &[
+                r#"unreadable_payload="$(find "$exported_app" \( -type f ! -perm -004 -o -type d ! -perm -005 \) -print)""#,
+                r#"test -z "$unreadable_payload""#,
                 r#"codesign --verify --deep --strict "$exported_app""#,
                 r#"codesign -d --entitlements - --xml "$exported_app" > "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist""#,
                 r#"test "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist")" = true"#,
@@ -245,9 +247,10 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
             selected["if"].as_str()
                 == Some("github.run_attempt == 1 && inputs.platform == 'macOS'")
                 && selected["run"].as_str().is_some_and(|run| {
+                    let mut lines = run.lines();
                     required
                         .iter()
-                        .all(|command| run.lines().any(|line| line.trim() == *command))
+                        .all(|command| lines.any(|line| line.trim() == *command))
                 }),
             || format!("Mac signing requires sandbox preparation and verification in {name}"),
         )?;
@@ -1336,6 +1339,113 @@ mod tests {
     }
 
     #[test]
+    fn mac_payload_rejects_private_profile_copies_and_missing_permission_checks() -> Result<()> {
+        let source = include_str!("../../.github/workflows/native-delivery.yml");
+        for (name, before, after) in [
+            ("Sign the preserved Mac app", "install -m 644", "cp"),
+            (
+                "Sign the preserved Mac app",
+                "install -m 644",
+                "install -m 600",
+            ),
+            (
+                "Verify the signed Mac sandbox",
+                "test -z \"$unreadable_payload\"",
+                "true",
+            ),
+        ] {
+            let mut changed = workflow(source, DELIVERY)?;
+            let step = signing_step(&mut changed, name)?;
+            let run = step["run"]
+                .as_str()
+                .ok_or_else(|| Failure::new("The Mac fixture requires commands"))?;
+            *node(step, &["run"])? = Yaml::String(run.replace(before, after));
+            assert!(mac_sandbox(&changed).is_err(), "{name}: {before}");
+        }
+        let mut changed = workflow(source, DELIVERY)?;
+        let step = signing_step(&mut changed, "Sign the preserved Mac app")?;
+        let mut lines = step["run"]
+            .as_str()
+            .ok_or_else(|| Failure::new("The Mac fixture requires signing commands"))?
+            .lines()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        let copied = lines
+            .iter()
+            .position(|line| line.contains("embedded.provisionprofile"))
+            .ok_or_else(|| Failure::new("The Mac fixture lacks a profile copy"))?;
+        let signed = lines
+            .iter()
+            .position(|line| line.contains("codesign --force"))
+            .ok_or_else(|| Failure::new("The Mac fixture lacks signing"))?;
+        lines.swap(copied, signed);
+        *node(step, &["run"])? = Yaml::String(lines.join("\n"));
+        assert!(mac_sandbox(&changed).is_err());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mac_payload_permission_query_checks_other_users_on_real_files() -> std::io::Result<()> {
+        use std::{fs, io, os::unix::fs::PermissionsExt, process::Command};
+        let document = workflow(
+            include_str!("../../.github/workflows/native-delivery.yml"),
+            DELIVERY,
+        )
+        .map_err(|error| io::Error::other(error.to_string()))?;
+        let run = document["jobs"]["signing"]["steps"]
+            .as_vec()
+            .and_then(|steps| {
+                steps
+                    .iter()
+                    .find(|step| step["name"].as_str() == Some("Verify the signed Mac sandbox"))
+            })
+            .and_then(|step| step["run"].as_str())
+            .ok_or_else(|| io::Error::other("The Mac fixture lacks permission commands"))?;
+        let query = run
+            .lines()
+            .find(|line| line.starts_with("unreadable_payload="))
+            .ok_or_else(|| io::Error::other("The Mac fixture lacks a payload permission query"))?;
+        let script = format!("{query}\ntest -z \"$unreadable_payload\"");
+        let fixture = crate::scratch::Scratch::new("mac-payload-permissions")?;
+        fixture.write("nested/profile", "public profile")?;
+        fs::set_permissions(fixture.path(), fs::Permissions::from_mode(0o755))?;
+        for (file, directory, accepted) in [
+            (0o644, 0o755, true),
+            (0o600, 0o755, false),
+            (0o640, 0o755, false),
+            (0o644, 0o700, false),
+            (0o444, 0o555, true),
+            (0o644, 0o744, false),
+            (0o644, 0o711, false),
+        ] {
+            fs::set_permissions(
+                fixture.path().join("nested/profile"),
+                fs::Permissions::from_mode(file),
+            )?;
+            fs::set_permissions(
+                fixture.path().join("nested"),
+                fs::Permissions::from_mode(directory),
+            )?;
+            let output = Command::new("bash")
+                .args(["-eu", "-c", &script])
+                .env("exported_app", fixture.path())
+                .output()?;
+            fs::set_permissions(
+                fixture.path().join("nested"),
+                fs::Permissions::from_mode(0o755),
+            )?;
+            assert_eq!(
+                output.status.success(),
+                accepted,
+                "{file:o}: {directory:o}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn mac_sandbox_requires_the_qualified_source_and_preserved_app() -> Result<()> {
         let delivery = include_str!("../../.github/workflows/native-delivery.yml");
         let original = workflow(delivery, DELIVERY)?;
@@ -1427,6 +1537,9 @@ mod tests {
                 "plutil -insert 'com\\.apple\\.developer\\.team-identifier'",
             ),
             ("Sign the preserved Mac app", "embedded.provisionprofile"),
+            ("Sign the preserved Mac app", "install -m 644"),
+            ("Verify the signed Mac sandbox", "unreadable_payload="),
+            ("Verify the signed Mac sandbox", "test -z"),
             ("Create the signed Mac package", "jq -er '.subject'"),
             ("Sign the preserved Mac app", "codesign --force"),
             ("Create the signed Mac package", "productbuild --sign"),

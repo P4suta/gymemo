@@ -280,7 +280,7 @@ jobs:
           cp qualified-source/Config/Mac.entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
           plutil -insert 'com\.apple\.application-identifier' -string "$APPLE_TEAM_ID.com.p4suta.gymemo" "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
           plutil -insert 'com\.apple\.developer\.team-identifier' -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
-          cp "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile"
+          install -m 644 "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" "$MAC_APP/Contents/embedded.provisionprofile"
           codesign --force --sign 'Apple Distribution' --keychain "$RUNNER_TEMP/gymemo-application.keychain-db" --entitlements "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist" "$MAC_APP"
           codesign --verify --deep --strict "$MAC_APP"
       - name: Create the signed Mac package
@@ -300,6 +300,9 @@ jobs:
         run: |
           pkgutil --expand-full signed/gymemo.pkg "$RUNNER_TEMP/gymemo-export"
           exported_app="$(find "$RUNNER_TEMP/gymemo-export" -type d -name gymemo.app -print)"
+          unreadable_payload="$(find "$exported_app" \( -type f ! -perm -004 -o -type d ! -perm -005 \) -print)"
+          printf '%s\n' "$unreadable_payload"
+          test -z "$unreadable_payload"
           codesign --verify --deep --strict "$exported_app"
           codesign -d --entitlements - --xml "$exported_app" > "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
           test "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist")" = true
