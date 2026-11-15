@@ -265,11 +265,16 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           MAC_APP: candidate/gymemo.xcarchive/Products/Applications/gymemo.app
         run: |
+          set -o pipefail
           test -n "$APPLE_TEAM_ID"
           codesign --force --sign - --entitlements qualified-source/Config/Mac.entitlements "$MAC_APP"
           security cms -D -i "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" > "$RUNNER_TEMP/gymemo-signing/mac-profile.plist"
           cp .github/export-options/macos.plist "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
           plutil -insert teamID -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
+          installer_identity="$(security find-certificate -c '3rd Party Mac Developer Installer' -p "$RUNNER_TEMP/gymemo-installer.keychain-db" | openssl x509 -noout -fingerprint -sha1)"
+          installer_identity="${installer_identity#*=}"
+          installer_identity="${installer_identity//:/}"
+          plutil -insert installerSigningCertificate -string "$installer_identity" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
           plutil -insert 'provisioningProfiles.com\.p4suta\.gymemo' -string "$(plutil -extract UUID raw -o - "$RUNNER_TEMP/gymemo-signing/mac-profile.plist")" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
           mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --export-options "$RUNNER_TEMP/gymemo-signing/mac-options.plist" --xcodebuild-flag=-verbose --timeout 20m
           pkgutil --check-signature signed/gymemo.pkg

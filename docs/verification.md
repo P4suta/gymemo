@@ -120,6 +120,9 @@ The workflow binds the installed iPhone and Watch profile UUIDs, preserves the b
 The native source gate refuses implicit iOS export options.
 Mac export restores `Config/Mac.entitlements` from the qualified source commit on the extracted archive with an ad hoc signature.
 The workflow uses explicit manual export options with the installed Mac profile UUID, both distribution identity selectors, and the original build number.
+The installer selector comes from the verified certificate in the dedicated keychain because Xcode's automatic selector doesn't resolve the installed certificate.
+SHA-1 identifies the certificate for Xcode.
+The importer still verifies the identity with SHA-256.
 Xcode produces the distribution-signed package using Apple's [archive export procedure](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac).
 Before preservation, the workflow expands the package, verifies the app signature, and requires App Sandbox and user-selected file permissions in the final entitlements.
 The native source gate rejects missing qualified entitlements, implicit Mac export options, and omitted sandbox checks.

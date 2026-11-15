@@ -178,7 +178,12 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
         (
             "Export a signed Mac package without uploading",
             &[
+                "set -o pipefail",
                 r#"codesign --force --sign - --entitlements qualified-source/Config/Mac.entitlements "$MAC_APP""#,
+                r#"installer_identity="$(security find-certificate -c '3rd Party Mac Developer Installer' -p "$RUNNER_TEMP/gymemo-installer.keychain-db" | openssl x509 -noout -fingerprint -sha1)""#,
+                r#"installer_identity="${installer_identity#*=}""#,
+                r#"installer_identity="${installer_identity//:/}""#,
+                r#"plutil -insert installerSigningCertificate -string "$installer_identity" "$RUNNER_TEMP/gymemo-signing/mac-options.plist""#,
                 r#"mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --export-options "$RUNNER_TEMP/gymemo-signing/mac-options.plist" --xcodebuild-flag=-verbose --timeout 20m"#,
             ],
         ),
@@ -598,6 +603,27 @@ mod tests {
     }
 
     #[test]
+    fn mac_export_rejects_an_implicit_installer_identity() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let mut changed = workflow(delivery, DELIVERY)?;
+        let step = signing_step(
+            &mut changed,
+            "Export a signed Mac package without uploading",
+        )?;
+        let run = step["run"]
+            .as_str()
+            .ok_or_else(|| Failure::new("The export fixture requires commands"))?;
+        let implicit = run
+            .lines()
+            .filter(|line| !line.contains("installer_identity"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        *node(step, &["run"])? = Yaml::String(implicit);
+        assert!(mac_sandbox(&changed).is_err());
+        Ok(())
+    }
+
+    #[test]
     fn mac_sandbox_requires_the_qualified_source_and_preserved_app() -> Result<()> {
         let delivery = include_str!("../../.github/workflows/native-delivery.yml");
         let original = workflow(delivery, DELIVERY)?;
@@ -641,6 +667,26 @@ mod tests {
         let delivery = include_str!("../../.github/workflows/native-delivery.yml");
         let original = workflow(delivery, DELIVERY)?;
         for (name, fragment) in [
+            (
+                "Export a signed Mac package without uploading",
+                "set -o pipefail",
+            ),
+            (
+                "Export a signed Mac package without uploading",
+                "security find-certificate",
+            ),
+            (
+                "Export a signed Mac package without uploading",
+                "installer_identity#*=",
+            ),
+            (
+                "Export a signed Mac package without uploading",
+                "installer_identity//:/",
+            ),
+            (
+                "Export a signed Mac package without uploading",
+                "plutil -insert installerSigningCertificate",
+            ),
             (
                 "Export a signed Mac package without uploading",
                 "codesign --force",
