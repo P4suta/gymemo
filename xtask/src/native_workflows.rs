@@ -679,6 +679,19 @@ mod tests {
     fn installer_builds_reject_credential_scope_and_repeated_attestations() -> Result<()> {
         for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
             let original = workflow(source, &[])?;
+            let mut extended = original.clone();
+            let Yaml::Array(steps) = node(&mut extended, &["jobs", "installer-tool", "steps"])?
+            else {
+                return Err(Failure::new("The installer fixture requires build steps"));
+            };
+            let mut metadata = steps
+                .iter()
+                .find(|step| step["with"]["subject-path"].as_str() == Some("target/debug/xtask"))
+                .ok_or_else(|| Failure::new("The installer fixture lacks provenance"))?
+                .clone();
+            *node(&mut metadata, &["with", "subject-path"])? = Yaml::String("Cargo.lock".into());
+            steps.push(metadata);
+            installer_tools(&extended, name, consumer, verification, import, condition)?;
             let private_environment = workflow("PRIVATE: ${{ secrets.PRIVATE }}", &[])?;
             for (path, field, value) in [
                 (
@@ -736,6 +749,18 @@ mod tests {
     fn installer_verification_must_precede_private_inputs_without_skips() -> Result<()> {
         for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
             let original = workflow(source, &[])?;
+            assert!(
+                installer_tools(
+                    &original,
+                    name,
+                    consumer,
+                    verification,
+                    verification,
+                    condition
+                )
+                .is_err(),
+                "{name}: shared verification and import step"
+            );
             for reordered in [false, true] {
                 let mut changed = original.clone();
                 let Yaml::Array(steps) = node(&mut changed, &["jobs", consumer, "steps"])? else {
