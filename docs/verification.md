@@ -106,6 +106,7 @@ The workflow attests the preserved bytes.
 `mise x -- just verify-native PLATFORM SHA RUN` rechecks qualification, the successful build run, provenance, checksums, and SBOM before signing.
 The protected signing job uses the selected distribution identities in temporary keychains and exports from that preserved archive.
 `mise x -- just install-mac-installer KEYCHAIN PASSWORD_FILE CERT_SHA256` plans the import without reading credentials.
+Before a local import, run `mise x -- just build-installer-tool` without signing credentials to build the controller and its sibling Security bridge.
 With `--confirm`, the command reads the installer certificate and password from the protected `gymemo/ci_native_signing` environment.
 It requires one identity with the Mac App Store installer subject, its private key, the expected certificate fingerprint, and basic certificate trust.
 It checks the critical extensions of Apple's [installer submission profile](https://images.apple.com/certificateauthority/pdf/Apple_WWDR_CPS_v1.32.pdf#page=34), including digital signatures, package signing, and the installer marker.

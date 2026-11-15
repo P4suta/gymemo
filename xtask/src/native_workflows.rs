@@ -255,19 +255,94 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum ExpressionRegion {
+    Text,
+    Code { property: bool },
+    SingleQuoted,
+}
+
+fn expression_uses_secrets(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut at = 0;
+    let mut region = ExpressionRegion::Text;
+    while at < bytes.len() {
+        match region {
+            ExpressionRegion::Text => {
+                if bytes[at..].starts_with(b"${{") {
+                    region = ExpressionRegion::Code { property: false };
+                    at += 3;
+                } else {
+                    at += 1;
+                }
+            }
+            ExpressionRegion::Code { property } => {
+                if bytes[at..].starts_with(b"}}") {
+                    region = ExpressionRegion::Text;
+                    at += 2;
+                } else if bytes[at] == b'\'' {
+                    region = ExpressionRegion::SingleQuoted;
+                    at += 1;
+                } else if bytes[at].is_ascii_alphabetic() || bytes[at] == b'_' {
+                    let start = at;
+                    at += 1;
+                    while at < bytes.len()
+                        && (bytes[at].is_ascii_alphanumeric() || matches!(bytes[at], b'_' | b'-'))
+                    {
+                        at += 1;
+                    }
+                    if !property && bytes[start..at].eq_ignore_ascii_case(b"secrets") {
+                        return true;
+                    }
+                    region = ExpressionRegion::Code { property: false };
+                } else {
+                    if !bytes[at].is_ascii_whitespace() {
+                        region = ExpressionRegion::Code {
+                            property: bytes[at] == b'.',
+                        };
+                    }
+                    at += 1;
+                }
+            }
+            ExpressionRegion::SingleQuoted => {
+                if bytes[at..].starts_with(b"''") {
+                    at += 2;
+                } else {
+                    if bytes[at] == b'\'' {
+                        region = ExpressionRegion::Code { property: false };
+                    }
+                    at += 1;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn yaml_uses_secrets(value: &Yaml) -> bool {
+    match value {
+        Yaml::String(value) => expression_uses_secrets(value),
+        Yaml::Array(values) => values.iter().any(yaml_uses_secrets),
+        Yaml::Hash(values) => values
+            .iter()
+            .any(|(key, value)| yaml_uses_secrets(key) || yaml_uses_secrets(value)),
+        _ => false,
+    }
+}
+
 fn installer_tools(
     document: &Yaml,
     workflow_name: &str,
     consumer: &str,
     verification: &str,
-    import: &str,
+    private_steps: &[&str],
     condition: Option<&str>,
 ) -> Result<()> {
     let builder = &document["jobs"]["installer-tool"];
     ensure(
         builder["environment"] == Yaml::BadValue
-            && !format!("{builder:?}").contains("secrets.")
-            && !format!("{:?}", document["env"]).contains("secrets."),
+            && !yaml_uses_secrets(builder)
+            && !yaml_uses_secrets(&document["env"]),
         || "Installer tools must be built without private credentials".into(),
     )?;
     let steps = builder["steps"]
@@ -323,9 +398,14 @@ fn installer_tools(
             .ok_or_else(|| Failure::new(format!("The installer workflow requires {name}")))
     };
     let verified = position(verification)?;
-    ensure(verified < position(import)?, || {
-        "Verify both installer executables before private inputs".into()
+    ensure(!private_steps.is_empty(), || {
+        "Installer verification requires private-input boundaries".into()
     })?;
+    for private in private_steps {
+        ensure(verified < position(private)?, || {
+            "Verify both installer executables before private inputs".into()
+        })?;
+    }
     let selected = &steps[verified];
     ensure(
         match condition {
@@ -377,7 +457,10 @@ pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
             "native-delivery.yml",
             "signing",
             "Verify the installer importer source",
-            "Install the macOS profile and installer identity",
+            &[
+                "Install the expected application signing identity",
+                "Install the macOS profile and installer identity",
+            ][..],
             Some("github.run_attempt == 1 && inputs.platform == 'macOS'"),
         ),
         (
@@ -385,7 +468,7 @@ pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
             "native-credentials.yml",
             "installer",
             "Verify the importer source",
-            "Verify the selected Mac App Store installer identity",
+            &["Verify the selected Mac App Store installer identity"][..],
             None,
         ),
     ] {
@@ -589,7 +672,7 @@ mod tests {
         &'static str,
         &'static str,
         &'static str,
-        &'static str,
+        &'static [&'static str],
         Option<&'static str>,
     );
 
@@ -599,7 +682,10 @@ mod tests {
             "native-delivery.yml",
             "signing",
             "Verify the installer importer source",
-            "Install the macOS profile and installer identity",
+            &[
+                "Install the expected application signing identity",
+                "Install the macOS profile and installer identity",
+            ],
             Some("github.run_attempt == 1 && inputs.platform == 'macOS'"),
         ),
         (
@@ -607,7 +693,7 @@ mod tests {
             "native-credentials.yml",
             "installer",
             "Verify the importer source",
-            "Verify the selected Mac App Store installer identity",
+            &["Verify the selected Mac App Store installer identity"],
             None,
         ),
     ];
@@ -755,13 +841,18 @@ mod tests {
                     name,
                     consumer,
                     verification,
-                    verification,
+                    &[verification],
                     condition
                 )
                 .is_err(),
                 "{name}: shared verification and import step"
             );
-            for reordered in [false, true] {
+            assert!(
+                installer_tools(&original, name, consumer, verification, &[], condition).is_err()
+            );
+            for (import_step, reordered) in
+                import.iter().flat_map(|step| [(step, false), (step, true)])
+            {
                 let mut changed = original.clone();
                 let Yaml::Array(steps) = node(&mut changed, &["jobs", consumer, "steps"])? else {
                     return Err(Failure::new(
@@ -777,7 +868,7 @@ mod tests {
                         })
                 };
                 let verify = position(verification)?;
-                let private = position(import)?;
+                let private = position(import_step)?;
                 if reordered {
                     steps.swap(verify, private);
                 } else {
@@ -796,6 +887,92 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    #[test]
+    fn installer_builds_refuse_indexed_and_whole_secret_contexts() -> Result<()> {
+        for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
+            for expression in ["${{ secrets['PRIVATE'] }}", "${{ toJSON(secrets) }}"] {
+                for path in [vec!["jobs", "installer-tool"], vec![]] {
+                    let mut changed = workflow(source, &[])?;
+                    let environment = workflow(&format!("PRIVATE: {expression}"), &[])?;
+                    let Yaml::Hash(fields) = node(&mut changed, &path)? else {
+                        return Err(Failure::new("The installer fixture requires a mapping"));
+                    };
+                    fields.insert(Yaml::String("env".into()), environment);
+                    assert!(
+                        installer_tools(&changed, name, consumer, verification, import, condition)
+                            .is_err(),
+                        "{name}: {expression}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn installer_verification_precedes_private_app_inputs() -> Result<()> {
+        let mut changed = workflow(
+            include_str!("../../.github/workflows/native-delivery.yml"),
+            DELIVERY,
+        )?;
+        let Yaml::Array(steps) = node(&mut changed, &["jobs", "signing", "steps"])? else {
+            return Err(Failure::new("The delivery fixture requires signing steps"));
+        };
+        let verification = steps
+            .iter()
+            .position(|step| step["name"].as_str() == Some("Verify the installer importer source"))
+            .ok_or_else(|| Failure::new("The delivery fixture lacks verification"))?;
+        let private = steps
+            .iter()
+            .position(|step| {
+                step["name"].as_str() == Some("Install the expected application signing identity")
+            })
+            .ok_or_else(|| Failure::new("The delivery fixture lacks private app inputs"))?;
+        steps.swap(verification, private);
+        assert!(
+            installer_tools(
+                &changed,
+                "native-delivery.yml",
+                "signing",
+                "Verify the installer importer source",
+                &[
+                    "Install the expected application signing identity",
+                    "Install the macOS profile and installer identity"
+                ],
+                Some("github.run_attempt == 1 && inputs.platform == 'macOS'")
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn detects_secret_contexts_without_matching_properties_or_literals() {
+        for expression in [
+            "${{ secrets.PRIVATE }}",
+            "${{ secrets['PRIVATE'] }}",
+            "${{ SECRETS . PRIVATE }}",
+            "${{ toJSON(secrets) }}",
+            "prefix ${{ join(fromJSON(toJSON(secrets)), ',') }} suffix",
+            "${{ format('}} it''s text', secrets.PRIVATE) }}",
+            "${{ inputs.value }} ${{ secrets.PRIVATE }}",
+        ] {
+            assert!(expression_uses_secrets(expression), "{expression}");
+        }
+        for expression in [
+            "Build without secrets.PRIVATE",
+            "${{ 'secrets' }}",
+            "${{ 'it''s secrets.PRIVATE' }}",
+            "${{ inputs.secrets }}",
+            "${{ inputs . secrets }}",
+            "${{ inputs['secrets'] }}",
+            "${{ secrets_extra }}",
+            "secrets.PRIVATE ${{ inputs.value }}",
+        ] {
+            assert!(!expression_uses_secrets(expression), "{expression}");
+        }
     }
 
     #[test]
