@@ -255,9 +255,12 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
         run: |
           test -n "$APPLE_TEAM_ID"
-          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m
+          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --xcodebuild-flag=-verbose --timeout 20m
           pkgutil --check-signature signed/gymemo.pkg
           shasum -a 256 signed/gymemo.pkg > signed/SHA256SUMS
+      - name: Print Mac export diagnostics after failure
+        if: failure() && github.run_attempt == 1 && inputs.platform == 'macOS'
+        run: find "$TMPDIR" -type f -path '*/gymemo_*.xcdistributionlogs/*.log' -exec tail -n 160 {} +
       - name: Inventory the final signed package contents
         if: github.run_attempt == 1
         env:
