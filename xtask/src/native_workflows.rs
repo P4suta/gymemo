@@ -255,12 +255,219 @@ fn mac_sandbox(delivery: &Yaml) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum ExpressionRegion {
+    Text,
+    Code,
+    Property,
+    SingleQuoted,
+}
+
+fn expression_uses_secrets(value: &str) -> bool {
+    let mut characters = value.chars().peekable();
+    let mut region = ExpressionRegion::Text;
+    while let Some(character) = characters.next() {
+        match region {
+            ExpressionRegion::Text => {
+                if character == '$'
+                    && characters.next_if_eq(&'{').is_some()
+                    && characters.next_if_eq(&'{').is_some()
+                {
+                    region = ExpressionRegion::Code;
+                }
+            }
+            ExpressionRegion::Code | ExpressionRegion::Property => {
+                if character == '}' && characters.next_if_eq(&'}').is_some() {
+                    region = ExpressionRegion::Text;
+                } else if character == '\'' {
+                    region = ExpressionRegion::SingleQuoted;
+                } else if character.is_ascii_alphabetic() || character == '_' {
+                    let mut identifier = character.to_string();
+                    while let Some(character) = characters.next_if(|character| {
+                        character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+                    }) {
+                        identifier.push(character);
+                    }
+                    if matches!(region, ExpressionRegion::Code)
+                        && identifier.eq_ignore_ascii_case("secrets")
+                    {
+                        return true;
+                    }
+                    region = ExpressionRegion::Code;
+                } else if !character.is_ascii_whitespace() {
+                    region = if character == '.' {
+                        ExpressionRegion::Property
+                    } else {
+                        ExpressionRegion::Code
+                    };
+                }
+            }
+            ExpressionRegion::SingleQuoted => {
+                if character == '\'' && characters.next_if_eq(&'\'').is_none() {
+                    region = ExpressionRegion::Code;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn yaml_uses_secrets(value: &Yaml) -> bool {
+    match value {
+        Yaml::String(value) => expression_uses_secrets(value),
+        Yaml::Array(values) => values.iter().any(yaml_uses_secrets),
+        Yaml::Hash(values) => values
+            .iter()
+            .any(|(key, value)| yaml_uses_secrets(key) || yaml_uses_secrets(value)),
+        _ => false,
+    }
+}
+
+fn installer_tools(
+    document: &Yaml,
+    workflow_name: &str,
+    consumer: &str,
+    verification: &str,
+    private_steps: &[&str],
+    condition: Option<&str>,
+) -> Result<()> {
+    let builder = &document["jobs"]["installer-tool"];
+    ensure(
+        builder["environment"] == Yaml::BadValue
+            && !yaml_uses_secrets(builder)
+            && !yaml_uses_secrets(&document["env"]),
+        || "Installer tools must be built without private credentials".into(),
+    )?;
+    let steps = builder["steps"]
+        .as_vec()
+        .ok_or_else(|| Failure::new("The installer tool build requires steps"))?;
+    ensure(
+        steps.iter().any(|step| {
+            step["run"].as_str() == Some("mise x -- just build-installer-tool")
+                && step["if"] == Yaml::BadValue
+        }),
+        || "The installer controller and native bridge must be built together".into(),
+    )?;
+    for binary in ["xtask", "installer-import"] {
+        let path = format!("target/debug/{binary}");
+        ensure(
+            steps
+                .iter()
+                .filter(|step| {
+                    step["with"]["subject-path"].as_str() == Some(path.as_str())
+                        && step["if"] == Yaml::BadValue
+                        && step["uses"].as_str().is_some_and(|action| {
+                            action.starts_with("actions/attest-build-provenance@")
+                        })
+                })
+                .count()
+                == 1,
+            || format!("Installer provenance requires exactly one attestation for {binary}"),
+        )?;
+    }
+    ensure(
+        steps.iter().any(|step| {
+            step["id"].as_str() == Some("artifact")
+                && step["with"]["path"].as_str().is_some_and(|path| {
+                    path.lines()
+                        .eq(["target/debug/xtask", "target/debug/installer-import"])
+                })
+                && step["if"] == Yaml::BadValue
+        }),
+        || "The installer artifact must contain both executables".into(),
+    )?;
+    let job = &document["jobs"][consumer];
+    ensure(
+        prerequisites(&job["needs"])?.contains("installer-tool"),
+        || "Installer credentials must depend on the tool build".into(),
+    )?;
+    let steps = job["steps"]
+        .as_vec()
+        .ok_or_else(|| Failure::new("Installer verification requires steps"))?;
+    let position = |name| {
+        steps
+            .iter()
+            .position(|step| step["name"].as_str() == Some(name))
+            .ok_or_else(|| Failure::new(format!("The installer workflow requires {name}")))
+    };
+    let verified = position(verification)?;
+    ensure(!private_steps.is_empty(), || {
+        "Installer verification requires private-input boundaries".into()
+    })?;
+    for private in private_steps {
+        ensure(verified < position(private)?, || {
+            "Verify both installer executables before private inputs".into()
+        })?;
+    }
+    let selected = &steps[verified];
+    ensure(
+        match condition {
+            Some(expected) => selected["if"].as_str() == Some(expected),
+            None => selected["if"] == Yaml::BadValue,
+        },
+        || "Installer provenance verification must remain reachable".into(),
+    )?;
+    let run = selected["run"]
+        .as_str()
+        .ok_or_else(|| Failure::new("Installer provenance verification requires commands"))?;
+    for binary in ["xtask", "installer-import"] {
+        let command = format!(
+            r#"gh attestation verify installer-tool/{binary} --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/{workflow_name}" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA""#
+        );
+        ensure(run.lines().any(|line| line.trim() == command), || {
+            format!("Verify installer provenance for {binary}")
+        })?;
+    }
+    ensure(
+        run.lines().any(|line| {
+            line.trim() == "chmod 700 installer-tool/xtask installer-tool/installer-import"
+        }),
+        || "Protect both verified installer executables before use".into(),
+    )?;
+    ensure(
+        steps.iter().all(|step| {
+            step["run"].as_str().is_none_or(|run| {
+                !["cargo build", "swiftc", "just build-installer-tool"]
+                    .iter()
+                    .any(|command| run.contains(command))
+            })
+        }),
+        || "Build installer tools before the protected credential job".into(),
+    )?;
+    Ok(())
+}
+
 pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
     let mut source = |path: &str| {
         host.read(&root.join(path))
             .map_err(|error| Failure::new(format!("Read {path}: {error}")))
     };
     let delivery = workflow(&source(".github/workflows/native-delivery.yml")?, DELIVERY)?;
+    let credentials = workflow(&source(".github/workflows/native-credentials.yml")?, &[])?;
+    for (document, name, consumer, verification, import, condition) in [
+        (
+            &delivery,
+            "native-delivery.yml",
+            "signing",
+            "Verify the installer importer source",
+            &[
+                "Install the expected application signing identity",
+                "Install the macOS profile and installer identity",
+            ][..],
+            Some("github.run_attempt == 1 && inputs.platform == 'macOS'"),
+        ),
+        (
+            &credentials,
+            "native-credentials.yml",
+            "installer",
+            "Verify the importer source",
+            &["Verify the selected Mac App Store installer identity"][..],
+            None,
+        ),
+    ] {
+        installer_tools(document, name, consumer, verification, import, condition)?;
+    }
+    ensure(source("justfile")?.contains("build-installer-tool:\n    cargo build --locked -p xtask\n    xcrun swiftc -swift-version 6 -parse-as-library -warnings-as-errors -O xtask/native/InstallerImport.swift -o target/debug/installer-import"), || "The installer tool recipe requires a checked native bridge build".into())?;
     mac_sandbox(&delivery)?;
     let ios_export = delivery["jobs"]["signing"]["steps"]
         .as_vec()
@@ -435,6 +642,11 @@ mod tests {
         host.file("/repo/.github/workflows/native-delivery.yml", delivery);
         host.file("/repo/.github/workflows/native-upload.yml", upload);
         host.file("/repo/mise.toml", pins);
+        host.file(
+            "/repo/.github/workflows/native-credentials.yml",
+            include_str!("../../.github/workflows/native-credentials.yml"),
+        );
+        host.file("/repo/justfile", include_str!("../../justfile"));
         host
     }
 
@@ -446,6 +658,383 @@ mod tests {
             .iter_mut()
             .find(|step| step["name"].as_str() == Some(name))
             .ok_or_else(|| Failure::new(format!("The fixture lacks {name}")))
+    }
+
+    type InstallerCase = (
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static [&'static str],
+        Option<&'static str>,
+    );
+
+    const INSTALLER_CASES: [InstallerCase; 2] = [
+        (
+            include_str!("../../.github/workflows/native-delivery.yml"),
+            "native-delivery.yml",
+            "signing",
+            "Verify the installer importer source",
+            &[
+                "Install the expected application signing identity",
+                "Install the macOS profile and installer identity",
+            ],
+            Some("github.run_attempt == 1 && inputs.platform == 'macOS'"),
+        ),
+        (
+            include_str!("../../.github/workflows/native-credentials.yml"),
+            "native-credentials.yml",
+            "installer",
+            "Verify the importer source",
+            &["Verify the selected Mac App Store installer identity"],
+            None,
+        ),
+    ];
+
+    #[test]
+    fn installer_boundaries_reject_missing_builds_artifacts_and_provenance() -> Result<()> {
+        for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
+            installer_tools(
+                &workflow(source, &[])?,
+                name,
+                consumer,
+                verification,
+                import,
+                condition,
+            )?;
+            for (before, after) in [
+                (
+                    "mise x -- just build-installer-tool",
+                    "mise x -- cargo build --locked -p xtask",
+                ),
+                (
+                    "subject-path: target/debug/installer-import",
+                    "subject-path: target/debug/missing",
+                ),
+                (
+                    "subject-path: target/debug/xtask",
+                    "subject-path: target/debug/missing",
+                ),
+                (
+                    "            target/debug/installer-import",
+                    "            target/debug/missing",
+                ),
+                (
+                    "gh attestation verify installer-tool/installer-import",
+                    "false --",
+                ),
+                ("gh attestation verify installer-tool/xtask", "false --"),
+                (
+                    "chmod 700 installer-tool/xtask installer-tool/installer-import",
+                    "true",
+                ),
+                (
+                    "chmod 700 installer-tool/xtask installer-tool/installer-import",
+                    "cargo build --locked -p xtask",
+                ),
+                ("actions/attest-build-provenance@", "unrelated/action@"),
+                (
+                    "- run: mise x -- just build-installer-tool",
+                    "- if: false\n        run: mise x -- just build-installer-tool",
+                ),
+                (
+                    "- uses: actions/attest-build-provenance@",
+                    "- if: false\n        uses: actions/attest-build-provenance@",
+                ),
+            ] {
+                assert!(source.contains(before), "{name}: {before}");
+                let changed = workflow(&source.replace(before, after), &[])?;
+                assert!(
+                    installer_tools(&changed, name, consumer, verification, import, condition)
+                        .is_err(),
+                    "{name}: {before}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn installer_builds_reject_credential_scope_and_repeated_attestations() -> Result<()> {
+        for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
+            let original = workflow(source, &[])?;
+            let mut extended = original.clone();
+            let Yaml::Array(steps) = node(&mut extended, &["jobs", "installer-tool", "steps"])?
+            else {
+                return Err(Failure::new("The installer fixture requires build steps"));
+            };
+            let mut metadata = steps
+                .iter()
+                .find(|step| step["with"]["subject-path"].as_str() == Some("target/debug/xtask"))
+                .ok_or_else(|| Failure::new("The installer fixture lacks provenance"))?
+                .clone();
+            *node(&mut metadata, &["with", "subject-path"])? = Yaml::String("Cargo.lock".into());
+            steps.push(metadata);
+            installer_tools(&extended, name, consumer, verification, import, condition)?;
+            let private_environment = workflow("PRIVATE: ${{ secrets.PRIVATE }}", &[])?;
+            for (path, field, value) in [
+                (
+                    vec!["jobs", "installer-tool"],
+                    "environment",
+                    Yaml::String("native-signing".into()),
+                ),
+                (
+                    vec!["jobs", "installer-tool"],
+                    "env",
+                    private_environment.clone(),
+                ),
+                (vec![], "env", private_environment),
+                (
+                    vec!["jobs", consumer],
+                    "needs",
+                    Yaml::String("admission".into()),
+                ),
+            ] {
+                let mut changed = original.clone();
+                let Yaml::Hash(fields) = node(&mut changed, &path)? else {
+                    return Err(Failure::new("The installer fixture requires a mapping"));
+                };
+                fields.insert(Yaml::String(field.into()), value);
+                assert!(
+                    installer_tools(&changed, name, consumer, verification, import, condition)
+                        .is_err(),
+                    "{name}: {field}"
+                );
+            }
+            for binary in ["xtask", "installer-import"] {
+                let mut changed = original.clone();
+                let Yaml::Array(steps) = node(&mut changed, &["jobs", "installer-tool", "steps"])?
+                else {
+                    return Err(Failure::new("The installer fixture requires build steps"));
+                };
+                let path = format!("target/debug/{binary}");
+                let repeated = steps
+                    .iter()
+                    .find(|step| step["with"]["subject-path"].as_str() == Some(path.as_str()))
+                    .ok_or_else(|| Failure::new("The installer fixture lacks an attestation"))?
+                    .clone();
+                steps.push(repeated);
+                assert!(
+                    installer_tools(&changed, name, consumer, verification, import, condition)
+                        .is_err(),
+                    "{name}: {binary}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn installer_verification_must_precede_private_inputs_without_skips() -> Result<()> {
+        for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
+            let original = workflow(source, &[])?;
+            assert!(
+                installer_tools(
+                    &original,
+                    name,
+                    consumer,
+                    verification,
+                    &[verification],
+                    condition
+                )
+                .is_err(),
+                "{name}: shared verification and import step"
+            );
+            assert!(
+                installer_tools(&original, name, consumer, verification, &[], condition).is_err()
+            );
+            for (import_step, reordered) in
+                import.iter().flat_map(|step| [(step, false), (step, true)])
+            {
+                let mut changed = original.clone();
+                let Yaml::Array(steps) = node(&mut changed, &["jobs", consumer, "steps"])? else {
+                    return Err(Failure::new(
+                        "The installer fixture requires credential steps",
+                    ));
+                };
+                let position = |name| {
+                    steps
+                        .iter()
+                        .position(|step| step["name"].as_str() == Some(name))
+                        .ok_or_else(|| {
+                            Failure::new("The installer fixture lacks a credential step")
+                        })
+                };
+                let verify = position(verification)?;
+                let private = position(import_step)?;
+                if reordered {
+                    steps.swap(verify, private);
+                } else {
+                    let Yaml::Hash(fields) = &mut steps[verify] else {
+                        return Err(Failure::new(
+                            "The installer fixture requires a verification step",
+                        ));
+                    };
+                    fields.insert(Yaml::String("if".into()), Yaml::Boolean(false));
+                }
+                assert!(
+                    installer_tools(&changed, name, consumer, verification, import, condition)
+                        .is_err(),
+                    "{name}: {reordered}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn installer_builds_refuse_indexed_and_whole_secret_contexts() -> Result<()> {
+        for (source, name, consumer, verification, import, condition) in INSTALLER_CASES {
+            for expression in ["${{ secrets['PRIVATE'] }}", "${{ toJSON(secrets) }}"] {
+                for path in [vec!["jobs", "installer-tool"], vec![]] {
+                    let mut changed = workflow(source, &[])?;
+                    let environment = workflow(&format!("PRIVATE: {expression}"), &[])?;
+                    let Yaml::Hash(fields) = node(&mut changed, &path)? else {
+                        return Err(Failure::new("The installer fixture requires a mapping"));
+                    };
+                    fields.insert(Yaml::String("env".into()), environment);
+                    assert!(
+                        installer_tools(&changed, name, consumer, verification, import, condition)
+                            .is_err(),
+                        "{name}: {expression}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn installer_verification_precedes_private_app_inputs() -> Result<()> {
+        let mut changed = workflow(
+            include_str!("../../.github/workflows/native-delivery.yml"),
+            DELIVERY,
+        )?;
+        let Yaml::Array(steps) = node(&mut changed, &["jobs", "signing", "steps"])? else {
+            return Err(Failure::new("The delivery fixture requires signing steps"));
+        };
+        let verification = steps
+            .iter()
+            .position(|step| step["name"].as_str() == Some("Verify the installer importer source"))
+            .ok_or_else(|| Failure::new("The delivery fixture lacks verification"))?;
+        let private = steps
+            .iter()
+            .position(|step| {
+                step["name"].as_str() == Some("Install the expected application signing identity")
+            })
+            .ok_or_else(|| Failure::new("The delivery fixture lacks private app inputs"))?;
+        steps.swap(verification, private);
+        assert!(
+            installer_tools(
+                &changed,
+                "native-delivery.yml",
+                "signing",
+                "Verify the installer importer source",
+                &[
+                    "Install the expected application signing identity",
+                    "Install the macOS profile and installer identity"
+                ],
+                Some("github.run_attempt == 1 && inputs.platform == 'macOS'")
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn detects_secret_contexts_without_matching_properties_or_literals() {
+        for expression in [
+            "${{ secrets.PRIVATE }}",
+            "${{ secrets['PRIVATE'] }}",
+            "${{ SECRETS . PRIVATE }}",
+            "${{ toJSON(secrets) }}",
+            "prefix ${{ join(fromJSON(toJSON(secrets)), ',') }} suffix",
+            "${{ format('}} it''s text', secrets.PRIVATE) }}",
+            "${{ inputs.value }} ${{ secrets.PRIVATE }}",
+        ] {
+            assert!(expression_uses_secrets(expression), "{expression}");
+        }
+        for expression in [
+            "",
+            "${{",
+            "${{ inputs",
+            "${{ 'unfinished",
+            "${ secrets.PRIVATE }",
+            "{{ secrets.PRIVATE }}",
+            "Build without secrets.PRIVATE",
+            "${{ 'secrets' }}",
+            "${{ 'it''s secrets.PRIVATE' }}",
+            "${{ inputs.secrets }}",
+            "${{ inputs . secrets }}",
+            "${{ inputs['secrets'] }}",
+            "${{ secrets_extra }}",
+            "${{ _secrets }}",
+            "${{ secrets-name }}",
+            "secrets.PRIVATE ${{ inputs.value }}",
+        ] {
+            assert!(!expression_uses_secrets(expression), "{expression}");
+        }
+    }
+
+    #[test]
+    fn nested_yaml_secrets_refuse_mixed_collections_and_expression_keys() -> Result<()> {
+        for (source, expected) in [
+            (
+                "root:\n  - true\n  - nested: ${{ secrets.PRIVATE }}\n  - 12",
+                true,
+            ),
+            ("'${{ secrets.PRIVATE }}': public", true),
+            ("${{ toJSON(secrets) }}", true),
+            ("root:\n  - true\n  - 12\n  - plain", false),
+        ] {
+            assert_eq!(
+                yaml_uses_secrets(&workflow(source, &[])?),
+                expected,
+                "{source}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn installer_recipe_requires_the_native_bridge() -> Result<()> {
+        let mut host = source_host(
+            include_str!("../../.github/workflows/native-delivery.yml"),
+            include_str!("../../.github/workflows/native-upload.yml"),
+            include_str!("../../mise.toml"),
+        );
+        host.file(
+            "/repo/justfile",
+            "build-installer-tool:\n    cargo build --locked -p xtask\n",
+        );
+        assert!(check(&mut host, Path::new("/repo")).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_an_unattested_installer_bridge() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let upload = include_str!("../../.github/workflows/native-upload.yml");
+        let pins = include_str!("../../mise.toml");
+        let mut changed = workflow(delivery, DELIVERY)?;
+        let Yaml::Array(steps) = node(&mut changed, &["jobs", "installer-tool", "steps"])? else {
+            return Err(Failure::new("The importer fixture requires steps"));
+        };
+        let selected = steps
+            .iter_mut()
+            .find(|step| {
+                step["with"]["subject-path"].as_str() == Some("target/debug/installer-import")
+            })
+            .ok_or_else(|| Failure::new("The importer fixture lacks bridge provenance"))?;
+        *node(selected, &["with", "subject-path"])? = Yaml::Null;
+        assert!(
+            check(
+                &mut source_host(&render(&changed)?, upload, pins),
+                Path::new("/repo")
+            )
+            .is_err()
+        );
+        Ok(())
     }
 
     #[test]

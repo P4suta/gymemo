@@ -1,6 +1,6 @@
 set shell := ["sh", "-eu", "-c"]
 
-swift_paths := "Package.swift Sources Tests App UITests"
+swift_paths := "Package.swift Sources Tests App UITests xtask/native"
 project := "gymemo.xcodeproj"
 
 default:
@@ -38,6 +38,11 @@ prepare-native-upload *args:
 [positional-arguments]
 install-mac-installer *args:
     cargo run --locked -p xtask -- install-mac-installer "$@"
+
+# Builds the installer controller and its native Security bridge before signing inputs.
+build-installer-tool:
+    cargo build --locked -p xtask
+    xcrun swiftc -swift-version 6 -parse-as-library -warnings-as-errors -O xtask/native/InstallerImport.swift -o target/debug/installer-import
 
 # Checks the Rust dependency advisories, licenses, and registries.
 check-dependencies:

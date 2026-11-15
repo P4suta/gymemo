@@ -14,10 +14,35 @@ use std::{
 #[cfg(target_os = "macos")]
 pub(super) mod security;
 
+#[derive(Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ImportedIdentity {
     der: Vec<u8>,
     subject: String,
+    #[serde(rename = "privateKey")]
     private_key: bool,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ImportReport {
+    status: i32,
+    identities: Option<Vec<Option<ImportedIdentity>>>,
+}
+
+fn imported_identities(success: bool, output: &[u8]) -> Result<Vec<Option<ImportedIdentity>>> {
+    let report: ImportReport = serde_json::from_slice(output)
+        .map_err(|_| Failure::new("The native importer returned invalid public metadata"))?;
+    ensure(report.status == 0, || {
+        format!(
+            "The native importer failed with Security status {}",
+            report.status
+        )
+    })?;
+    ensure(success, || "The native importer process failed".into())?;
+    report
+        .identities
+        .ok_or_else(|| Failure::new("The native importer returned no identity metadata"))
 }
 
 trait KeychainApi {
@@ -30,6 +55,7 @@ trait KeychainApi {
         keychain: &Self::Keychain,
         data: &[u8],
         password: &str,
+        trusted_tool: &Path,
     ) -> Result<Vec<Option<ImportedIdentity>>>;
     fn settings(
         &mut self,
@@ -261,9 +287,12 @@ impl<H: Host, A: KeychainApi, E: Fn(&str) -> Result<String>> KeychainPort for Na
             .credentials
             .as_ref()
             .ok_or_else(|| Failure::new("The installer credentials were not loaded"))?;
-        let imported = self
-            .api
-            .import(keychain, &credentials.data, &credentials.password)?;
+        let imported = self.api.import(
+            keychain,
+            &credentials.data,
+            &credentials.password,
+            Path::new("/usr/bin/productbuild"),
+        )?;
         let destination = self.destination.clone();
         let valid = valid_identities(
             &self.command(
