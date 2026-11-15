@@ -148,6 +148,30 @@ pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
             .map_err(|error| Failure::new(format!("Read {path}: {error}")))
     };
     let delivery = workflow(&source(".github/workflows/native-delivery.yml")?, DELIVERY)?;
+    let ios_export = delivery["jobs"]["signing"]["steps"]
+        .as_vec()
+        .and_then(|steps| {
+            steps.iter().find(|step| {
+                step["name"].as_str() == Some("Export a signed iOS package without uploading")
+            })
+        })
+        .and_then(|step| step["run"].as_str());
+    ensure(
+        ios_export.is_some_and(|run| {
+            run.lines().any(|line| {
+                let command: Vec<_> = line.split_whitespace().collect();
+                command.starts_with(&["mise", "x", "--", "asc", "xcode", "export"])
+                    && command.windows(2).any(|arguments| {
+                        arguments
+                            == [
+                                "--export-options",
+                                r#""$RUNNER_TEMP/gymemo-signing/ios-options.plist""#,
+                            ]
+                    })
+            })
+        }),
+        || "Unsigned iOS export requires explicit provisioning options".into(),
+    )?;
     ensure(
         delivery["jobs"]["upload"]["uses"].as_str()
             == Some("./.github/workflows/native-upload.yml"),
@@ -171,7 +195,9 @@ pub fn check(host: &mut impl Host, root: &Path) -> Result<()> {
             == Some("1.7.12"),
         || "Review the local workflow compatibility exception when actionlint changes".into(),
     )?;
-    host.print("PASS native workflows: cancellation, prerequisites, and upload boundary");
+    host.print(
+        "PASS native workflows: cancellation, prerequisites, iOS export, and upload boundary",
+    );
     Ok(())
 }
 
@@ -367,6 +393,42 @@ mod tests {
             )
             .is_err()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn actual_gate_rejects_implicit_ios_export_options() -> Result<()> {
+        let delivery = include_str!("../../.github/workflows/native-delivery.yml");
+        let upload = include_str!("../../.github/workflows/native-upload.yml");
+        let pins = include_str!("../../mise.toml");
+        let original = workflow(delivery, DELIVERY)?;
+        for run in [
+            r#"mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --ipa-path signed/gymemo.ipa --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m"#,
+            r#"echo --export-options "$RUNNER_TEMP/gymemo-signing/ios-options.plist""#,
+            "mise x -- asc xcode export --export-options other.plist",
+            "mise x -- asc xcode export --export-options",
+            "",
+        ] {
+            let mut changed = original.clone();
+            let Yaml::Array(steps) = node(&mut changed, &["jobs", "signing", "steps"])? else {
+                return Err(Failure::new("The signing fixture requires steps"));
+            };
+            let step = steps
+                .iter_mut()
+                .find(|step| {
+                    step["name"].as_str() == Some("Export a signed iOS package without uploading")
+                })
+                .ok_or_else(|| Failure::new("The fixture lacks the iOS export"))?;
+            *node(step, &["run"])? = Yaml::String(run.into());
+            assert!(
+                check(
+                    &mut source_host(&render(&changed)?, upload, pins),
+                    Path::new("/repo")
+                )
+                .is_err(),
+                "{run}"
+            );
+        }
         Ok(())
     }
 
