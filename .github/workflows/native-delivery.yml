@@ -132,6 +132,7 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             mise.toml
+            .github/export-options/ios.plist
             .github/export-options/visionos.plist
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
@@ -231,7 +232,13 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
         run: |
           test -n "$APPLE_TEAM_ID"
-          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --ipa-path signed/gymemo.ipa --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --timeout 20m
+          security cms -D -i "$RUNNER_TEMP/gymemo-signing/ios.mobileprovision" > "$RUNNER_TEMP/gymemo-signing/ios-profile.plist"
+          security cms -D -i "$RUNNER_TEMP/gymemo-signing/watch.mobileprovision" > "$RUNNER_TEMP/gymemo-signing/watch-profile.plist"
+          cp .github/export-options/ios.plist "$RUNNER_TEMP/gymemo-signing/ios-options.plist"
+          plutil -insert teamID -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/ios-options.plist"
+          plutil -insert 'provisioningProfiles.com\.p4suta\.gymemo' -string "$(plutil -extract UUID raw -o - "$RUNNER_TEMP/gymemo-signing/ios-profile.plist")" "$RUNNER_TEMP/gymemo-signing/ios-options.plist"
+          plutil -insert 'provisioningProfiles.com\.p4suta\.gymemo\.watchkitapp' -string "$(plutil -extract UUID raw -o - "$RUNNER_TEMP/gymemo-signing/watch-profile.plist")" "$RUNNER_TEMP/gymemo-signing/ios-options.plist"
+          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --ipa-path signed/gymemo.ipa --export-options "$RUNNER_TEMP/gymemo-signing/ios-options.plist" --timeout 20m
           ditto -x -k signed/gymemo.ipa "$RUNNER_TEMP/gymemo-export"
           codesign --verify --deep --strict "$RUNNER_TEMP/gymemo-export/Payload/gymemo.app"
           shasum -a 256 signed/gymemo.ipa > signed/SHA256SUMS

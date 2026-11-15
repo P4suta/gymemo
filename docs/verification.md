@@ -115,6 +115,9 @@ A failed import restores the search policy and deletes its own keychain.
 Both credential verification and delivery build the importer in a separate job without signing secrets and verify its provenance before use.
 Artifacts passed across approval gates stay available for 35 days, matching GitHub's [workflow execution limit](https://docs.github.com/en/actions/reference/limits).
 visionOS uses explicit export options because the provider CLI can't generate its manual signing options.
+iOS also uses explicit options because the qualified unsigned archive has no embedded provisioning profile for the CLI's [manual-option generation](https://github.com/rorkai/App-Store-Connect-CLI/blob/6.6.0/internal/xcode/export_options.go#L127-L135).
+The workflow binds the installed iPhone and Watch profile UUIDs, preserves the build number, and exports without uploading.
+The native source gate refuses implicit iOS export options.
 A fresh job validates the signed package's dependency inventory and checksums.
 The upload job requires its own approval and App Store Connect key and receives the verified bytes.
 An uncertain upload requires provider reconciliation before retrying.
