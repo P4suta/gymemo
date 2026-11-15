@@ -133,7 +133,17 @@ jobs:
           sparse-checkout: |
             mise.toml
             .github/export-options/ios.plist
+            .github/export-options/macos.plist
             .github/export-options/visionos.plist
+      - name: Read the qualified Mac sandbox configuration
+        if: github.run_attempt == 1 && inputs.platform == 'macOS'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: qualified-source
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: Config/Mac.entitlements
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
@@ -253,23 +263,34 @@ jobs:
         if: github.run_attempt == 1 && inputs.platform == 'macOS'
         env:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          MAC_APP: candidate/gymemo.xcarchive/Products/Applications/gymemo.app
         run: |
           test -n "$APPLE_TEAM_ID"
-          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --method app-store-connect --signing-style manual --team-id "$APPLE_TEAM_ID" --xcodebuild-flag=-verbose --timeout 20m
+          codesign --force --sign - --entitlements qualified-source/Config/Mac.entitlements "$MAC_APP"
+          security cms -D -i "$RUNNER_TEMP/gymemo-signing/mac.provisionprofile" > "$RUNNER_TEMP/gymemo-signing/mac-profile.plist"
+          cp .github/export-options/macos.plist "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
+          plutil -insert teamID -string "$APPLE_TEAM_ID" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
+          plutil -insert 'provisioningProfiles.com\.p4suta\.gymemo' -string "$(plutil -extract UUID raw -o - "$RUNNER_TEMP/gymemo-signing/mac-profile.plist")" "$RUNNER_TEMP/gymemo-signing/mac-options.plist"
+          mise x -- asc xcode export --archive-path candidate/gymemo.xcarchive --pkg-path signed/gymemo.pkg --export-options "$RUNNER_TEMP/gymemo-signing/mac-options.plist" --xcodebuild-flag=-verbose --timeout 20m
           pkgutil --check-signature signed/gymemo.pkg
           shasum -a 256 signed/gymemo.pkg > signed/SHA256SUMS
       - name: Print Mac export diagnostics after failure
         if: failure() && github.run_attempt == 1 && inputs.platform == 'macOS'
         run: find "$TMPDIR" -type f -path '*/gymemo_*.xcdistributionlogs/*.log' -exec tail -n 160 {} +
+      - name: Verify the signed Mac sandbox
+        if: github.run_attempt == 1 && inputs.platform == 'macOS'
+        run: |
+          pkgutil --expand-full signed/gymemo.pkg "$RUNNER_TEMP/gymemo-export"
+          exported_app="$(find "$RUNNER_TEMP/gymemo-export" -type d -name gymemo.app -print)"
+          codesign --verify --deep --strict "$exported_app"
+          codesign -d --entitlements - --xml "$exported_app" > "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist"
+          test "$(plutil -extract 'com\.apple\.security\.app-sandbox' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist")" = true
+          test "$(plutil -extract 'com\.apple\.security\.files\.user-selected\.read-write' raw -o - "$RUNNER_TEMP/gymemo-signing/mac-entitlements.plist")" = true
       - name: Inventory the final signed package contents
         if: github.run_attempt == 1
         env:
           APP_VERSION: ${{ needs.admission.outputs.version }}
-          PLATFORM: ${{ inputs.platform }}
         run: |
-          if test "$PLATFORM" = macOS; then
-            pkgutil --expand-full signed/gymemo.pkg "$RUNNER_TEMP/gymemo-export"
-          fi
           mise x -- syft scan "dir:$RUNNER_TEMP/gymemo-export" --source-name gymemo --source-version "$APP_VERSION" --parallelism 2 --output cyclonedx-json=signed/native-sbom.cdx.json
           shasum -a 256 signed/native-sbom.cdx.json >> signed/SHA256SUMS
       - name: Preserve the signed package and its original source archive
