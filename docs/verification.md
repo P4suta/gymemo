@@ -111,6 +111,8 @@ With `--confirm`, the command reads the installer certificate and password from 
 It requires one identity with the Mac App Store installer subject, its private key, the expected certificate fingerprint, and basic certificate trust.
 It checks the critical extensions of Apple's [installer submission profile](https://images.apple.com/certificateauthority/pdf/Apple_WWDR_CPS_v1.32.pdf#page=34), including digital signatures, package signing, and the installer marker.
 The delivery job validates the exported package signature with `pkgutil --check-signature` after signing.
+The embedded Mac profile is copied with mode 644 before signing.
+The expanded package refuses files without read permission for other users and directories without read and search permission for other users.
 The new keychain preserves the default keychain and search list unless `--add-to-search-list` requests activation.
 A failed import restores the search policy and deletes its own keychain.
 Both credential verification and delivery build the Rust controller and its Swift Security bridge in a separate job without signing secrets.
