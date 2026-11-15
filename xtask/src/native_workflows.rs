@@ -959,6 +959,8 @@ mod tests {
             "${{",
             "${{ inputs",
             "${{ 'unfinished",
+            "${ secrets.PRIVATE }",
+            "{{ secrets.PRIVATE }}",
             "Build without secrets.PRIVATE",
             "${{ 'secrets' }}",
             "${{ 'it''s secrets.PRIVATE' }}",
