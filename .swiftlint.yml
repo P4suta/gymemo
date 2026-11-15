@@ -3,6 +3,7 @@ included:
   - Sources
   - Tests
   - UITests
+  - xtask/native
 only_rules:
   - force_cast
   - force_try

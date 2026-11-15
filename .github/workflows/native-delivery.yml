@@ -87,6 +87,7 @@ jobs:
       id-token: write # Attests the importer before it reaches the signing job.
       attestations: write # Binds the importer to the workflow source.
     env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     outputs:
@@ -98,16 +99,21 @@ jobs:
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: "2026.11.6"
-          install_args: rust
-      - run: mise x -- cargo build --locked -p xtask
+          install_args: rust just
+      - run: mise x -- just build-installer-tool
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: target/debug/xtask
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: target/debug/installer-import
       - id: artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: installer-tool-attempt-${{ github.run_attempt }}
-          path: target/debug/xtask
+          path: |
+            target/debug/xtask
+            target/debug/installer-import
           if-no-files-found: error
           retention-days: 35
   signing:
@@ -174,7 +180,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh attestation verify installer-tool/xtask --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
-          chmod 700 installer-tool/xtask
+          gh attestation verify installer-tool/installer-import --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/native-delivery.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA"
+          chmod 700 installer-tool/xtask installer-tool/installer-import
       - name: Install the expected application signing identity
         id: application
         if: github.run_attempt == 1

@@ -112,7 +112,13 @@ It checks the critical extensions of Apple's [installer submission profile](http
 The delivery job validates the exported package signature with `pkgutil --check-signature` after signing.
 The new keychain preserves the default keychain and search list unless `--add-to-search-list` requests activation.
 A failed import restores the search policy and deletes its own keychain.
-Both credential verification and delivery build the importer in a separate job without signing secrets and verify its provenance before use.
+Both credential verification and delivery build the Rust controller and its Swift Security bridge in a separate job without signing secrets.
+`just build-installer-tool` compiles both executables, and each receives its own provenance attestation.
+The protected job verifies both before import.
+The Rust controller selects productbuild as the trusted tool and gives the bridge private inputs through a cleared child environment.
+The bridge returns only public certificate metadata and numeric Security status.
+It applies an explicit access object during PKCS#12 import, following Apple's [trusted-app access semantics](https://developer.apple.com/documentation/security/secaccesscreate(_:_:_:)).
+See [Grant installer access to productbuild](adr/grant-installer-access-to-productbuild.md).
 Artifacts passed across approval gates stay available for 35 days, matching GitHub's [workflow execution limit](https://docs.github.com/en/actions/reference/limits).
 visionOS uses explicit export options because the provider CLI can't generate its manual signing options.
 iOS also uses explicit options because the qualified unsigned archive has no embedded provisioning profile for the CLI's [manual-option generation](https://github.com/rorkai/App-Store-Connect-CLI/blob/6.6.0/internal/xcode/export_options.go#L127-L135).
@@ -193,7 +199,10 @@ It also excludes only the five Security framework translation functions in `xtas
 Linux can't execute those macOS API effects.
 The portable installer controller keeps credential, destination, identity, preference, and cleanup decisions inside the measured scope.
 A Rust syntax check rejects branches, comparisons, loops, macros, and selected predicate methods in the platform translation.
-Native Mac tests exercise a disposable keychain, wrong-password refusal, invalid import, lock settings, and restored preferences without reading owner credentials.
+Native Mac tests exercise disposable keychains, wrong-password refusal, invalid import, lock settings, and restored preferences without reading personal credentials.
+The Swift bridge maps file-based Security APIs and is exercised by those native tests rather than the package mutation run over `Sources`.
+A generated fixture identity checks public metadata and confirms that the stored access policy names productbuild.
+The final protected delivery checks actual package signing with the selected installer identity.
 The dedicated credential workflow verifies actual certificate import.
 The configuration states each platform boundary and its condition for reconsideration.
 

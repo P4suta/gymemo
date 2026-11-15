@@ -33,6 +33,51 @@ fn imported() -> ImportedIdentity {
     }
 }
 
+#[test]
+fn decodes_only_checked_public_import_metadata() -> Result<()> {
+    let output = serde_json::json!({
+        "status": 0,
+        "identities": [{"der": [0, 255], "subject": "Installer", "privateKey": true}, null]
+    });
+    assert_eq!(
+        imported_identities(true, &serde_json::to_vec(&output).unwrap())?,
+        vec![
+            Some(ImportedIdentity {
+                der: vec![0, 255],
+                subject: "Installer".into(),
+                private_key: true
+            }),
+            None
+        ]
+    );
+    assert!(imported_identities(true, br#"{"status":0,"identities":[]}"#)?.is_empty());
+    for (success, output) in [
+        (false, r#"{"status":0,"identities":[]}"#),
+        (true, r#"{"status":-25293}"#),
+        (true, r#"{"status":0}"#),
+        (true, r#"{"status":0,"identities":null}"#),
+        (true, r#"{"status":0,"identities":[{}]}"#),
+        (
+            true,
+            r#"{"status":0,"identities":[{"der":[256],"subject":"Installer","privateKey":true}]}"#,
+        ),
+        (
+            true,
+            r#"{"status":0,"identities":[{"der":[],"subject":"Installer","privateKey":"fixture-sensitive-value"}]}"#,
+        ),
+        (
+            true,
+            r#"{"status":0,"identities":[],"privateKey":"fixture-sensitive-value"}"#,
+        ),
+        (true, r#"{"status":"fixture-sensitive-value"}"#),
+        (true, "fixture-sensitive-value"),
+    ] {
+        let error = imported_identities(success, output.as_bytes()).unwrap_err();
+        assert!(!format!("{error:?}").contains("fixture-sensitive-value"));
+    }
+    Ok(())
+}
+
 impl Api {
     fn new() -> Self {
         Self {
@@ -73,10 +118,12 @@ impl KeychainApi for Api {
         _: &PathBuf,
         data: &[u8],
         password: &str,
+        trusted_tool: &Path,
     ) -> Result<Vec<Option<ImportedIdentity>>> {
         self.step("import")?;
         assert_eq!(data, [1, 2, 3]);
         assert_eq!(password, "p12-test-password");
+        assert_eq!(trusted_tool, Path::new("/usr/bin/productbuild"));
         Ok(std::mem::take(&mut self.imported))
     }
 
