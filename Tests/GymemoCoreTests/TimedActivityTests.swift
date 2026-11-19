@@ -62,4 +62,23 @@ import Testing
       String(decoding: csv.dropFirst(3), as: UTF8.self)
         == "Date,Activity,min,m\r\n2026-11-19,Walking,20,1500\r\n")
   }
+
+  @Test func quotesAndExportsAnActivityNameWithAFormulaPrefixAsText() throws {
+    let day = try #require(LocalDay(iso: "2026-11-19"))
+    let duration = try #require(ActivityDuration(minutes: 20))
+    let id = TimedActivityID(UUID())
+    let named = try TrainingLog.empty.apply(
+      .add(id: id, name: "=steady, \"short\"", tracksDistance: false)
+    ).get().log
+    let record = LoggedActivity(
+      id: LoggedActivityID(UUID()), activityID: id, day: day, duration: duration, distance: nil)
+    let logged = try named.apply(.record(record)).get().log
+    let csv = CSVExport.writeActivities(
+      logged,
+      labels: ActivityCSVLabels(
+        day: " \t+Date", activity: "Activity", minutes: "min", meters: "m", walking: "Walking"))
+    #expect(
+      String(decoding: csv.dropFirst(3), as: UTF8.self)
+        == "' \t+Date,Activity,min,m\r\n2026-11-19,\"'=steady, \"\"short\"\"\",20,\r\n")
+  }
 }

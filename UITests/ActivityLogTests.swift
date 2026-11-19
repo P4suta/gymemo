@@ -45,7 +45,8 @@ final class ActivityLogTests: XCTestCase {
   }
 
   func testChangesTheWeightUnitForTheExistingLog() {
-    let app = Gymemo.launch(store: "log-units", sample: true, tab: "settings")
+    let app = Gymemo.launch(
+      store: "log-units", sample: true, tab: "settings", usesStoredWeightUnit: true)
     app.any("weight-unit").scrollAndTap(in: app)
     let pounds = app.buttons["Pounds (lb)"].required("Pounds")
     capture("weight-unit-choice")
@@ -53,10 +54,23 @@ final class ActivityLogTests: XCTestCase {
     app.open(.log)
     let unit = app.any("unit-weight-Bench Press")
     XCTAssertEqual(unit.required("the unit of the weight field").label, "lb")
+    let rows = app.rows("Bench Press")
+    rows.log(weight: "100", reps: "6")
+    rows.set(4).required("the logged 100-pound set")
     app.open(.settings)
     app.any("weight-unit").scrollAndTap(in: app)
     app.buttons["Kilograms (kg)"].required("Kilograms").tap()
     app.open(.log)
     XCTAssertEqual(unit.required("the unit of the weight field").label, "kg")
+    XCTAssertEqual(rows.weight.value as? String, "45.36")
+    XCTAssertEqual(rows.reps.value as? String, "6")
+
+    app.fill("weight-Bench Press", with: "1000")
+    app.open(.settings)
+    app.any("weight-unit").scrollAndTap(in: app)
+    app.buttons["Pounds (lb)"].required("Pounds").tap()
+    app.open(.log)
+    XCTAssertEqual(unit.required("the unit of the invalid weight field").label, "kg")
+    XCTAssertEqual(rows.weight.value as? String, "1000")
   }
 }

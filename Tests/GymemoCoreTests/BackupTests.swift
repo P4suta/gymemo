@@ -287,6 +287,19 @@ import Testing
         + "2026-11-09,\"5\"\"プレート\",\"脚\n下半身\",1,100,5\r\n")
   }
 
+  @Test(arguments: [
+    "=incline", "+assisted", "-tempo", "@coach", "＝incline", "＋assisted", "－tempo", "＠coach",
+  ])
+  func exportsExerciseNamesWithFormulaPrefixesAsText(_ name: String) throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, name, .chest)
+    try builder.set(1, "2026-11-09", "60", 5)
+    let csv = CSVExport.write(builder.log, labels: labels)
+    #expect(
+      String(decoding: csv.dropFirst(3), as: UTF8.self)
+        == "日付,種目,部位,セット,重量(kg),回数\r\n2026-11-09,'\(name),胸,1,60,5\r\n")
+  }
+
   @Test func writesOnlyTheHeaderForAnEmptyLog() throws {
     let data = CSVExport.write(.empty, labels: labels)
     #expect(String(data: data.dropFirst(3), encoding: .utf8) == "日付,種目,部位,セット,重量(kg),回数\r\n")

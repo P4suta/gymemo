@@ -112,21 +112,19 @@
   private struct AssistiveWeightStep: View {
     let exercise: Exercise
     let next: (Weight) -> Void
-    let suggestion: SetEntry?
     @State private var text: String
     @State private var problem: String?
     @State private var unit: WeightUnit
-    @State private var original: String
+    @State private var original: (text: String, weight: Weight?)
 
     init(
       exercise: Exercise, suggestion: SetEntry?, unit: WeightUnit, next: @escaping (Weight) -> Void
     ) {
       self.exercise = exercise
       self.next = next
-      self.suggestion = suggestion
       let initial = suggestion.map { copy.using(weightUnit: unit).weightField($0.weight) } ?? ""
       _unit = State(initialValue: unit)
-      _original = State(initialValue: initial)
+      _original = State(initialValue: (initial, suggestion?.weight))
       _text = State(initialValue: initial)
     }
 
@@ -151,7 +149,7 @@
     private func advance() {
       switch SetEntry.parse(
         weight: text, reps: "1", unit: unit,
-        storedWeight: text == original ? suggestion?.weight : nil)
+        storedWeight: text == original.text ? original.weight : nil)
       {
       case .success(let entry):
         problem = nil

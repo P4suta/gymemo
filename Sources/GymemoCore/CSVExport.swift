@@ -81,7 +81,10 @@ public enum CSVExport {
   }
 
   private static func field(_ text: String) -> String {
-    guard text.contains(where: { $0 == "," || $0 == "\"" || $0.isNewline }) else { return text }
-    return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    let leading = text.unicodeScalars.first { !$0.properties.isWhitespace }
+    let startsFormula = leading.map { "=+-@＝＋－＠".unicodeScalars.contains($0) } ?? false
+    let value = startsFormula ? "'" + text : text
+    guard value.contains(where: { $0 == "," || $0 == "\"" || $0.isNewline }) else { return value }
+    return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
   }
 }
