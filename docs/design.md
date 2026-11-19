@@ -114,9 +114,18 @@ A sentence before the bar chart states the two newest values.
 An exercise opens its progress: a range control, a line chart, the personal records, and the sets of each day.
 The range control is a segmented control with three ranges.
 The [segmented control guidance](https://developer.apple.com/design/human-interface-guidelines/segmented-controls) limits a control to about five segments of one kind.
-Each chart shows one measure in the accent color and gives each mark a spoken label and value.
-The [charting guidance](https://developer.apple.com/design/human-interface-guidelines/charting-data) asks for simple charts, descriptive text, and accessibility labels.
+Each chart shows its observed values in the accent color and gives each observation a spoken label and value.
+Swift Charts joins the recorded points with its [monotone cubic interpolation](https://developer.apple.com/documentation/charts/interpolationmethod/monotone).
+The dashed trend uses a system text color and a description beneath the chart, following [Apple's charting guidance](https://developer.apple.com/design/human-interface-guidelines/charts).
+At accessibility text sizes, the last date label extends inward from its grid line using a [Swift Charts label anchor](https://developer.apple.com/documentation/charts/axisvaluelabel).
 The bars start at zero, and the list under the line chart gives every value as text.
+
+The trend fits each scored day using five to nine neighboring scored days.
+The fit takes the median of the slopes between pairs of days according to [Sen's estimator](https://doi.org/10.2307/2285891).
+The fitted score is the median of the neighboring values projected to the plotted day.
+A break of more than 42 days between scores starts a new trend segment.
+The range limits the dates shown after the fit uses the neighboring days.
+The description gives the first and last displayed trend values.
 
 ## Settings
 

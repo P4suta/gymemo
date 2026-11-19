@@ -225,6 +225,20 @@ struct ScreenTour {
     try checkBelow(app, "08-settings")
   }
 
+  func runExerciseProgress(in currentApp: XCUIApplication? = nil) throws {
+    let app =
+      currentApp
+      ?? Gymemo.launch(
+        store: "progress-\(prefix)", sample: true, tab: "analysis", textSize: textSize,
+        language: language)
+    let bench = Self.benchPress[language] ?? ""
+    app.buttons["progress-\(bench)"].scrollAndTap(in: app)
+    app.any("range").required("the range picker")
+    app.staticTexts["progress-trend-description"].required("the dashed trend")
+    try check(app, "07-exercise-progress")
+    try checkBelow(app, "07-exercise-progress")
+  }
+
   func run() throws {
     let reference = settingsReference()
     let bench = Self.benchPress[language] ?? ""
@@ -264,10 +278,7 @@ struct ScreenTour {
     app.open(.analysis)
     app.staticTexts["weekly-headline"].required("the weekly headline")
     try check(app, "06-analysis")
-    app.buttons["progress-\(bench)"].scrollAndTap(in: app)
-    app.any("range").required("the range picker")
-    try check(app, "07-exercise-progress")
-    try checkBelow(app, "07-exercise-progress")
+    try runExerciseProgress(in: app)
 
     app.open(.settings)
     app.buttons["open-exercises"].required("the settings list")
@@ -300,6 +311,18 @@ struct ScreenTour {
 }
 
 final class ScreenshotTests: XCTestCase {
+  @MainActor
+  func testExerciseProgressPassesTheAuditInEachLanguage() throws {
+    for language in ["en", "ja", "zh-Hans", "zh-Hant"] {
+      try ScreenTour(test: self, prefix: "progress-\(language)", language: language)
+        .runExerciseProgress()
+      try ScreenTour(
+        test: self, prefix: "progress-large-\(language)", language: language,
+        textSize: Gymemo.largestTextSize, audits: .all.subtracting(.contrast)
+      ).runExerciseProgress()
+    }
+  }
+
   @MainActor
   func testEveryPrivacyFactPassesTheAuditAtTheLargestTextSizeInEnglish() throws {
     try ScreenTour(

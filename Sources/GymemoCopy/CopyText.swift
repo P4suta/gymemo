@@ -105,6 +105,18 @@ extension Copy {
     }
   }
 
+  public func progressTrend(from start: Double, to end: Double, kind: ScoreKind) -> String {
+    let number = FloatingPointFormatStyle<Double>(locale: locale).precision(.fractionLength(0...1))
+    let first = start.formatted(number)
+    let last = end.formatted(number)
+    switch kind {
+    case .oneRepMax:
+      return format(.loadTrend, format(.loadKilograms, first), format(.loadKilograms, last))
+    case .reps:
+      return format(.repsTrend, first, last)
+    }
+  }
+
   /// A score with its name, such as `Estimated 1RM 79.2 kg` or `Most reps 9`.
   public func scoreLine(_ score: Score) -> String {
     switch score {
