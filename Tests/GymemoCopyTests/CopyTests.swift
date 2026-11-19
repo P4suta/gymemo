@@ -190,6 +190,15 @@ private func placeholders(_ format: String) -> [String] {
         == "本周 1 天，上周 3 天")
   }
 
+  @Test func writesTheTrendWithFractionalValuesAndLocalizedUnits() throws {
+    let english = try copy("en", locale: "de_DE")
+    #expect(
+      english.progressTrend(from: 69.666, to: 80.75, kind: .oneRepMax)
+        == "The dashed trend goes from 69,7 kg to 80,8 kg.")
+    let japanese = try copy("ja", locale: "ja_JP")
+    #expect(japanese.progressTrend(from: 7.4, to: 8.7, kind: .reps) == "破線の傾向は7.4回から8.7回です。")
+  }
+
   @Test func writesDaysInTheCalendarOfTheLocale() throws {
     let day = try #require(LocalDay(iso: "2026-11-09"))
     let english = try copy("en", locale: "en_US")

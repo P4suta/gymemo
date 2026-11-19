@@ -52,6 +52,7 @@ enum FormatKey: String, CaseIterable {
   case loadKilograms, kilogramsSpoken, setSummary, setNumber, repsCount, setsCount, daysCount
   case previousSession, noteTooLong, nameTooLong, deleteExerciseQuestion, historyRow
   case weeklyHeadline, weeklyHeadlineSingle, weekOf, lastLogged, oneRepMaxLine, mostRepsLine
+  case loadTrend, repsTrend
   case setOnDay, heaviestWeight, overTime, version, replaceMessage
   case backupExerciseUnreadable, backupSetUnreadable, backupNoteUnreadable
   case saveFailedMessage, failureCode

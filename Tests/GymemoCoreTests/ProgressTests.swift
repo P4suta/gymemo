@@ -114,6 +114,70 @@ import Testing
     #expect(progress.points(since: nil).count == 3)
   }
 
+  private func measuredProgress(
+    _ offsets: [Int], scores: [Int], kind: ScoreKind = .oneRepMax
+  ) throws -> ExerciseProgress {
+    let start = try day("2026-01-01")
+    var builder = LogBuilder()
+    try builder.exercise(1, "Bench Press", .chest)
+    for (offset, score) in zip(offsets, scores) {
+      let session = try #require(start.adding(days: offset))
+      let (weight, reps) = kind == .oneRepMax ? (String(score), 1) : ("0", score)
+      try builder.set(1, session.iso, weight, reps)
+    }
+    return try #require(builder.log.progress(of: exerciseID(1)))
+  }
+
+  @Test(arguments: [0, 1, 2, 3, 4], [1, 900])
+  func fitsAnIrregularLinearTrendThroughOneExtremeScore(index: Int, extreme: Int) throws {
+    let offsets = [0, 1, 3, 10, 12]
+    let expected = offsets.map { 50 + 2 * $0 }
+    var scores = expected
+    scores[index] = extreme
+    let progress = try measuredProgress(offsets, scores: scores)
+    let trend = progress.trend(since: nil)
+    #expect(progress.points.map(\.score.value) == scores.map(Double.init))
+    #expect(trend.count == 1)
+    #expect(trend.flatMap(\.points).map(\.day) == progress.points.map(\.day))
+    #expect(trend.flatMap(\.points).map(\.value) == expected.map(Double.init))
+  }
+
+  @Test func needsFiveDaysToShowATrend() throws {
+    let sparse = try measuredProgress([0, 7, 14, 21], scores: [50, 55, 60, 65])
+    let enough = try measuredProgress([0, 7, 14, 21, 28], scores: [50, 55, 60, 65, 70])
+    #expect(sparse.trend(since: nil).isEmpty)
+    #expect(enough.trend(since: nil).first?.points.count == 5)
+  }
+
+  @Test func breaksTheTrendAcrossLongGapsAndKeepsSharedValuesAcrossRanges() throws {
+    let offsets = [0, 3, 6, 9, 12, 54, 57, 60, 63, 66, 109, 112, 115, 118, 121]
+    let progress = try measuredProgress(offsets, scores: offsets.map { 50 + $0 })
+    let full = progress.trend(since: nil)
+    let cropped = progress.trend(since: progress.points[8].day)
+    let oneDayBeforeTheBreak = progress.trend(since: progress.points[9].day)
+    #expect(full.map(\.points.count) == [10, 5])
+    #expect(cropped.map(\.points.count) == [2, 5])
+    #expect(cropped.first?.points == full.first.map { Array($0.points.suffix(2)) })
+    #expect(cropped.last == full.last)
+    #expect(oneDayBeforeTheBreak == Array(full.dropFirst()))
+  }
+
+  @Test func followsASustainedChangeWithoutPullingInRemoteScores() throws {
+    let scores = Array(repeating: 30, count: 9) + Array(repeating: 70, count: 9)
+    let progress = try measuredProgress(Array(scores.indices), scores: scores)
+    let trend = try #require(progress.trend(since: nil).first)
+    #expect(trend.points.first?.value == 30)
+    #expect(trend.points.last?.value == 70)
+  }
+
+  @Test func keepsTheBodyweightTrendWithinTheRepetitionBounds() throws {
+    let offsets = [0, 1, 2, 3, 4]
+    let lower = try measuredProgress(offsets, scores: [999, 1, 2, 3, 4], kind: .reps)
+    let upper = try measuredProgress(offsets, scores: [996, 997, 998, 999, 1], kind: .reps)
+    #expect(lower.trend(since: nil).flatMap(\.points).map(\.value) == [1, 1, 2, 3, 4])
+    #expect(upper.trend(since: nil).flatMap(\.points).map(\.value) == [996, 997, 998, 999, 999])
+  }
+
   @Test func summarizesLoggedExercisesFromTheMostRecent() throws {
     var builder = try sample()
     let summaries = builder.log.exerciseSummaries

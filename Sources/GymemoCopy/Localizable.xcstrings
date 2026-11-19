@@ -997,6 +997,16 @@
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "最高回数 %lld回" } },
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最多次数 %lld 次" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最多次數 %lld 次" } } } },
+    "loadTrend" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "The dashed trend goes from %1$@ to %2$@." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "破線の傾向は%1$@から%2$@です。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚线所示的趋势从%1$@变为%2$@。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "虛線所示的趨勢從%1$@變為%2$@。" } } } },
+    "repsTrend" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "The dashed trend goes from %1$@ to %2$@ reps." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "破線の傾向は%1$@回から%2$@回です。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚线所示的趋势从%1$@次变为%2$@次。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "虛線所示的趨勢從%1$@次變為%2$@次。" } } } },
     "setOnDay" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ on %2$@" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@　%2$@" } },

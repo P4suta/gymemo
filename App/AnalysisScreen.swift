@@ -173,7 +173,8 @@ struct ExerciseProgressScreen: View {
       if let progress = model.log.progress(of: exerciseID) {
         Section {
           rangePicker(title: copy.progressHeading(progress.kind))
-          let points = progress.points(since: range.start(from: model.today))
+          let start = range.start(from: model.today)
+          let points = progress.points(since: start)
           if points.isEmpty {
             ContentUnavailableView {
               Label(copy[.emptyRangeTitle], systemImage: "chart.xyaxis.line")
@@ -182,7 +183,7 @@ struct ExerciseProgressScreen: View {
               Text(copy[.emptyRange])
             }
           } else {
-            ProgressChart(points: points, name: copy.scoreName(progress.kind))
+            ProgressChart(points: points, trend: progress.trend(since: start), kind: progress.kind)
           }
           #if os(macOS)
             Text(progress.kind == .oneRepMax ? copy[.oneRepMaxNote] : copy[.repsNote])
@@ -233,26 +234,66 @@ struct ExerciseProgressScreen: View {
 
 private struct ProgressChart: View {
   let points: [ProgressPoint]
-  let name: String
+  let trend: [ProgressTrendSegment]
+  let kind: ScoreKind
   @Environment(\.dynamicTypeSize) private var typeSize
 
   var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      chart
+      if let first = trend.first?.points.first, let last = trend.last?.points.last {
+        Text(copy.progressTrend(from: first.value, to: last.value, kind: kind))
+          .font(.footnote)
+          .foregroundStyle(SecondaryTextStyle())
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityIdentifier("progress-trend-description")
+      }
+    }
+    .padding(.vertical, 4)
+  }
+
+  private var chart: some View {
     // Fewer dates fit under the chart at the accessibility text sizes.
     let dates = typeSize.isAccessibilitySize ? 2 : 4
-    Chart(points) { point in
-      LineMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
+    let name = copy.scoreName(kind)
+    return Chart {
+      ForEach(points) { point in
+        LineMark(
+          x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value),
+          series: .value(name, 0)
+        )
+        .interpolationMethod(.monotone)
         .foregroundStyle(.tint)
         .accessibilityHidden(true)
-      PointMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
-        .foregroundStyle(.tint)
-        .accessibilityLabel(copy.day(point.day, .long))
-        .accessibilityValue(copy.score(point.score))
+      }
+      ForEach(trend.indices, id: \.self) { index in
+        ForEach(trend[index].points) { point in
+          LineMark(
+            x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.value),
+            series: .value(name, index + 1)
+          )
+          .interpolationMethod(.monotone)
+          .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
+          .foregroundStyle(SecondaryTextStyle())
+          .accessibilityHidden(true)
+        }
+      }
+      ForEach(points) { point in
+        PointMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
+          .foregroundStyle(.tint)
+          .accessibilityLabel(copy.day(point.day, .long))
+          .accessibilityValue(copy.score(point.score))
+      }
     }
     .chartYScale(domain: .automatic(includesZero: false))
     .chartXAxis {
-      AxisMarks(values: .automatic(desiredCount: dates)) {
+      AxisMarks(values: .automatic(desiredCount: dates)) { value in
+        let isLast = value.index == value.count - 1
         AxisGridLine()
-        AxisValueLabel(format: copy.dateStyle(.axis))
+        AxisValueLabel(
+          format: copy.dateStyle(.axis),
+          anchor: typeSize.isAccessibilitySize && isLast ? .topTrailing : nil
+        )
       }
     }
     .chartYAxis {
@@ -261,7 +302,6 @@ private struct ProgressChart: View {
     .environment(\.timeZone, .gmt)
     .environment(\.calendar, copy.calendar)
     .frame(height: 200)
-    .padding(.vertical, 4)
     .accessibilityIdentifier("progress-chart")
   }
 }
