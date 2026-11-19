@@ -42,7 +42,7 @@ struct PrivacyAuditSnapshot {
     let visible = frames.flatMap { key, values in
       values.filter { frame in
         !key.label.isEmpty
-          && (viewport.frame.contains(frame) || navigationFrame.contains(frame))
+          && (viewport.frame.contains(frame) || isNavigationTitle(key, frame: frame))
       }.map { (key, $0) }
     }
     let identifiers = Set(visible.map { $0.0.identifier })
@@ -51,7 +51,7 @@ struct PrivacyAuditSnapshot {
       facts.isSubset(of: identifiers),
       "Privacy contrast missed reached facts: \(facts.subtracting(identifiers).sorted())")
     for (key, frame) in visible {
-      let isTitle = key.label == navigationTitle && navigationFrame.contains(frame)
+      let isTitle = isNavigationTitle(key, frame: frame)
       guard
         let ratio = PrimaryTextContrast.measure(
           frame: frame, bounds: bounds, image: image, darkInk: isTitle ? darkInk : nil)
@@ -62,5 +62,9 @@ struct PrivacyAuditSnapshot {
       XCTContext.runActivity(named: "Measured \(key.identifier) contrast: \(ratio):1") { _ in }
       XCTAssertGreaterThanOrEqual(ratio, 4.5, "Insufficient privacy contrast: \(key.identifier)")
     }
+  }
+
+  private func isNavigationTitle(_ key: Key, frame: CGRect) -> Bool {
+    key.label == navigationTitle && navigationFrame.contains(frame)
   }
 }

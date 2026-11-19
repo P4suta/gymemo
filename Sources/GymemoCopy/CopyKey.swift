@@ -44,6 +44,14 @@ public enum CopyKey: String, CaseIterable, Sendable {
   case starterLegCurl, starterRomanianDeadlift, starterCalfRaise, starterShoulderPress
   case starterLateralRaise, starterRearDeltRaise, starterBicepsCurl, starterHammerCurl
   case starterTricepsPushdown, starterCrunch, starterLegRaise
+  case units, weightUnit, distanceUnit, kilograms, pounds, kilometers, miles, weightPoundsSpoken
+  case weightPoundsProblem
+  case walking
+  case activities, newActivity, logActivity, editActivity, deleteActivity, activitySaved
+  case activity, recordMeasure, timeOnly, timeAndDistance, duration, distance, optionalDistance
+  case durationProblem, distanceProblem, activityNotSaved, activityFull
+  case exportActivities, exportActivitiesText, csvDuration, csvDistance
+  case weeklyActivitiesCaption
 }
 
 /// A sentence of the catalog that takes values, which only the typed accessors of `Copy` fill.
@@ -56,7 +64,8 @@ enum FormatKey: String, CaseIterable {
   case setOnDay, heaviestWeight, overTime, version, replaceMessage
   case backupExerciseUnreadable, backupSetUnreadable, backupNoteUnreadable
   case saveFailedMessage, failureCode
+  case loadPounds, poundsSpoken, activityMinutes, distanceWithUnit, activityCount
 
   /// The keys whose English text varies with the number.
-  static let plural: Set<FormatKey> = [.repsCount, .setsCount, .daysCount]
+  static let plural: Set<FormatKey> = [.repsCount, .setsCount, .daysCount, .activityCount]
 }

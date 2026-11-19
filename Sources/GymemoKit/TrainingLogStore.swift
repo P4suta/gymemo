@@ -7,7 +7,7 @@ import GymemoCore
 /// `docs/adr/store-the-training-log-in-one-sqlite-file.md` records the design.
 public final class TrainingLogStore {
   /// The number in `PRAGMA user_version` of a file that this code reads and writes.
-  public static let schemaVersion = 2
+  public static let schemaVersion = 3
 
   private static let receiptSchema = """
     CREATE TABLE companion_receipt (
@@ -46,6 +46,29 @@ public final class TrainingLogStore {
     """,
   ]
 
+  private static let activitySchema = [
+    """
+    CREATE TABLE timed_activity (
+      id TEXT PRIMARY KEY NOT NULL CHECK (typeof(id) = 'text'),
+      position INTEGER NOT NULL UNIQUE CHECK (typeof(position) = 'integer'),
+      name TEXT NOT NULL UNIQUE CHECK (typeof(name) = 'text'),
+      tracks_distance INTEGER NOT NULL CHECK (tracks_distance IN (0, 1))
+    )
+    """,
+    """
+    CREATE TABLE logged_activity (
+      id TEXT PRIMARY KEY NOT NULL CHECK (typeof(id) = 'text'),
+      position INTEGER NOT NULL UNIQUE CHECK (typeof(position) = 'integer'),
+      activity_id TEXT NOT NULL REFERENCES timed_activity (id),
+      day TEXT NOT NULL CHECK (typeof(day) = 'text'),
+      minutes INTEGER NOT NULL
+        CHECK (typeof(minutes) = 'integer' AND minutes BETWEEN 1 AND \(ActivityDuration.maximumMinutes)),
+      distance_meters INTEGER CHECK (distance_meters IS NULL OR
+        (typeof(distance_meters) = 'integer' AND distance_meters BETWEEN 1 AND \(ActivityDistance.maximumMeters)))
+    )
+    """,
+  ]
+
   private let database: SQLiteDatabase
 
   /// Opens the file at `url`, and creates it with `starter` when it doesn't exist yet.
@@ -73,6 +96,16 @@ public final class TrainingLogStore {
 
   /// Stores every change or none of them.
   public func apply(_ changes: [Change]) throws(StoreFailure) {
+    try apply(changes, writing: write)
+  }
+
+  public func apply(_ changes: [ActivityChange]) throws(StoreFailure) {
+    try apply(changes, writing: write)
+  }
+
+  private func apply<Row>(
+    _ changes: [Row], writing write: (Row) throws(StoreFailure) -> Void
+  ) throws(StoreFailure) {
     guard !changes.isEmpty else { return }
     do {
       try database.transaction { () throws(StoreFailure) in
@@ -139,9 +172,10 @@ public final class TrainingLogStore {
     switch version.first ?? 0 {
     case schemaVersion:
       return
-    case 1:
+    case 1, 2:
       try database.transaction { () throws(StoreFailure) in
-        try database.execute(receiptSchema)
+        if version.first == 1 { try database.execute(receiptSchema) }
+        try installActivityTables(in: database)
         try database.execute("PRAGMA user_version = \(schemaVersion)")
       }
     case 0:
@@ -154,12 +188,20 @@ public final class TrainingLogStore {
           try database.execute(statement)
         }
         try database.execute(receiptSchema)
+        try installActivityTables(in: database)
         try insert(starter, into: database)
         try database.execute("PRAGMA user_version = \(schemaVersion)")
       }
     case let other:
       throw .unsupportedSchema(version: other)
     }
+  }
+
+  private static func installActivityTables(in database: SQLiteDatabase) throws(StoreFailure) {
+    for statement in activitySchema { try database.execute(statement) }
+    try database.execute(
+      "INSERT INTO timed_activity (id, position, name, tracks_distance) VALUES (?, -1, '', 1)",
+      [.text(TimedActivityID.walking.uuid.uuidString)])
   }
 
   private static func insert(
@@ -181,6 +223,19 @@ public final class TrainingLogStore {
     try database.batch(
       "INSERT INTO day_memo (day, text) VALUES (?, ?)",
       log.memos.map { day, memo in [.text(day.iso), .text(memo.text)] })
+    try database.batch(
+      "INSERT INTO timed_activity (id, position, name, tracks_distance) VALUES (?, ?, ?, ?)",
+      log.activities.customActivities.enumerated().map { position, activity in
+        [.text(activity.id.uuid.uuidString), .integer(Int64(position))] + values(of: activity)
+      })
+    try database.batch(
+      """
+      INSERT INTO logged_activity (id, position, activity_id, day, minutes, distance_meters)
+      VALUES (?, ?, ?, ?, ?, ?)
+      """,
+      log.activities.records.enumerated().map { position, record in
+        [.text(record.id.uuid.uuidString), .integer(Int64(position))] + values(of: record)
+      })
   }
 
   private static func values(of exercise: Exercise) -> [SQLValue] {
@@ -195,6 +250,58 @@ public final class TrainingLogStore {
       .text(set.exerciseID.uuid.uuidString), .text(set.day.iso),
       .integer(Int64(set.weight.hundredths)), .integer(Int64(set.reps.count)),
     ]
+  }
+
+  private static func values(of activity: TimedActivity) -> [SQLValue] {
+    [.text(activity.name?.text ?? ""), .integer(activity.tracksDistance ? 1 : 0)]
+  }
+
+  private static func values(of record: LoggedActivity) -> [SQLValue] {
+    [
+      .text(record.activityID.uuid.uuidString), .text(record.day.iso),
+      .integer(Int64(record.duration.minutes)),
+      record.distance.map { .integer(Int64($0.meters)) } ?? .null,
+    ]
+  }
+
+  private func readActivities() throws(StoreFailure) -> ActivityLog {
+    let definitions = try database.query(
+      "SELECT id, name, tracks_distance FROM timed_activity ORDER BY position"
+    ) { row throws(StoreFailure) -> TimedActivity in
+      guard let uuid = UUID(uuidString: try row.text(0)) else {
+        throw .corruptRow(table: "timed_activity")
+      }
+      let id = TimedActivityID(uuid)
+      let name = try row.text(1)
+      let tracksDistance = row.integer(2) == 1
+      if id == .walking && name.isEmpty && tracksDistance { return .walking }
+      guard case .success(let parsedName) = ExerciseName.parse(name),
+        let activity = TimedActivity(id: id, name: parsedName, tracksDistance: tracksDistance)
+      else { throw .corruptRow(table: "timed_activity") }
+      return activity
+    }
+    guard definitions.first == .walking else { throw .corruptRow(table: "timed_activity") }
+    let records = try database.query(
+      "SELECT id, activity_id, day, minutes, distance_meters FROM logged_activity ORDER BY position"
+    ) { row throws(StoreFailure) -> LoggedActivity in
+      guard let uuid = UUID(uuidString: try row.text(0)),
+        let activity = UUID(uuidString: try row.text(1)), let day = LocalDay(iso: try row.text(2)),
+        let minutes = Int(exactly: row.integer(3)),
+        let duration = ActivityDuration(minutes: minutes)
+      else { throw .corruptRow(table: "logged_activity") }
+      let storedDistance = row.optionalInteger(4)
+      let distance = storedDistance.flatMap { Int(exactly: $0) }.flatMap(ActivityDistance.init)
+      guard storedDistance == nil || distance != nil else {
+        throw .corruptRow(table: "logged_activity")
+      }
+      return LoggedActivity(
+        id: LoggedActivityID(uuid), activityID: TimedActivityID(activity), day: day,
+        duration: duration, distance: distance)
+    }
+    switch ActivityLog.make(customActivities: Array(definitions.dropFirst()), records: records) {
+    case .success(let log): return log
+    case .failure: throw .corruptRow(table: "logged_activity")
+    }
   }
 
   private func read() throws(StoreFailure) -> TrainingLog {
@@ -227,7 +334,9 @@ public final class TrainingLogStore {
       return (day, memo)
     }
     let memos = Dictionary(memoRows, uniquingKeysWith: { first, _ in first })
-    switch TrainingLog.make(exercises: exercises, sets: sets, memos: memos) {
+    let activities = try readActivities()
+    switch TrainingLog.make(exercises: exercises, sets: sets, memos: memos, activities: activities)
+    {
     case .success(let log): return log
     case .failure(let refusal): throw .integrity(refusal)
     }
@@ -268,10 +377,36 @@ public final class TrainingLogStore {
     case .removeMemo(let day):
       try database.execute("DELETE FROM day_memo WHERE day = ?", [.text(day.iso)])
     case .replaceAll(let log):
-      for table in ["logged_set", "exercise", "day_memo"] {
+      for table in ["logged_set", "exercise", "day_memo", "logged_activity"] {
         try database.execute("DELETE FROM \(table)")
       }
+      try database.execute(
+        "DELETE FROM timed_activity WHERE id != ?", [.text(TimedActivityID.walking.uuid.uuidString)]
+      )
       try Self.insert(log, into: database)
+    }
+  }
+
+  private func write(_ change: ActivityChange) throws(StoreFailure) {
+    switch change {
+    case .putActivity(let activity):
+      try database.execute(
+        """
+        INSERT INTO timed_activity (id, position, name, tracks_distance)
+        VALUES (?, (SELECT COALESCE(MAX(position), -1) + 1 FROM timed_activity), ?, ?)
+        """,
+        [.text(activity.id.uuid.uuidString)] + Self.values(of: activity))
+    case .putRecord(let record):
+      try database.execute(
+        """
+        INSERT INTO logged_activity (id, position, activity_id, day, minutes, distance_meters)
+        VALUES (?, (SELECT COALESCE(MAX(position), -1) + 1 FROM logged_activity), ?, ?, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET minutes = excluded.minutes,
+          distance_meters = excluded.distance_meters
+        """,
+        [.text(record.id.uuid.uuidString)] + Self.values(of: record))
+    case .removeRecord(let id):
+      try database.execute("DELETE FROM logged_activity WHERE id = ?", [.text(id.uuid.uuidString)])
     }
   }
 }

@@ -90,13 +90,29 @@ struct HistoryList: View {
 private struct DayRow: View {
   let summary: DaySummary
   let isSelected: Bool
+  @Environment(AppModel.self) private var model
+  @Environment(\.gymemoDistanceUnit) private var distanceUnit
+
+  private var subtitle: String? {
+    var details: [String] = []
+    if summary.setCount > 0 {
+      details.append(
+        copy.historyRow(exercises: summary.exerciseNames.map(\.text), setCount: summary.setCount))
+    }
+    for record in summary.activities {
+      if let activity = model.log.activities.activity(record.activityID) {
+        let value = copy.activityRecord(record, unit: distanceUnit)
+        details.append(
+          [copy.timedActivityName(activity), value].joined(separator: copy[.listSeparator]))
+      }
+    }
+    return details.isEmpty ? nil : details.joined(separator: copy[.listSeparator])
+  }
 
   var body: some View {
     StackedRow(
       title: copy.day(summary.day, .long),
-      subtitle: summary.setCount > 0
-        ? copy.historyRow(exercises: summary.exerciseNames.map(\.text), setCount: summary.setCount)
-        : nil,
+      subtitle: subtitle,
       caption: summary.memo?.preview(limit: 60), isEmphasized: true, isSelected: isSelected)
   }
 }

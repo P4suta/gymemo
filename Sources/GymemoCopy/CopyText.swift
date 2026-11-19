@@ -46,19 +46,19 @@ extension Copy {
 
   /// A weight as a number, such as `62.5`, with the region's decimal separator.
   public func weightText(_ weight: Weight) -> String {
-    decimal(weight.hundredths, dividedBy: 100, fractionDigits: 2)
+    decimal(weightUnit.hundredths(for: weight), dividedBy: 100, fractionDigits: 2)
   }
 
   /// The text that a weight field starts with, which is empty for the body alone.
   /// The digits stay ASCII, because `Weight.parse` reads only ASCII digits.
   public func weightField(_ weight: Weight) -> String {
     guard !weight.isBodyweight else { return "" }
-    return weight.text.replacingOccurrences(of: ".", with: locale.decimalSeparator ?? ".")
+    return numberField(weightUnit.hundredths(for: weight), dividedBy: 100, fractionDigits: 2)
   }
 
   /// Such as `62.5 kg`, or the word for the body alone.
   public func load(_ weight: Weight) -> String {
-    weight.isBodyweight ? self[.bodyweight] : format(.loadKilograms, weightText(weight))
+    weight.isBodyweight ? self[.bodyweight] : loadWithUnit(weightText(weight))
   }
 
   /// Such as `62.5 kg × 8`.
@@ -93,7 +93,11 @@ extension Copy {
   public func score(_ score: Score) -> String {
     switch score {
     case .oneRepMax(let estimate):
-      format(.loadKilograms, decimal(estimate.tenths, dividedBy: 10, fractionDigits: 1))
+      if weightUnit == .kilograms {
+        loadWithUnit(decimal(estimate.tenths, dividedBy: 10, fractionDigits: 1))
+      } else {
+        loadWithUnit(weightUnit.value(kilograms: estimate.kilograms).formatted(loadNumber))
+      }
     case .reps(let reps): repCount(reps.count)
     }
   }
@@ -106,15 +110,22 @@ extension Copy {
   }
 
   public func progressTrend(from start: Double, to end: Double, kind: ScoreKind) -> String {
-    let number = FloatingPointFormatStyle<Double>(locale: locale).precision(.fractionLength(0...1))
-    let first = start.formatted(number)
-    let last = end.formatted(number)
     switch kind {
     case .oneRepMax:
-      return format(.loadTrend, format(.loadKilograms, first), format(.loadKilograms, last))
+      let first = weightUnit.value(kilograms: start).formatted(loadNumber)
+      let last = weightUnit.value(kilograms: end).formatted(loadNumber)
+      return format(.loadTrend, loadWithUnit(first), loadWithUnit(last))
     case .reps:
-      return format(.repsTrend, first, last)
+      return format(.repsTrend, start.formatted(loadNumber), end.formatted(loadNumber))
     }
+  }
+
+  private var loadNumber: FloatingPointFormatStyle<Double> {
+    FloatingPointFormatStyle<Double>(locale: locale).precision(.fractionLength(0...1))
+  }
+
+  private func loadWithUnit(_ value: String) -> String {
+    format(weightUnit == .kilograms ? .loadKilograms : .loadPounds, value)
   }
 
   /// A score with its name, such as `Estimated 1RM 79.2 kg` or `Most reps 9`.
@@ -127,8 +138,8 @@ extension Copy {
 
   /// What VoiceOver reads for a set, with its units spelled out.
   public func spokenSet(weight: Weight, reps: Reps, number: Int, isBest: Bool) -> String {
-    let load =
-      weight.isBodyweight ? self[.bodyweight] : format(.kilogramsSpoken, weightText(weight))
+    let unit: FormatKey = weightUnit == .kilograms ? .kilogramsSpoken : .poundsSpoken
+    let load = weight.isBodyweight ? self[.bodyweight] : format(unit, weightText(weight))
     let parts = [format(.setNumber, number), load, repCount(reps.count)]
     return join(isBest ? parts + [self[.personalBest]] : parts)
   }
@@ -186,6 +197,13 @@ extension Copy {
 
   public func replaceMessage(current: Int, incoming: Int) -> String {
     format(.replaceMessage, setCount(current), setCount(incoming))
+  }
+
+  public func replaceMessage(current: TrainingLog, incoming: TrainingLog) -> String {
+    func count(_ log: TrainingLog) -> String {
+      join([setCount(log.sets.count), activityCount(log.activities.records.count)])
+    }
+    return format(.replaceMessage, count(current), count(incoming))
   }
 
   public func saveFailedMessage(code: Int32) -> String {
@@ -250,12 +268,61 @@ extension Copy {
         BodyPart.allCases.map { ($0, bodyPart($0)) }, uniquingKeysWith: { first, _ in first }))
   }
 
+  public var activityCSVLabels: ActivityCSVLabels {
+    ActivityCSVLabels(
+      day: self[.csvDate], activity: self[.activity], minutes: self[.csvDuration],
+      meters: self[.csvDistance], walking: self[.walking])
+  }
+
+  public func timedActivityName(_ activity: TimedActivity) -> String {
+    activity.name?.text ?? self[.walking]
+  }
+
+  public func weightUnitName(_ unit: WeightUnit) -> String {
+    self[unit == .kilograms ? .kilograms : .pounds]
+  }
+
+  public func distanceUnitName(_ unit: DistanceUnit) -> String {
+    self[unit == .kilometers ? .kilometers : .miles]
+  }
+
+  public func distanceField(_ distance: ActivityDistance, unit: DistanceUnit) -> String {
+    numberField(unit.thousandths(for: distance), dividedBy: 1_000, fractionDigits: 3)
+  }
+
+  public func distance(meters: Double, unit: DistanceUnit) -> String {
+    let number = unit.value(meters: meters).formatted(
+      .number.precision(.fractionLength(0...3)).locale(locale))
+    return format(.distanceWithUnit, number, unit.rawValue)
+  }
+
+  public func activityMinutes(_ minutes: Int) -> String {
+    format(.activityMinutes, minutes)
+  }
+
+  public func activityCount(_ count: Int) -> String {
+    format(.activityCount, count)
+  }
+
+  public func activityRecord(_ record: LoggedActivity, unit: DistanceUnit) -> String {
+    let time = activityMinutes(record.duration.minutes)
+    guard let length = record.distance else { return time }
+    return join([time, distance(meters: Double(length.meters), unit: unit)])
+  }
+
+  private func numberField(_ value: Int, dividedBy divisor: Int, fractionDigits: Int) -> String {
+    (Decimal(value) / Decimal(divisor)).formatted(
+      .number.precision(.fractionLength(0...fractionDigits)).grouping(.never)
+        .locale(Locale(identifier: "en_US_POSIX"))
+    ).replacingOccurrences(of: ".", with: locale.decimalSeparator ?? ".")
+  }
+
   // MARK: Refusals
 
   /// What is wrong with the inputs of a set, and how to fix them.
   public func problem(entry refusal: SetEntryRefusal) -> String {
     switch refusal {
-    case .weight: self[.weightProblem]
+    case .weight: self[weightUnit == .kilograms ? .weightProblem : .weightPoundsProblem]
     case .reps(.empty): self[.repsMissing]
     case .reps: self[.repsProblem]
     }
@@ -282,6 +349,18 @@ extension Copy {
     }
   }
 
+  public func problem(activity refusal: ActivityRefusal) -> String {
+    switch refusal {
+    case .name(.empty): self[.nameMissing]
+    case .name(.tooLong): format(.nameTooLong, ExerciseName.maximumLength)
+    case .name(.controlCharacter): self[.nameLinesProblem]
+    case .duplicateName: self[.nameDuplicate]
+    case .full: self[.activityFull]
+    case .duplicateIdentifier, .unknownActivity, .unknownRecord, .unexpectedDistance:
+      self[.activityNotSaved]
+    }
+  }
+
   /// Why a file isn't a backup that the app reads.
   public func problem(backup refusal: BackupRefusal) -> String {
     switch refusal {
@@ -292,7 +371,7 @@ extension Copy {
     case .invalidExercise(let index): format(.backupExerciseUnreadable, index + 1)
     case .invalidSet(let index): format(.backupSetUnreadable, index + 1)
     case .invalidMemo(let index): format(.backupNoteUnreadable, index + 1)
-    case .integrity: self[.backupDamaged]
+    case .integrity, .invalidActivities: self[.backupDamaged]
     }
   }
 }

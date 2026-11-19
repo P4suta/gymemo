@@ -108,6 +108,8 @@ import Testing
     }
     do {
       let connection = try SQLiteDatabase(url: file)
+      try connection.execute("DROP TABLE logged_activity")
+      try connection.execute("DROP TABLE timed_activity")
       try connection.execute("DROP TABLE companion_receipt")
       try connection.execute("PRAGMA user_version = 1")
     }
@@ -115,6 +117,28 @@ import Testing
     #expect(try migrated.load().sets == [set])
     #expect(try migrated.receive(set).receipt.outcome == .saved)
     #expect(try TrainingLogStore(url: file, starter: .empty).load().sets == [set])
+  }
+
+  @Test func aSchemaWithReceiptsPreservesAnAcknowledgedDeletion() throws {
+    let directory = try TemporaryDirectory()
+    let file = directory.file("phone.sqlite")
+    let set = try entry()
+    do {
+      let store = try TrainingLogStore(url: file, starter: .starter)
+      #expect(try store.receive(set).receipt.outcome == .saved)
+      try store.apply([.removeSet(set.id)])
+    }
+    do {
+      let connection = try SQLiteDatabase(url: file)
+      try connection.execute("DROP TABLE logged_activity")
+      try connection.execute("DROP TABLE timed_activity")
+      try connection.execute("PRAGMA user_version = 2")
+    }
+    let migrated = try TrainingLogStore(url: file, starter: .empty)
+    let replay = try migrated.receive(set)
+    #expect(replay.receipt.outcome == .saved)
+    #expect(replay.log.sets.isEmpty)
+    #expect(replay.log.activities.choices == [.walking])
   }
 
   @Test func aWatchQueueSurvivesRelaunchAndIgnoresMismatchedAndStaleReceipts() throws {

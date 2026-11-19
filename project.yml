@@ -93,6 +93,7 @@ targets:
       - App/Watch
       - App/CompanionSession.swift
       - App/Formatting.swift
+      - App/MeasurementPreferences.swift
       - App/PrivacyScreen.swift
       - App/AppIcon.icon
       - path: Config/Assets.xcassets

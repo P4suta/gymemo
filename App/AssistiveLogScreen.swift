@@ -11,11 +11,15 @@
     case reps(Exercise, Weight)
     case review(Exercise, Weight, Reps)
     case saved(Exercise, LoggedSet)
+    case activities
+    case activity(TimedActivity, LocalDay)
   }
 
   struct AssistiveLogScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var phase
+    @Environment(\.gymemoWeightUnit) private var weightUnit
+    @Environment(\.gymemoDistanceUnit) private var distanceUnit
     @State private var path: [AssistiveRoute] = []
 
     var body: some View {
@@ -27,6 +31,8 @@
             Button(copy[.logSet], systemImage: "plus") { path.append(.exercises) }
               .buttonStyle(.borderedProminent)
               .accessibilityIdentifier("assistive-start")
+            Button(copy[.logActivity], systemImage: "figure.walk") { path.append(.activities) }
+              .accessibilityIdentifier("assistive-start-activity")
           }
         }
         .navigationTitle(copy[.tabLog])
@@ -37,7 +43,8 @@
           case .weight(let exercise):
             AssistiveWeightStep(
               exercise: exercise,
-              suggestion: model.log.suggestedEntry(for: exercise.id, on: model.today)
+              suggestion: model.log.suggestedEntry(for: exercise.id, on: model.today),
+              unit: weightUnit
             ) { path.append(.reps(exercise, $0)) }
           case .reps(let exercise, let weight):
             AssistiveRepsStep(
@@ -52,6 +59,20 @@
             AssistiveSavedSet(exercise: exercise, set: set) {
               path = [.weight(exercise)]
             } done: {
+              path.removeAll()
+            }
+          case .activities:
+            List(model.log.activities.choices) { activity in
+              Button(copy.timedActivityName(activity)) {
+                model.refreshToday()
+                path.append(.activity(activity, model.today))
+              }
+            }
+            .navigationTitle(copy[.activities])
+          case .activity(let activity, let day):
+            ActivityRecordForm(
+              activity: activity, day: day, unit: distanceUnit, presentation: .assistive
+            ) {
               path.removeAll()
             }
           }
@@ -91,13 +112,22 @@
   private struct AssistiveWeightStep: View {
     let exercise: Exercise
     let next: (Weight) -> Void
+    let suggestion: SetEntry?
     @State private var text: String
     @State private var problem: String?
+    @State private var unit: WeightUnit
+    @State private var original: String
 
-    init(exercise: Exercise, suggestion: SetEntry?, next: @escaping (Weight) -> Void) {
+    init(
+      exercise: Exercise, suggestion: SetEntry?, unit: WeightUnit, next: @escaping (Weight) -> Void
+    ) {
       self.exercise = exercise
       self.next = next
-      _text = State(initialValue: suggestion.map { copy.weightField($0.weight) } ?? "")
+      self.suggestion = suggestion
+      let initial = suggestion.map { copy.using(weightUnit: unit).weightField($0.weight) } ?? ""
+      _unit = State(initialValue: unit)
+      _original = State(initialValue: initial)
+      _text = State(initialValue: initial)
     }
 
     var body: some View {
@@ -105,7 +135,8 @@
         Section {
           Text(exercise.name.text).font(.headline).accessibilityAddTraits(.isHeader)
           NumberFieldRow(
-            kind: .weight, text: $text, identifier: "assistive-weight", exerciseName: exercise.name)
+            kind: .weight, text: $text, identifier: "assistive-weight", exerciseName: exercise.name,
+            weightUnit: unit)
           if let problem { InlineProblem(text: problem, identifier: "assistive-problem") }
           Button(copy[.next], action: advance)
             .buttonStyle(.borderedProminent)
@@ -118,13 +149,17 @@
     }
 
     private func advance() {
-      switch SetEntry.parse(weight: text, reps: "1") {
+      switch SetEntry.parse(
+        weight: text, reps: "1", unit: unit,
+        storedWeight: text == original ? suggestion?.weight : nil)
+      {
       case .success(let entry):
         problem = nil
         next(entry.weight)
       case .failure(let refusal):
-        problem = copy.problem(entry: refusal)
-        AccessibilityNotification.Announcement(copy.problem(entry: refusal)).post()
+        let message = copy.using(weightUnit: unit).problem(entry: refusal)
+        problem = message
+        AccessibilityNotification.Announcement(message).post()
       }
     }
   }
@@ -177,13 +212,15 @@
     let saved: (LoggedSet) -> Void
     @Environment(AppModel.self) private var model
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.gymemoWeightUnit) private var unit
     @State private var problem: String?
 
     var body: some View {
       List {
         Section {
           Text(exercise.name.text).font(.headline).accessibilityAddTraits(.isHeader)
-          Text(copy.set(weight: weight, reps: reps)).accessibilityIdentifier("assistive-summary")
+          Text(copy.using(weightUnit: unit).set(weight: weight, reps: reps))
+            .accessibilityIdentifier("assistive-summary")
           Button(copy[.logSet], systemImage: "plus", action: record)
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
@@ -216,6 +253,7 @@
     let set: LoggedSet
     let again: () -> Void
     let done: () -> Void
+    @Environment(\.gymemoWeightUnit) private var unit
 
     var body: some View {
       List {
@@ -223,7 +261,7 @@
           Label(copy[.setSaved], systemImage: "checkmark.circle")
             .accessibilityIdentifier("assistive-saved")
           Text(exercise.name.text).font(.headline)
-          Text(copy.set(set))
+          Text(copy.using(weightUnit: unit).set(set))
           Text(copy.day(set.day, .long))
           Button(copy[.logAnotherSet], action: again)
             .buttonStyle(.borderedProminent)

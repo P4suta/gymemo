@@ -96,23 +96,28 @@ final class WatchTests: XCTestCase {
       "privacy-delete-copies",
     ]
     var unread = Set(facts)
-    var rotationsWithoutReading = 0
-    while rotationsWithoutReading < 20 {
+    var swipesWithoutReading = 0
+    while swipesWithoutReading < 20 {
       let reached = unread.filter { identifier in
         let text = app.descendants(matching: .any)[identifier]
         return text.exists && text.isHittable && !text.label.isEmpty
       }
       if !reached.isEmpty {
         unread.subtract(reached)
-        rotationsWithoutReading = 0
+        swipesWithoutReading = 0
       }
       if unread.isEmpty { break }
       guard let identifier = facts.first(where: unread.contains) else { break }
       let next = app.descendants(matching: .any)[identifier]
-      let direction = next.exists && next.frame.maxY < app.frame.minY ? -1.0 : 1.0
-      // https://developer.apple.com/documentation/xcuiautomation/xcuidevice
-      XCUIDevice.shared.rotateDigitalCrown(delta: direction * 0.125)
-      rotationsWithoutReading += 1
+      let bounds = app.frame
+      let step = bounds.height / 4
+      let offset = next.exists ? bounds.midY - next.frame.midY : -step
+      let distance = min(step, max(-step, offset))
+      let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      start.press(
+        forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: distance)),
+        withVelocity: .slow, thenHoldForDuration: 0.1)
+      swipesWithoutReading += 1
     }
     if !unread.isEmpty {
       let tree = XCTAttachment(string: app.debugDescription)

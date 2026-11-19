@@ -10,6 +10,12 @@ enum PerformOutcome: Equatable {
   case notStored
 }
 
+enum ActivityPerformOutcome: Equatable {
+  case done
+  case refused(ActivityRefusal)
+  case notStored
+}
+
 /// The log that every screen shows, which changes only after the store holds the change.
 @MainActor
 @Observable
@@ -52,23 +58,56 @@ final class AppModel {
     case .failure(let refusal):
       return .refused(refusal)
     case .success(let transition):
-      let previous = log
-      do {
-        try store.apply(transition.changes)
-      } catch {
-        storeFailure = error
+      guard
+        commit(
+          transition.log, changed: !transition.changes.isEmpty,
+          action: actionName(command), undoManager: undoManager,
+          writing: {
+            () throws(StoreFailure) in try store.apply(transition.changes)
+          })
+      else {
         return .notStored
-      }
-      log = transition.log
-      if !transition.changes.isEmpty {
-        invalidateUndo(except: undoManager)
-        if let undoManager { remember(previous, action: actionName(command), in: undoManager) }
       }
       #if os(iOS)
         publishToWatch()
       #endif
       return .done
     }
+  }
+
+  @discardableResult
+  func perform(
+    _ command: ActivityCommand, undoManager: UndoManager? = nil
+  ) -> ActivityPerformOutcome {
+    switch log.apply(command) {
+    case .failure(let refusal):
+      return .refused(refusal)
+    case .success(let transition):
+      return commit(
+        transition.log, changed: !transition.changes.isEmpty,
+        action: actionName(command), undoManager: undoManager,
+        writing: { () throws(StoreFailure) in try store.apply(transition.changes) }
+      ) ? .done : .notStored
+    }
+  }
+
+  private func commit(
+    _ updated: TrainingLog, changed: Bool, action: String, undoManager: UndoManager?,
+    writing write: () throws(StoreFailure) -> Void
+  ) -> Bool {
+    let previous = log
+    do {
+      try write()
+    } catch {
+      storeFailure = error
+      return false
+    }
+    log = updated
+    if changed {
+      invalidateUndo(except: undoManager)
+      if let undoManager { remember(previous, action: action, in: undoManager) }
+    }
+    return true
   }
 
   func refreshToday() {
@@ -97,13 +136,25 @@ final class AppModel {
     }
   }
 
+  private func actionName(_ command: ActivityCommand) -> String {
+    switch command {
+    case .add: copy[.newActivity]
+    case .record: copy[.logActivity]
+    case .edit: copy[.editActivity]
+    case .delete: copy[.deleteActivity]
+    }
+  }
+
   private func invalidateUndo(except current: UndoManager? = nil) {
     for manager in undoManagers.allObjects where manager !== current { manager.removeAllActions() }
   }
 
   private func remember(_ previous: TrainingLog, action: String, in undoManager: UndoManager) {
     undoManagers.add(undoManager)
-    let count = max(log.sets.count, previous.sets.count) + log.exercises.count + log.memos.count
+    let count =
+      max(log.sets.count, previous.sets.count) + log.exercises.count + log.memos.count
+      + max(log.activities.records.count, previous.activities.records.count)
+      + log.activities.customActivities.count
     undoManager.levelsOfUndo = max(1, min(20, 50_000 / max(count, 1)))
     undoManager.registerUndo(withTarget: self) { [weak undoManager] target in
       MainActor.assumeIsolated {

@@ -177,6 +177,10 @@ private struct ChangePair: Equatable {
     try expectCommitted("LogVectors", file.text)
   }
 
+  @Test func timedActivityVectorsHoldTheSwiftTransitions() throws {
+    try expectCommitted("ActivityVectors", ActivityVectors.render())
+  }
+
   /// Lean's kernel checks only the results that some sequence gives.
   /// A case of `Command` that never meets one of its refusals or changes leaves the model's branch for it unchecked.
   @Test func theSequencesGiveEachRefusalAndEachChangeOfEachKindOfCommand() throws {

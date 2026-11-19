@@ -77,7 +77,8 @@ extension TrainingLog {
     change: Change
   ) -> Transition {
     let log = TrainingLog(
-      unchecked: exercises ?? self.exercises, sets: sets ?? self.sets, memos: memos ?? self.memos)
+      unchecked: exercises ?? self.exercises, sets: sets ?? self.sets, memos: memos ?? self.memos,
+      activities: activities)
     return Transition(log: log, changes: [change])
   }
 

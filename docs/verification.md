@@ -174,7 +174,7 @@ The draft operation creates the source tag and an unpublished GitHub release dra
 The tag provides release-please's baseline for later proposals without publishing the draft.
 A tagged source revision stays fixed.
 App Store delivery remains independent of GitHub draft creation.
-An empty first manifest marks the app as unreleased.
+The first GitHub release uses the source shared by the three App Store 1.0.0 builds as its starting point.
 
 ## Mutation runs of the package
 
@@ -228,6 +228,8 @@ The model simplifies the code in ways that the vectors can't observe.
 Identifiers are numbers, texts are numbers of a table, and parse results are inputs.
 A day is its number of days since 1970, and a Swift test pins the rendering to that number.
 The SQLite store, paired-device protocol and queue, backup format, and CSV export have no Lean model, and the package tests cover them.
+The timed activity model checks accepted rows and compares its record changes with vectors from Swift.
+The package tests cover unit conversion, activity exports, and migrations from both earlier SQLite schemas.
 A change that the vectors can't tell apart, such as a relaxed `Admissible` or a `<` turned into `≤` in the memo days, fails the hand-written proofs instead.
 
 Four Kani harnesses cover the lexer of `xtask/src/swift_source.rs` on every source of up to three characters, where each character is any Unicode scalar value.

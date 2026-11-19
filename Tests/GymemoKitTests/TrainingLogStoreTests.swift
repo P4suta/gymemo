@@ -98,15 +98,16 @@ import Testing
   }
 
   @Test func refusesAFileWithAnotherSchemaNumber() throws {
+    let unsupported = TrainingLogStore.schemaVersion + 1
     let directory = try TemporaryDirectory()
     let newer = directory.file("newer.sqlite")
     _ = try TrainingLogStore(url: newer, starter: .starter)
     do {
       let database = try SQLiteDatabase(url: newer)
-      try database.execute("PRAGMA user_version = 3")
+      try database.execute("PRAGMA user_version = \(unsupported)")
       try database.close()
     }
-    #expect(throws: StoreFailure.unsupportedSchema(version: 3)) {
+    #expect(throws: StoreFailure.unsupportedSchema(version: unsupported)) {
       try TrainingLogStore(url: newer, starter: .starter)
     }
     let foreign = directory.file("foreign.sqlite")

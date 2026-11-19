@@ -36,6 +36,7 @@ struct GymemoApp: App {
         }
       }
       .modifier(ContrastScrollEdges())
+      .modifier(MeasurementPreferences())
     }
     #if os(macOS) || os(visionOS)
       .defaultSize(width: 1120, height: 760)
@@ -55,6 +56,7 @@ struct GymemoApp: App {
           }
         }
         .modifier(ContrastScrollEdges())
+        .modifier(MeasurementPreferences())
       }
     #endif
   }

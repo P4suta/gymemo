@@ -1,3 +1,5 @@
+import Gymemo.Activities
+import Gymemo.ActivityVectors
 import Gymemo.Log
 import Gymemo.LogOrder
 import Gymemo.LogRun
