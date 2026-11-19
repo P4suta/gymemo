@@ -246,7 +246,7 @@ private struct ActivityInputRow: View {
     layout {
       Text(title).accessibilityHidden(true)
       HStack(spacing: 8) {
-        TextField(title, text: $text)
+        TextField("", text: $text)
           .multilineTextAlignment(typeSize.isAccessibilitySize ? .leading : .trailing)
           .numberKeyboard(unit == nil ? .reps : .weight)
           .numericInput(identifier: identifier)
