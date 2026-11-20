@@ -42,8 +42,15 @@ final class BackupTests: XCTestCase {
     XCTAssertEqual(notice.required("the export notice").label, "The file was exported.")
 
     app.open(.log)
-    bench.logButton.scrollAndTap(in: app)
-    bench.set(2).required("the second set")
+    bench.log(weight: "55", reps: "8")
+    let addedSet = "Set 2, 55 kilograms, 8 reps"
+    XCTAssertEqual(bench.set(2).required("the second set").label, addedSet)
+    app.buttons["add-exercise"].required("the add button").tap()
+    app.buttons["pick-activity-00000000-0000-0000-0000-000000000001"].required("Walking").tap()
+    app.fill("activity-duration", with: "20")
+    app.buttons["sheet-confirm"].required("Save").tap()
+    let walk = app.staticTexts["20 min"]
+    walk.required("the recorded walk")
 
     app.open(.settings)
     app.buttons["import-backup"].required("the import button").tap()
@@ -61,13 +68,14 @@ final class BackupTests: XCTestCase {
     file.tap()
     capture("import-picker-after-tap")
     let alert = app.alerts["Replace the current records?"].required("the confirmation")
-    XCTAssertTrue(
-      alert.staticTexts[
-        "Your 2 sets will be deleted and replaced with the 1 set in the backup. You can't undo the replacement."
-      ].exists)
+    let message =
+      "Your 2 sets, 1 activity will be deleted and replaced with the 1 set, 0 activities in the backup. "
+      + "You can't undo the replacement."
+    XCTAssertTrue(alert.staticTexts[message].exists, alert.debugDescription)
     alert.buttons["Cancel"].tap()
     app.open(.log)
-    XCTAssertTrue(bench.set(2).exists)
+    XCTAssertEqual(bench.set(2).required("the second set after cancellation").label, addedSet)
+    walk.required("the walk after cancellation")
 
     app.open(.settings)
     app.buttons["import-backup"].required("the import button").tap()
@@ -78,7 +86,10 @@ final class BackupTests: XCTestCase {
       app.any("backup-notice").required("the import notice").label,
       "The backup was imported.")
     app.open(.log)
+    XCTAssertEqual(
+      bench.set(1).required("the set from the backup").label, "Set 1, 60 kilograms, 10 reps")
     bench.set(2).requiredGone("the set that the backup doesn't hold")
+    walk.requiredGone("the walk that the backup doesn't hold")
   }
 
   /// The cell of the exported backup in the import picker, reached by the same way on every run.
