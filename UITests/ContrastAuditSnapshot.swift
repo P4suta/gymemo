@@ -35,6 +35,7 @@ struct ContrastAuditSnapshot {
   static func extent(identifier: String, screen: String) -> PrimaryTextContrast.Extent? {
     if screen == "01-log", identifier.hasPrefix("set-number-") { return .glyphs }
     if screen == "02-exercise-picker", identifier == "section-recent" { return .row }
+    if screen == "07-exercise-progress", identifier == "section-sets-by-day" { return .row }
     if ["02-exercise-picker", "09-exercises"].contains(screen),
       identifier.hasPrefix("section-body-part-")
     {

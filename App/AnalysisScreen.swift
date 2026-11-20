@@ -204,12 +204,15 @@ struct ExerciseProgressScreen: View {
         Section(copy[.personalBest]) {
           BestRows(progress: progress)
         }
-        Section(copy[.setsByDay]) {
+        Section {
           ForEach(progress.sessions) { session in
             StackedRow(
               overline: copy.day(session.day, .long),
               title: copy.using(weightUnit: weightUnit).sets(session.sets))
           }
+        } header: {
+          Text(copy[.setsByDay]).foregroundStyle(SecondaryTextStyle())
+            .accessibilityIdentifier("section-sets-by-day")
         }
       } else {
         Text(copy[.exerciseMissing])

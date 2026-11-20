@@ -22,6 +22,9 @@ final class ContrastAuditSnapshotTests: XCTestCase {
     XCTAssertNotNil(ContrastAuditSnapshot.extent(identifier: "set-number-a", screen: "01-log"))
     XCTAssertNotNil(
       ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "02-exercise-picker"))
+    XCTAssertNotNil(
+      ContrastAuditSnapshot.extent(
+        identifier: "section-sets-by-day", screen: "07-exercise-progress"))
     for screen in ["02-exercise-picker", "09-exercises"] {
       XCTAssertNotNil(
         ContrastAuditSnapshot.extent(identifier: "section-body-part-chest", screen: screen))
@@ -30,5 +33,9 @@ final class ContrastAuditSnapshotTests: XCTestCase {
     XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "set-number-a", screen: "09-exercises"))
     XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "unknown", screen: "02-exercise-picker"))
     XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "12-privacy"))
+    XCTAssertNil(
+      ContrastAuditSnapshot.extent(identifier: "section-sets-by-day", screen: "06-analysis"))
+    XCTAssertNil(
+      ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "07-exercise-progress"))
   }
 }
