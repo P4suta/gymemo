@@ -113,6 +113,7 @@ private func parseDecimal(
   guard parts.count <= 2, let whole = parts.first else { return .failure(.notANumber) }
   let fraction = parts.count == 2 ? parts[1] : ""
   let scale = (0..<places).reduce(1) { scale, _ in scale * 10 }
+  // The digit reader caps oversized numbers so the final range check can refuse them.
   guard !(whole.isEmpty && fraction.isEmpty),
     let units = whole.asciiNumber(limit: limit),
     let decimals = fraction.asciiNumber(limit: scale)

@@ -87,6 +87,8 @@ import Testing
     #expect(WeightUnit.pounds.parse("2204.61") == .failure(.outOfRange))
     #expect(WeightUnit.pounds.parse("2205") == .failure(.outOfRange))
     #expect(WeightUnit.pounds.parse(String(repeating: "9", count: 200)) == .failure(.outOfRange))
+    #expect(WeightUnit.pounds.parse("2205x") == .failure(.notANumber))
+    #expect(WeightUnit.pounds.parse("2205.001") == .failure(.tooPrecise))
     #expect(WeightUnit.pounds.parse("1.234") == .failure(.tooPrecise))
     #expect(WeightUnit.pounds.parse(".") == .failure(.notANumber))
 
