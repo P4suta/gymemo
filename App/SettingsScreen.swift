@@ -8,6 +8,9 @@ private enum SettingsRoute: Hashable {
   case backup
   case privacy
   case watch
+  #if os(iOS)
+    case units
+  #endif
 }
 
 struct SettingsScreen: View {
@@ -38,6 +41,10 @@ struct SettingsScreen: View {
             }
           }
           .accessibilityIdentifier("open-exercises")
+          #if os(iOS)
+            NavigationLink(copy[.units], value: SettingsRoute.units)
+              .accessibilityIdentifier("open-units")
+          #endif
           NavigationLink(copy[.exportAndImport], value: SettingsRoute.backup)
             .accessibilityIdentifier("open-backup")
           #if os(iOS)
@@ -55,10 +62,12 @@ struct SettingsScreen: View {
             }
           #endif
         }
-        Section(copy[.units]) {
-          WeightUnitPicker()
-          DistanceUnitPicker()
-        }
+        #if !os(iOS)
+          Section(copy[.units]) {
+            WeightUnitPicker()
+            DistanceUnitPicker()
+          }
+        #endif
         Section {
           Text(copy[.storageText])
             .accessibilityIdentifier("storage-text")
@@ -80,9 +89,21 @@ struct SettingsScreen: View {
         case .exercises: ExerciseListScreen()
         case .backup: BackupScreen()
         case .privacy: PrivacyScreen()
+        #if os(iOS)
+          case .units:
+            Form {
+              WeightUnitPicker()
+              DistanceUnitPicker()
+            }
+            .formStyle(.grouped)
+            .navigationTitle(copy[.units])
+            .toolbarTitleDisplayMode(.inline)
+        #endif
         case .watch:
           List {
-            Section { Text(copy[.watchHelp]) }
+            Section {
+              Text(copy[.watchHelp]).accessibilityIdentifier("watch-help-body")
+            }
             Section(copy[.watchDelivery]) { Text(copy[.watchWaitingHint]) }
           }
           .navigationTitle(copy[.watch])

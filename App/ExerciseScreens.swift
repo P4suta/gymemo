@@ -37,8 +37,15 @@ struct ExercisePicker: View {
                 .accessibilityIdentifier("pick-activity-\(activity.id.uuid.uuidString)")
             }
             if query.isEmpty {
-              Button(copy[.newActivity], systemImage: "plus") { path.append(.newActivity) }
-                .accessibilityIdentifier("create-timed-activity")
+              Button {
+                path.append(.newActivity)
+              } label: {
+                HStack(alignment: .firstTextBaseline) {
+                  Image(systemName: "plus").accessibilityHidden(true)
+                  Text(copy[.newActivity]).fixedSize(horizontal: false, vertical: true)
+                }
+              }
+              .accessibilityIdentifier("create-timed-activity")
             }
           } header: {
             Text(copy[.activities]).foregroundStyle(SecondaryTextStyle())
