@@ -4,11 +4,17 @@ import SwiftUI
 
 /// Picks the exercise of the next set from recent ones and from each body part.
 struct ExercisePicker: View {
+  private enum Route: Hashable {
+    case newExercise
+    case newActivity
+  }
+
   let pick: (Exercise) -> Void
+  let pickActivity: (TimedActivity) -> Void
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   @State private var query = ""
-  @State private var isCreating = false
+  @State private var path: [Route] = []
 
   private func matches(_ exercise: Exercise) -> Bool {
     query.isEmpty || exercise.name.text.localizedStandardContains(query)
@@ -17,9 +23,27 @@ struct ExercisePicker: View {
   var body: some View {
     let recent = query.isEmpty ? model.log.recentExercises(limit: 5) : []
     let groups = model.log.selectableExercises
-    let hasMatch = groups.contains { $0.exercises.contains(where: matches) }
-    NavigationStack {
+    let timed = model.log.activities.choices.filter {
+      query.isEmpty || copy.timedActivityName($0).localizedStandardContains(query)
+    }
+    let hasMatch = !timed.isEmpty || groups.contains { $0.exercises.contains(where: matches) }
+    NavigationStack(path: $path) {
       List {
+        if query.isEmpty || !timed.isEmpty {
+          Section {
+            ForEach(timed) { activity in
+              Button(copy.timedActivityName(activity)) { choose(activity) }
+                .tint(Color.primary)
+                .accessibilityIdentifier("pick-activity-\(activity.id.uuid.uuidString)")
+            }
+            if query.isEmpty {
+              Button(copy[.newActivity], systemImage: "plus") { path.append(.newActivity) }
+                .accessibilityIdentifier("create-timed-activity")
+            }
+          } header: {
+            Text(copy[.activities]).foregroundStyle(SecondaryTextStyle())
+          }
+        }
         if !recent.isEmpty {
           Section {
             // A recent exercise also appears under its body part, so the two rows need different identities.
@@ -57,7 +81,7 @@ struct ExercisePicker: View {
             .accessibilityIdentifier("sheet-cancel")
         }
         ToolbarItem(placement: .primaryAction) {
-          Button(copy[.newExercise], systemImage: "plus") { isCreating = true }
+          Button(copy[.newExercise], systemImage: "plus") { path.append(.newExercise) }
             .accessibilityIdentifier("create-exercise")
         }
         // The search guidance places search at the bottom of the screen on an iPhone when there is room.
@@ -66,14 +90,24 @@ struct ExercisePicker: View {
           DefaultToolbarItem(kind: .search, placement: .bottomBar)
         #endif
       }
-      .navigationDestination(isPresented: $isCreating) {
-        ExerciseForm(exercise: nil, isPushed: true) { created in
-          pick(created)
-          dismiss()
+      .navigationDestination(for: Route.self) { route in
+        switch route {
+        case .newExercise:
+          ExerciseForm(exercise: nil, isPushed: true) { created in
+            pick(created)
+            dismiss()
+          }
+        case .newActivity:
+          ActivityDefinitionForm(created: choose)
         }
       }
     }
     .modifier(ContrastScrollEdges())
+  }
+
+  private func choose(_ activity: TimedActivity) {
+    pickActivity(activity)
+    dismiss()
   }
 
   private func row(_ exercise: Exercise) -> some View {

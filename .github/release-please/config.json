@@ -1,12 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
-  "bootstrap-sha": "d26de7b5f7683c1a0cab8afa1de58ec957412254",
+  "bootstrap-sha": "4a83d8d677564c8ab0f83482682924311698a632",
   "packages": {
     ".": {
       "release-type": "simple",
       "version-file": "Config/MarketingVersion.txt",
       "changelog-path": "docs/changelog.md",
-      "initial-version": "1.0.0",
+      "initial-version": "1.1.0",
       "draft": true,
       "force-tag-creation": true,
       "include-component-in-tag": false,

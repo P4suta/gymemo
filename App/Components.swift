@@ -26,6 +26,7 @@ struct SetRow: View {
   let set: LoggedSet
   let isBest: Bool
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.gymemoWeightUnit) private var weightUnit
 
   var body: some View {
     let layout =
@@ -36,7 +37,7 @@ struct SetRow: View {
       HStack(alignment: .firstTextBaseline, spacing: 12) {
         Text(number.formatted(.number.locale(copy.locale))).foregroundStyle(SecondaryTextStyle())
           .accessibilityIdentifier("set-number-\(set.id)")
-        Text(copy.set(set)).foregroundStyle(Color.primary)
+        Text(copy.using(weightUnit: weightUnit).set(set)).foregroundStyle(Color.primary)
       }
       .monospacedDigit()
       if !typeSize.isAccessibilitySize { Spacer(minLength: 8) }
@@ -51,28 +52,29 @@ enum NumberKind {
 }
 
 /// A labeled number field with its unit and a stepper.
-/// The stepper changes the value without the keyboard: 2.5 kg for a weight and one for repetitions.
 /// At accessibility text sizes, the vertical stack keeps the label, field, and stepper visible.
 struct NumberFieldRow: View {
   let kind: NumberKind
   @Binding var text: String
   let identifier: String
   var exerciseName: ExerciseName?
+  var weightUnit = WeightUnit.kilograms
   @FocusState private var isFocused: Bool
   @Environment(\.dynamicTypeSize) private var typeSize
 
   private var title: String { kind == .weight ? copy[.weight] : copy[.reps] }
 
   private var spokenTitle: String {
-    let title = kind == .weight ? copy[.weightSpoken] : copy[.reps]
+    let weightKey: CopyKey = weightUnit == .kilograms ? .weightSpoken : .weightPoundsSpoken
+    let title = kind == .weight ? copy[weightKey] : copy[.reps]
     return exerciseName.map { copy.exerciseControlTitle(title, $0) } ?? title
   }
 
   private var spokenValue: String {
     switch kind {
     case .weight:
-      if case .success(let entry) = SetEntry.parse(weight: text, reps: "1") {
-        return copy.load(entry.weight)
+      if case .success(let entry) = SetEntry.parse(weight: text, reps: "1", unit: weightUnit) {
+        return copy.using(weightUnit: weightUnit).load(entry.weight)
       }
     case .reps:
       if case .success(let reps) = Reps.parse(text) { return copy.repCount(reps.count) }
@@ -105,12 +107,9 @@ struct NumberFieldRow: View {
         .multilineTextAlignment(isLarge ? .leading : .trailing)
         .monospacedDigit()
         .focused($isFocused)
-        #if os(iOS)
-          .focusedValue(\.gymemoNumberInput, identifier)
-        #endif
+        .numericInput(identifier: identifier)
         .accessibilityLabel(spokenTitle)
         .accessibilityInputLabels([spokenTitle, title])
-        .accessibilityIdentifier(identifier)
         if !isLarge && kind == .weight { unitLabel }
         if !isLarge { clearControl }
       }
@@ -130,7 +129,7 @@ struct NumberFieldRow: View {
   }
 
   private var unitLabel: some View {
-    Text(copy[.kilogramUnit])
+    Text(weightUnit.rawValue)
       .foregroundStyle(Color.primary)
       .accessibilityHidden(true)
       .accessibilityIdentifier("unit-\(identifier)")
@@ -168,8 +167,10 @@ struct NumberFieldRow: View {
   private func step(_ steps: Int) {
     switch kind {
     case .weight:
-      guard let weight = Weight.stepped(from: text, by: steps) else { return }
-      text = weight.isBodyweight ? "" : copy.weightField(weight)
+      guard case .success(let entry) = SetEntry.parse(weight: text, reps: "1", unit: weightUnit)
+      else { return }
+      let weight = weightUnit.stepped(from: entry.weight, by: steps)
+      text = copy.using(weightUnit: weightUnit).weightField(weight)
     case .reps:
       guard let reps = Reps.stepped(from: text, by: steps) else { return }
       text = "\(reps.count)"
@@ -248,6 +249,16 @@ struct StackedRow: View {
 }
 
 extension View {
+  @ViewBuilder
+  func numericInput(identifier: String) -> some View {
+    #if os(iOS)
+      focusedValue(\.gymemoNumberInput, identifier)
+        .accessibilityIdentifier(identifier)
+    #else
+      accessibilityIdentifier(identifier)
+    #endif
+  }
+
   func storageFailureAlert() -> some View {
     modifier(StorageFailureAlert())
   }

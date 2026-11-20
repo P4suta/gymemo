@@ -7,7 +7,7 @@ public enum IntegrityRefusal: Error, Equatable, Sendable {
   case tooManySets
 }
 
-/// Every exercise, set, and memo of one lifter.
+/// Every exercise, set, activity, and memo in the log.
 /// Exercise identifiers, exercise names, and set identifiers are unique, and every set names a stored exercise.
 /// Exercises and sets keep the order in which the lifter added them.
 public struct TrainingLog: Equatable, Sendable {
@@ -18,6 +18,7 @@ public struct TrainingLog: Equatable, Sendable {
   public let exercises: [Exercise]
   public let sets: [LoggedSet]
   public let memos: [LocalDay: Memo]
+  public let activities: ActivityLog
 
   private let exercisePositions: [ExerciseID: Int]
   private let setPositions: [SetID: Int]
@@ -25,10 +26,14 @@ public struct TrainingLog: Equatable, Sendable {
   private let setPositionsByDay: [LocalDay: [Int]]
 
   /// Builds a log from rows that already satisfy the invariants.
-  init(unchecked exercises: [Exercise], sets: [LoggedSet], memos: [LocalDay: Memo]) {
+  init(
+    unchecked exercises: [Exercise], sets: [LoggedSet], memos: [LocalDay: Memo],
+    activities: ActivityLog = .empty
+  ) {
     self.exercises = exercises
     self.sets = sets
     self.memos = memos
+    self.activities = activities
     var exercisePositions: [ExerciseID: Int] = [:]
     for (position, exercise) in exercises.enumerated() {
       exercisePositions[exercise.id] = position
@@ -49,7 +54,8 @@ public struct TrainingLog: Equatable, Sendable {
 
   /// Builds a log from rows of unknown origin, such as a file or a database.
   public static func make(
-    exercises: [Exercise], sets: [LoggedSet], memos: [LocalDay: Memo]
+    exercises: [Exercise], sets: [LoggedSet], memos: [LocalDay: Memo],
+    activities: ActivityLog = .empty
   ) -> Result<TrainingLog, IntegrityRefusal> {
     guard exercises.count <= maximumExercises else { return .failure(.tooManyExercises) }
     guard sets.count <= maximumSets else { return .failure(.tooManySets) }
@@ -64,7 +70,8 @@ public struct TrainingLog: Equatable, Sendable {
       guard setIDs.insert(set.id).inserted else { return .failure(.duplicateSetID) }
       guard exerciseIDs.contains(set.exerciseID) else { return .failure(.unknownExercise) }
     }
-    return .success(TrainingLog(unchecked: exercises, sets: sets, memos: memos))
+    return .success(
+      TrainingLog(unchecked: exercises, sets: sets, memos: memos, activities: activities))
   }
 
   public func exercise(_ id: ExerciseID) -> Exercise? {
@@ -89,10 +96,12 @@ public struct TrainingLog: Equatable, Sendable {
     memos[day]
   }
 
-  /// The days that hold at least one set.
+  /// The days that hold at least one set or timed activity.
   public var trainingDays: Set<LocalDay> {
-    Set(setPositionsByDay.keys)
+    strengthDays.union(activities.days)
   }
+
+  var strengthDays: Set<LocalDay> { Set(setPositionsByDay.keys) }
 
   func position(of exercise: ExerciseID) -> Int? {
     exercisePositions[exercise]

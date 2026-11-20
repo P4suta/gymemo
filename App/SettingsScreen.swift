@@ -55,6 +55,10 @@ struct SettingsScreen: View {
             }
           #endif
         }
+        Section(copy[.units]) {
+          WeightUnitPicker()
+          DistanceUnitPicker()
+        }
         Section {
           Text(copy[.storageText])
             .accessibilityIdentifier("storage-text")
@@ -163,6 +167,18 @@ struct BackupScreen: View {
         Text(copy[.exportCSVText])
       }
       Section {
+        Button(copy[.exportActivities], systemImage: "tablecells") {
+          export = Export(
+            document: ExportDocument(
+              data: CSVExport.writeActivities(model.log, labels: copy.activityCSVLabels)),
+            type: .commaSeparatedText, name: "gymemo-activities-\(model.today.iso)")
+          isExporting = true
+        }
+        .accessibilityIdentifier("export-activities-csv")
+      } footer: {
+        Text(copy[.exportActivitiesText])
+      }
+      Section {
         Button(copy[.importBackup], systemImage: "square.and.arrow.down") { isImporting = true }
           .accessibilityIdentifier("import-backup")
       } footer: {
@@ -195,7 +211,7 @@ struct BackupScreen: View {
       }
       Button(copy[.cancel], role: .cancel) {}
     } message: { log in
-      Text(copy.replaceMessage(current: model.log.sets.count, incoming: log.sets.count))
+      Text(copy.replaceMessage(current: model.log, incoming: log))
     }
   }
 

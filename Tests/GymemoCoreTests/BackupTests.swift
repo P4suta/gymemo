@@ -37,7 +37,7 @@ import Testing
     #expect(Backup.read(data) == .success(log))
     #expect(Backup.write(log) == data)
     let text = try #require(String(data: data, encoding: .utf8))
-    #expect(text.hasPrefix(#"{"format":"gymemo-backup","formatVersion":1,"#))
+    #expect(text.hasPrefix(#"{"format":"gymemo-backup","formatVersion":2,"#))
     #expect(Backup.read(Backup.write(.empty)) == .success(.empty))
   }
 
@@ -54,7 +54,7 @@ import Testing
     #expect(
       String(data: Backup.write(builder.log), encoding: .utf8)
         == #"""
-        {"format":"gymemo-backup","formatVersion":1,
+        {"format":"gymemo-backup","formatVersion":2,
         "exercises":[
         {"id":"67796D65-6D6F-4000-8000-000000000001","name":"ベンチプレス","bodyPart":"chest","archived":false},
         {"id":"67796D65-6D6F-4000-8000-000000000002","name":"懸垂","bodyPart":"back","archived":true}
@@ -67,16 +67,20 @@ import Testing
         {"day":"2026-11-05","text":"一行目\n\t二行目 \"quote\" \\"},
         {"day":"2026-11-07","text":"休み"},
         {"day":"2026-11-09","text":"二日目"}
-        ]}
+        ],
+        "activities":[],
+        "activityRecords":[]}
 
         """#)
     #expect(
       String(data: Backup.write(.empty), encoding: .utf8)
         == """
-        {"format":"gymemo-backup","formatVersion":1,
+        {"format":"gymemo-backup","formatVersion":2,
         "exercises":[],
         "sets":[],
-        "memos":[]}
+        "memos":[],
+        "activities":[],
+        "activityRecords":[]}
 
         """)
   }
@@ -161,7 +165,8 @@ import Testing
     #expect(Backup.read(Data("[]".utf8)) == .failure(.notABackup))
     #expect(Backup.read(Data([0xFF, 0xFE, 0x00])) == .failure(.notABackup))
     #expect(Backup.read(document(format: "other")) == .failure(.notABackup))
-    #expect(Backup.read(document(version: "2")) == .failure(.unsupportedVersion(2)))
+    #expect(Backup.read(document(version: "3")) == .failure(.unsupportedVersion(3)))
+    #expect(Backup.read(document(version: "2")) == .failure(.invalidActivities))
     #expect(Backup.read(document(version: "0")) == .failure(.unsupportedVersion(0)))
     #expect(Backup.read(document(version: "\"1\"")) == .failure(.notABackup))
     #expect(
@@ -280,6 +285,19 @@ import Testing
       String(data: data.dropFirst(3), encoding: .utf8)
         == "\"a,b\",\"c\"\"d\",\"e\nf\",\"g\rh\",\"i\r\nj\",k\r\n"
         + "2026-11-09,\"5\"\"プレート\",\"脚\n下半身\",1,100,5\r\n")
+  }
+
+  @Test(arguments: [
+    "=incline", "+assisted", "-tempo", "@coach", "＝incline", "＋assisted", "－tempo", "＠coach",
+  ])
+  func exportsExerciseNamesWithFormulaPrefixesAsText(_ name: String) throws {
+    var builder = LogBuilder()
+    try builder.exercise(1, name, .chest)
+    try builder.set(1, "2026-11-09", "60", 5)
+    let csv = CSVExport.write(builder.log, labels: labels)
+    #expect(
+      String(decoding: csv.dropFirst(3), as: UTF8.self)
+        == "日付,種目,部位,セット,重量(kg),回数\r\n2026-11-09,'\(name),胸,1,60,5\r\n")
   }
 
   @Test func writesOnlyTheHeaderForAnEmptyLog() throws {

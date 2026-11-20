@@ -101,6 +101,8 @@ A toolbar item with the `plus` symbol pushes the form for a new exercise inside 
 
 ## History
 
+The history includes days with timed activity records and shows the duration and recorded distance for each.
+
 The History tab lists the training days under a header for each month, newest first.
 A row shows the date, the exercises with the number of sets, and the start of the note.
 A toolbar item with the `calendar.badge.plus` symbol opens the day picker, which shows a calendar.
@@ -108,6 +110,8 @@ A past day uses the same screen as the Log tab, with a row that says the day isn
 An empty history shows an empty state with a button that starts today's log.
 
 ## Analysis
+
+The weekly chart counts days with strength sets or timed activities.
 
 The Analysis tab shows the training days of each of the last 12 weeks and one row for each exercise.
 A sentence before the bar chart states the two newest values.
@@ -129,6 +133,22 @@ The description gives the first and last displayed trend values.
 
 ## Settings
 
+The Units section lets the person choose kilograms or pounds and kilometers or miles independently.
+The Watch offers its own weight unit picker.
+The choices apply to inputs, displayed records, charts, and VoiceOver.
+
+## Timed activity logging
+
+The exercise picker lists Walking and custom timed activities before strength exercises.
+Choosing a timed activity closes the picker before the entry sheet opens, following Apple's [sheet guidance](https://developer.apple.com/design/human-interface-guidelines/sheets).
+A person can create an activity that records duration and an optional distance.
+The duration is a required whole number of minutes.
+The form shows validation next to the corresponding field, following Apple's [data entry guidance](https://developer.apple.com/design/human-interface-guidelines/entering-data).
+The daily log offers Edit and Delete through row actions and context menus.
+The [Figma studies](https://www.figma.com/design/Hid7RVq16U5SizfgMTQRZB/?node-id=261-13085) show the activity picker, entry form, and units.
+
+## Storage settings
+
 The Settings tab links to exercises, export and import, and the local privacy policy, and states where records stay.
 The standard [grouped form](https://developer.apple.com/documentation/swiftui/groupedformstyle) gives related controls a visible group on every platform.
 Settings links explicitly show their [native navigation indicator](https://developer.apple.com/documentation/swiftui/view/navigationlinkindicatorvisibility(_:)), including on Mac, so a destination is distinct from static text without relying on color.
@@ -143,8 +163,9 @@ The screen tour requires every statement to fit fully outside the navigation and
 Its viewport follows the bar's actual position because Apple's [sidebar adaptable style](https://developer.apple.com/documentation/swiftui/tabviewstyle/sidebaradaptable) puts tabs at the top on iPad and at the bottom on iPhone.
 It records reached statements before each audit and scrolls past content already reached, because audits can reset the scroll position on the iOS 27 simulator.
 Privacy audits use text bounds and pixels captured before the audit, so a scroll reset can't substitute a different viewport while handling reports.
-Contrast reports for fully visible privacy facts require a measured screenshot ratio of at least 4.5:1.
-The Watch privacy scenarios turn the Digital Crown in small steps through [XCUIDevice](https://developer.apple.com/documentation/xcuiautomation/xcuidevice), so short statements aren't skipped between observations.
+The contrast check measures the navigation title and fully visible content outside the bars, with a required screenshot ratio of at least 4.5:1.
+The Watch privacy scenarios scroll with [short drags](https://developer.apple.com/documentation/xcuiautomation/xcuicoordinate/press(forduration:thendragto:withvelocity:thenholdforduration:)) and check which statements are readable after each gesture.
+Full-screen gestures skipped short statements, and repeated Digital Crown events coincided with a `com.apple.Carousel` crash on the watchOS 27.2 simulator.
 On iOS, the standard [hard scroll edge effect](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle/hard) separates scrolling text from the navigation bar.
 The policy also explains paired Apple Watch transfer.
 On iPhone, iPad, and Vision Pro, a standard `Link` opens the Shortcuts app using Apple's [documented URL scheme](https://support.apple.com/guide/shortcuts/apda283236d7/ios).

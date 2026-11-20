@@ -7,14 +7,14 @@ public enum BackupRefusal: Error, Equatable, Sendable {
   case invalidExercise(index: Int)
   case invalidSet(index: Int)
   case invalidMemo(index: Int)
+  case invalidActivities
   case integrity(IntegrityRefusal)
 }
 
 /// The JSON document that carries a whole log between installations.
-/// `formatVersion` numbers the document's shape, and `read` accepts only the number that `write` produces.
 public enum Backup {
   public static let format = "gymemo-backup"
-  public static let formatVersion = 1
+  public static let formatVersion = 2
   public static let maximumBytes = 64 * 1_048_576
 
   private struct Header: Decodable {
@@ -26,6 +26,8 @@ public enum Backup {
     let exercises: [ExerciseRow]
     let sets: [SetRow]
     let memos: [MemoRow]
+    let activities: [ActivityRow]?
+    let activityRecords: [ActivityRecordRow]?
   }
 
   private struct ExerciseRow: Decodable {
@@ -48,6 +50,20 @@ public enum Backup {
     let text: String
   }
 
+  private struct ActivityRow: Decodable {
+    let id: String
+    let name: String
+    let tracksDistance: Bool
+  }
+
+  private struct ActivityRecordRow: Decodable {
+    let id: String
+    let activity: String
+    let day: String
+    let minutes: Int
+    let distanceMeters: Int?
+  }
+
   /// Writes one row on each line in a fixed order, so equal logs give equal bytes.
   /// Exercises and sets keep the log's own order, and memos go in ascending order of their days.
   public static func write(_ log: TrainingLog) -> Data {
@@ -66,11 +82,27 @@ public enum Backup {
     let memos = log.memos.keys.sorted().compactMap { day in
       log.memos[day].map { "{\"day\":\(quoted(day.iso)),\"text\":\(quoted($0.text))}" }
     }
+    let activities = log.activities.customActivities.map { activity in
+      """
+      {"id":\(quoted(activity.id.uuid.uuidString)),"name":\(quoted(activity.name?.text ?? "")),\
+      "tracksDistance":\(activity.tracksDistance)}
+      """
+    }
+    let activityRecords = log.activities.records.map { record in
+      let meters = record.distance.map { String($0.meters) } ?? "null"
+      return """
+        {"id":\(quoted(record.id.uuid.uuidString)),\
+        "activity":\(quoted(record.activityID.uuid.uuidString)),"day":\(quoted(record.day.iso)),\
+        "minutes":\(record.duration.minutes),"distanceMeters":\(meters)}
+        """
+    }
     let text = """
       {"format":\(quoted(format)),"formatVersion":\(formatVersion),
       "exercises":[\(rows(exercises))],
       "sets":[\(rows(sets))],
-      "memos":[\(rows(memos))]}
+      "memos":[\(rows(memos))],
+      "activities":[\(rows(activities))],
+      "activityRecords":[\(rows(activityRecords))]}
 
       """
     return Data(text.utf8)
@@ -81,7 +113,7 @@ public enum Backup {
     let decoder = JSONDecoder()
     guard let header = try? decoder.decode(Header.self, from: data), header.format == format
     else { return .failure(.notABackup) }
-    guard header.formatVersion == formatVersion else {
+    guard header.formatVersion == 1 || header.formatVersion == formatVersion else {
       return .failure(.unsupportedVersion(header.formatVersion))
     }
     guard let body = try? decoder.decode(Body.self, from: data) else {
@@ -112,8 +144,40 @@ public enum Backup {
       else { return .failure(.invalidMemo(index: index)) }
       memos[day] = memo
     }
-    return TrainingLog.make(exercises: exercises, sets: sets, memos: memos)
+    guard let activities = activityLog(body, version: header.formatVersion) else {
+      return .failure(.invalidActivities)
+    }
+    return TrainingLog.make(exercises: exercises, sets: sets, memos: memos, activities: activities)
       .mapError(BackupRefusal.integrity)
+  }
+
+  private static func activityLog(_ body: Body, version: Int) -> ActivityLog? {
+    guard version >= formatVersion else { return .empty }
+    guard let activityRows = body.activities, let recordRows = body.activityRecords else {
+      return nil
+    }
+    var activities: [TimedActivity] = []
+    for row in activityRows {
+      guard let id = UUID(uuidString: row.id),
+        case .success(let name) = ExerciseName.parse(row.name),
+        let activity = TimedActivity(
+          id: TimedActivityID(id), name: name, tracksDistance: row.tracksDistance)
+      else { return nil }
+      activities.append(activity)
+    }
+    var records: [LoggedActivity] = []
+    for row in recordRows {
+      guard let id = UUID(uuidString: row.id), let activity = UUID(uuidString: row.activity),
+        let day = LocalDay(iso: row.day), let duration = ActivityDuration(minutes: row.minutes)
+      else { return nil }
+      let distance = row.distanceMeters.flatMap(ActivityDistance.init)
+      guard row.distanceMeters == nil || distance != nil else { return nil }
+      records.append(
+        LoggedActivity(
+          id: LoggedActivityID(id), activityID: TimedActivityID(activity), day: day,
+          duration: duration, distance: distance))
+    }
+    return try? ActivityLog.make(customActivities: activities, records: records).get()
   }
 
   private static func rows(_ rows: [String]) -> String {

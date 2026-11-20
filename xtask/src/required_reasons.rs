@@ -1,4 +1,4 @@
-//! Keeps required reason APIs out of the shipped Swift code, so the privacy manifest's empty declaration stays true.
+//! Checks required reason APIs against the scoped declaration for measurement preferences.
 //!
 //! The categories and their APIs come from Apple's [`NSPrivacyAccessedAPIType`](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) list.
 //! [Describing use of required reason API](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api) states that App Store Connect refuses an app that leaves such a use undeclared.
@@ -12,6 +12,14 @@ use std::{fs, path::Path};
 const MANIFEST: &str = "Config/PrivacyInfo.xcprivacy";
 /// The prefix of every category name that a manifest can declare.
 const DECLARATION: &str = "NSPrivacyAccessedAPICategory";
+const PREFERENCES: &str = "App/MeasurementPreferences.swift";
+const DEFAULTS_CATEGORY: &str = "NSPrivacyAccessedAPICategoryUserDefaults";
+const DEFAULTS_DECLARATION: &str = concat!(
+    "<key>NSPrivacyAccessedAPITypes</key><array><dict>",
+    "<key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryUserDefaults</string>",
+    "<key>NSPrivacyAccessedAPITypeReasons</key><array><string>CA92.1</string></array>",
+    "</dict></array>"
+);
 
 /// Each category with the API names that it covers.
 /// `attributesOfItem` isn't on Apple's list, and it stays here because its result carries the file timestamp keys.
@@ -59,7 +67,7 @@ const CATEGORIES: [(&str, &[&str]); 5] = [
         &["activeInputModes"],
     ),
     (
-        "NSPrivacyAccessedAPICategoryUserDefaults",
+        DEFAULTS_CATEGORY,
         &["UserDefaults", "AppStorage", "SceneStorage"],
     ),
 ];
@@ -73,12 +81,20 @@ const PLANTED: [&str; 3] = [
 
 /// Each required reason API that the sources name, located by its file and its category.
 fn findings(sources: &[Source]) -> Vec<String> {
+    scoped_findings(sources, false)
+}
+
+fn scoped_findings(sources: &[Source], declares_preferences: bool) -> Vec<String> {
     let mut found = Vec::new();
     for source in sources {
         let code = code_only(&source.text);
         for (category, apis) in CATEGORIES {
             for api in apis {
-                if names(&code, api) {
+                let permitted = declares_preferences
+                    && source.file == PREFERENCES
+                    && category == DEFAULTS_CATEGORY
+                    && *api == "AppStorage";
+                if !permitted && names(&code, api) {
                     found.push(format!(
                         "{} names {api}, and {MANIFEST} declares no reason for {category}",
                         source.file
@@ -90,17 +106,34 @@ fn findings(sources: &[Source]) -> Vec<String> {
     found
 }
 
-/// Scans the shipped Swift code and the manifest, and refuses a required reason API or a declaration.
+/// Scans the shipped Swift code and its required reason declaration.
 pub fn check(root: &Path) -> Result<String> {
     let sources = swift_source::read(root, &SHIPPED)?;
     let manifest =
         fs::read_to_string(root.join(MANIFEST)).context(|| format!("Read {MANIFEST}"))?;
-    ensure(!manifest.contains(DECLARATION), || {
-        format!(
-            "{MANIFEST} declares a required reason category, and this check accepts only an empty declaration"
-        )
-    })?;
-    let found = findings(&sources);
+    let normalized: String = manifest
+        .split("<!--")
+        .enumerate()
+        .filter_map(|(index, text)| {
+            if index == 0 {
+                Some(text)
+            } else {
+                text.split_once("-->").map(|(_, rest)| rest)
+            }
+        })
+        .flat_map(str::split_whitespace)
+        .collect();
+    let declares_preferences =
+        normalized.contains(DEFAULTS_DECLARATION) && normalized.matches(DECLARATION).count() == 1;
+    ensure(
+        declares_preferences || !normalized.contains(DECLARATION),
+        || {
+            format!(
+                "{MANIFEST} declares a required reason other than the app's measurement preferences"
+            )
+        },
+    )?;
+    let found = scoped_findings(&sources, declares_preferences);
     ensure(found.is_empty(), || {
         format!("Undeclared required reason API:\n{}", found.join("\n"))
     })?;
@@ -113,8 +146,13 @@ pub fn check(root: &Path) -> Result<String> {
             format!("The required reason check accepted a planted call: {planted}")
         })?;
     }
+    let result = if declares_preferences {
+        "match the measurement preferences declaration"
+    } else {
+        "name no required reason API"
+    };
     Ok(format!(
-        "{} Swift files name no required reason API, and {} planted calls fail",
+        "{} Swift files {result}, and {} planted calls fail",
         sources.len(),
         PLANTED.len()
     ))
@@ -210,9 +248,39 @@ mod tests {
         assert_eq!(
             check(tree.root()),
             Err(Failure::new(
-                "Config/PrivacyInfo.xcprivacy declares a required reason category, and this check accepts only an empty declaration"
+                "Config/PrivacyInfo.xcprivacy declares a required reason other than the app's measurement preferences"
             ))
         );
+        Ok(())
+    }
+
+    #[test]
+    fn the_declaration_covers_the_preferences_file_and_the_declared_api() -> Result<()> {
+        let manifest = format!("<plist><dict>{DEFAULTS_DECLARATION}</dict></plist>");
+        let tree = Tree::new(
+            "reasons-preferences",
+            &[
+                (PREFERENCES, PLANTED[2]),
+                ("Sources/GymemoKit/Store.swift", "import Foundation\n"),
+                (MANIFEST, manifest.as_str()),
+            ],
+        )?;
+        assert!(check(tree.root()).is_ok());
+        let elsewhere = shipped("reasons-other-defaults", PLANTED[2], &manifest)?;
+        assert!(check(elsewhere.root()).is_err());
+        let wrong_reason = manifest.replace("CA92.1", "1C8F.1");
+        let wrong = shipped("reasons-wrong-reason", PLANTED[2], &wrong_reason)?;
+        assert!(check(wrong.root()).is_err());
+        let commented = format!("<!--{manifest}-->");
+        let absent = Tree::new(
+            "reasons-commented-declaration",
+            &[
+                (PREFERENCES, PLANTED[2]),
+                ("Sources/GymemoKit/Store.swift", "import Foundation\n"),
+                (MANIFEST, commented.as_str()),
+            ],
+        )?;
+        assert!(check(absent.root()).is_err());
         Ok(())
     }
 

@@ -1,6 +1,193 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "units" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Units" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "単位" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "单位" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "單位" } } } },
+    "weightUnit" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Weight Unit" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "重量の単位" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重量单位" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重量單位" } } } },
+    "distanceUnit" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Distance Unit" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "距離の単位" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "距离单位" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "距離單位" } } } },
+    "kilograms" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Kilograms (kg)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "キログラム（kg）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "千克（kg）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "公斤（kg）" } } } },
+    "pounds" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Pounds (lb)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "ポンド（lb）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "磅（lb）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "磅（lb）" } } } },
+    "kilometers" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Kilometers (km)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "キロメートル（km）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "千米（km）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "公里（km）" } } } },
+    "miles" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Miles (mi)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイル（mi）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "英里（mi）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "英里（mi）" } } } },
+    "weightPoundsSpoken" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Weight in Pounds" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "重量（ポンド）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重量（磅）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重量（磅）" } } } },
+    "weightPoundsProblem" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a weight of up to 2204.6 lb with at most two decimal places. An added load starts at 0.02 lb." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "重量を2204.6 lb以下、小数第2位までで入力してください。自重に加える重量は0.02 lbから入力できます。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "输入不超过 2204.6 磅的重量，最多保留两位小数。负重从 0.02 磅起。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "輸入不超過 2204.6 磅的重量，最多可有兩位小數。負重從 0.02 磅起。" } } } },
+    "walking" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Walking" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "徒歩" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "步行" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "步行" } } } },
+    "activities" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Activities" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运动" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "運動" } } } },
+    "newActivity" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Timed Activity" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "時間で記録する種目を追加" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加计时运动" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "加入計時運動" } } } },
+    "logActivity" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Log Activity" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動を記録" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录运动" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記錄運動" } } } },
+    "editActivity" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit Activity" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動記録を編集" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "编辑运动记录" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯運動紀錄" } } } },
+    "deleteActivity" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Activity Record" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動記録を削除" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除运动记录" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除運動紀錄" } } } },
+    "activitySaved" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Activity Saved" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動を記録しました" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已保存运动" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已儲存運動" } } } },
+    "activity" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Activity" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動種目" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运动项目" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "運動項目" } } } },
+    "recordMeasure" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Record" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "記録項目" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录项目" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄項目" } } } },
+    "timeOnly" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Time" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "時間" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时间" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "時間" } } } },
+    "timeAndDistance" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Time and Optional Distance" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "時間と任意の距離" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时间和可选距离" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "時間和選填距離" } } } },
+    "duration" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Duration (min)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動時間（分）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时长（分钟）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "運動時間（分鐘）" } } } },
+    "distance" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Distance" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "距離" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "距离" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "距離" } } } },
+    "optionalDistance" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Distance (Optional)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "距離（任意）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "距离（选填）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "距離（選填）" } } } },
+    "durationProblem" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a whole number from 1 to 1440 minutes." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動時間を1分から1440分までの整数で入力してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入 1 至 1440 之间的整数分钟。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入 1 至 1440 之間的整數分鐘。" } } } },
+    "distanceProblem" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a positive distance with up to three decimal places." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "正の距離を小数第3位までで入力してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请输入大于零的距离，最多保留三位小数。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入大於零的距離，最多可有三位小數。" } } } },
+    "activityNotSaved" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "The activity could not be saved. Reopen the day and try again." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動を保存できませんでした。日付の記録を開き直して再試行してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存运动。请重新打开当日记录后再试。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存運動。請重新開啟當日紀錄後再試。" } } } },
+    "activityFull" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "The log has reached its activity limit." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動の記録件数が上限に達しました。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运动记录已达到上限。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "運動紀錄已達上限。" } } } },
+    "exportActivities" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Activities CSV" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動のCSVを書き出す" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出运动 CSV" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "輸出運動 CSV" } } } },
+    "exportActivitiesText" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Exports your recorded activities with duration in minutes and distance in meters." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "手入力した運動を、時間は分、距離はメートルで書き出します。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导出手动记录的运动，时长为分钟，距离为米。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "輸出手動記錄的運動，時間以分鐘表示，距離以公尺表示。" } } } },
+    "csvDuration" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Duration (min)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "時間（分）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "时长（分钟）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "時間（分鐘）" } } } },
+    "csvDistance" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Distance (m)" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "距離（m）" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "距离（米）" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "距離（公尺）" } } } },
+    "weeklyActivitiesCaption" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "A day counts once when it has a set or timed activity." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットか運動の記録がある日を1日として数えます。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有组数或计时运动记录的一天计一次。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "有組數或計時運動紀錄的一天計為一次。" } } } },
+    "loadPounds" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ lb" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ lb" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 磅" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@ 磅" } } } },
+    "poundsSpoken" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ pounds" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@ポンド" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 磅" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%@ 磅" } } } },
+    "activityMinutes" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld min" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld分" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 分钟" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld 分鐘" } } } },
+    "distanceWithUnit" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@" } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%1$@ %2$@" } } } },
+    "activityCount" : { "extractionState" : "manual", "localizations" : {
+      "en" : { "variations" : { "plural" : {
+        "one" : { "stringUnit" : { "state" : "translated", "value" : "%lld activity" } },
+        "other" : { "stringUnit" : { "state" : "translated", "value" : "%lld activities" } } } } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "運動%lld件" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 条运动记录" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld 筆運動紀錄" } } } },
     "versionLabel" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "バージョン" } },
@@ -167,10 +354,10 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除数据" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除資料" } } } },
     "privacyDeletionText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete sets and unused exercises in the app." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セットと未使用の種目は、アプリ内で削除できます。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可在App内删除训练组和未使用的训练项目。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "可在App內刪除訓練組和未使用的訓練項目。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete sets, activity records, and unused strength exercises in the app." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "セット、運動の記録、未使用の筋トレ種目はアプリ内で削除できます。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可在 App 内删除训练组、运动记录和未使用的力量训练项目。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "可在 App 內刪除訓練組、運動紀錄和未使用的肌力訓練項目。" } } } },
     "privacyEraseText" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove the app and its data from each device to erase all records." } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "全記録を消す場合は、各端末のアプリとアプリデータを削除してください。" } },
@@ -607,10 +794,10 @@
       "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记录保存在各个设备上。" } },
       "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "紀錄儲存在各部裝置上。" } } } },
     "exportBackupText" : { "extractionState" : "manual", "localizations" : {
-      "en" : { "stringUnit" : { "state" : "translated", "value" : "Saves every exercise, set, and note on this device to one JSON file. Export a backup before changing devices." } },
-      "ja" : { "stringUnit" : { "state" : "translated", "value" : "端末内のすべての種目、セット、メモを1つのJSONファイルに保存します。機種を変える前に書き出してください。" } },
-      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将设备上的所有动作、训练记录和备注保存为一个JSON文件。更换设备前请先导出备份。" } },
-      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將裝置上的所有動作、訓練紀錄和備註儲存為一個JSON檔案。更換裝置前請先匯出備份。" } } } },
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Saves gymemo exercises, sets, activities, and notes to one JSON file. Export a backup before changing devices." } },
+      "ja" : { "stringUnit" : { "state" : "translated", "value" : "gymemoの種目、セット、運動、メモを1つのJSONファイルに保存します。機種を変える前に書き出してください。" } },
+      "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将 gymemo 的训练项目、训练组、运动和备注保存为一个 JSON 文件。更换设备前请先导出备份。" } },
+      "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將 gymemo 的訓練項目、訓練組、運動和備註儲存為一個 JSON 檔案。更換裝置前請先匯出備份。" } } } },
     "exportBackup" : { "extractionState" : "manual", "localizations" : {
       "en" : { "stringUnit" : { "state" : "translated", "value" : "Export Backup" } },
       "ja" : { "stringUnit" : { "state" : "translated", "value" : "バックアップを書き出す" } },

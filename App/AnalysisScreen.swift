@@ -35,6 +35,7 @@ struct AnalysisList: View {
   @Binding var selectedExercise: ExerciseID?
   let openLog: () -> Void
   @Environment(AppModel.self) private var model
+  @Environment(\.gymemoWeightUnit) private var weightUnit
 
   var body: some View {
     let summaries = model.log.exerciseSummaries
@@ -42,14 +43,14 @@ struct AnalysisList: View {
       Section {
         WeeklyBlock(weeks: model.log.weeklyTrainingDays(through: model.today, weeks: 12))
         #if os(macOS)
-          Text(copy[.weeklyCaption]).font(.footnote).foregroundStyle(SecondaryTextStyle())
+          Text(copy[.weeklyActivitiesCaption]).font(.footnote).foregroundStyle(SecondaryTextStyle())
             .fixedSize(horizontal: false, vertical: true)
         #endif
       } header: {
         Text(copy[.weeklyTrainingDays])
       } footer: {
         #if !os(macOS)
-          Text(copy[.weeklyCaption])
+          Text(copy[.weeklyActivitiesCaption])
         #endif
       }
       if summaries.isEmpty {
@@ -72,7 +73,9 @@ struct AnalysisList: View {
             NavigationLink(value: summary.exercise.id) {
               StackedRow(
                 title: summary.exercise.name.text,
-                subtitle: summary.best.map { copy.scoreLine($0.score) },
+                subtitle: summary.best.map {
+                  copy.using(weightUnit: weightUnit).scoreLine($0.score)
+                },
                 caption: copy.lastLogged(summary.lastDay),
                 isSelected: selectedExercise == summary.exercise.id)
             }
@@ -166,6 +169,7 @@ struct ExerciseProgressScreen: View {
   let exerciseID: ExerciseID
   @Environment(AppModel.self) private var model
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.gymemoWeightUnit) private var weightUnit
   @State private var range = ProgressRange.threeMonths
 
   var body: some View {
@@ -202,7 +206,9 @@ struct ExerciseProgressScreen: View {
         }
         Section(copy[.setsByDay]) {
           ForEach(progress.sessions) { session in
-            StackedRow(overline: copy.day(session.day, .long), title: copy.sets(session.sets))
+            StackedRow(
+              overline: copy.day(session.day, .long),
+              title: copy.using(weightUnit: weightUnit).sets(session.sets))
           }
         }
       } else {
@@ -237,16 +243,20 @@ private struct ProgressChart: View {
   let trend: [ProgressTrendSegment]
   let kind: ScoreKind
   @Environment(\.dynamicTypeSize) private var typeSize
+  @Environment(\.gymemoWeightUnit) private var weightUnit
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       chart
       if let first = trend.first?.points.first, let last = trend.last?.points.last {
-        Text(copy.progressTrend(from: first.value, to: last.value, kind: kind))
-          .font(.footnote)
-          .foregroundStyle(SecondaryTextStyle())
-          .fixedSize(horizontal: false, vertical: true)
-          .accessibilityIdentifier("progress-trend-description")
+        Text(
+          copy.using(weightUnit: weightUnit).progressTrend(
+            from: first.value, to: last.value, kind: kind)
+        )
+        .font(.footnote)
+        .foregroundStyle(SecondaryTextStyle())
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("progress-trend-description")
       }
     }
     .padding(.vertical, 4)
@@ -255,11 +265,12 @@ private struct ProgressChart: View {
   private var chart: some View {
     // Fewer dates fit under the chart at the accessibility text sizes.
     let dates = typeSize.isAccessibilitySize ? 2 : 4
-    let name = copy.scoreName(kind)
+    let name = kind == .oneRepMax ? copy.weightUnitName(weightUnit) : copy.scoreName(kind)
     return Chart {
       ForEach(points) { point in
         LineMark(
-          x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value),
+          x: .value(copy[.axisDate], point.day.noonUTC),
+          y: .value(name, plotValue(point.score.value)),
           series: .value(name, 0)
         )
         .interpolationMethod(.monotone)
@@ -269,7 +280,7 @@ private struct ProgressChart: View {
       ForEach(trend.indices, id: \.self) { index in
         ForEach(trend[index].points) { point in
           LineMark(
-            x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.value),
+            x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, plotValue(point.value)),
             series: .value(name, index + 1)
           )
           .interpolationMethod(.monotone)
@@ -279,10 +290,13 @@ private struct ProgressChart: View {
         }
       }
       ForEach(points) { point in
-        PointMark(x: .value(copy[.axisDate], point.day.noonUTC), y: .value(name, point.score.value))
-          .foregroundStyle(.tint)
-          .accessibilityLabel(copy.day(point.day, .long))
-          .accessibilityValue(copy.score(point.score))
+        PointMark(
+          x: .value(copy[.axisDate], point.day.noonUTC),
+          y: .value(name, plotValue(point.score.value))
+        )
+        .foregroundStyle(.tint)
+        .accessibilityLabel(copy.day(point.day, .long))
+        .accessibilityValue(copy.using(weightUnit: weightUnit).score(point.score))
       }
     }
     .chartYScale(domain: .automatic(includesZero: false))
@@ -304,12 +318,18 @@ private struct ProgressChart: View {
     .frame(height: 200)
     .accessibilityIdentifier("progress-chart")
   }
+
+  private func plotValue(_ value: Double) -> Double {
+    kind == .oneRepMax ? weightUnit.value(kilograms: value) : value
+  }
 }
 
 private struct BestRows: View {
   let progress: ExerciseProgress
+  @Environment(\.gymemoWeightUnit) private var weightUnit
 
   var body: some View {
+    let copy = copy.using(weightUnit: weightUnit)
     if let best = progress.best {
       VStack(alignment: .leading, spacing: 2) {
         Text(copy.scoreLine(best.score)).font(.headline).accessibilityIdentifier("best-score")

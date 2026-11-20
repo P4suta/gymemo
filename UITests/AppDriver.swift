@@ -11,7 +11,8 @@ enum Gymemo {
 
   static func launch(
     store: String, reset: Bool = true, sample: Bool = false, tab: String? = nil,
-    textSize: String? = nil, language: String = "en", assistive: Bool = false
+    textSize: String? = nil, language: String = "en", assistive: Bool = false,
+    usesStoredWeightUnit: Bool = false
   ) -> XCUIApplication {
     let app = XCUIApplication()
     var arguments = [
@@ -21,6 +22,7 @@ enum Gymemo {
     if reset { arguments.append("-gymemo-reset") }
     if sample { arguments.append("-gymemo-sample") }
     if assistive { arguments.append("-gymemo-assistive") }
+    if !usesStoredWeightUnit { arguments += ["-gymemo-weight-unit", "kg"] }
     if let tab { arguments += ["-gymemo-tab", tab] }
     if let textSize { arguments += ["-UIPreferredContentSizeCategoryName", textSize] }
     app.launchArguments = arguments

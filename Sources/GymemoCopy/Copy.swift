@@ -18,6 +18,7 @@ public struct Copy: Sendable {
 
   public let language: String
   public let locale: Locale
+  public private(set) var weightUnit: WeightUnit = .kilograms
   private let bundle: Bundle
 
   /// The copy of one supported language, or `nil` for any other language.
@@ -37,6 +38,12 @@ public struct Copy: Sendable {
 
   public subscript(key: CopyKey) -> String {
     stored(key.rawValue) ?? key.rawValue
+  }
+
+  public func using(weightUnit: WeightUnit) -> Copy {
+    var text = self
+    text.weightUnit = weightUnit
+    return text
   }
 
   /// The catalog's text for `key` in this language, or `nil` when the catalog lacks it.

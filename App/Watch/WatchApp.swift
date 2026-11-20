@@ -10,15 +10,18 @@ struct GymemoWatchApp: App {
 
   var body: some Scene {
     WindowGroup {
-      if let model {
-        WatchHome().environment(model)
-      } else {
-        ContentUnavailableView {
-          Label(copy[.launchFailed], systemImage: "exclamationmark.triangle")
-        } description: {
-          Text(copy[.launchStore])
+      Group {
+        if let model {
+          WatchHome().environment(model)
+        } else {
+          ContentUnavailableView {
+            Label(copy[.launchFailed], systemImage: "exclamationmark.triangle")
+          } description: {
+            Text(copy[.launchStore])
+          }
         }
       }
+      .modifier(MeasurementPreferences())
     }
     .backgroundTask(.watchConnectivity) { await model?.finishBackgroundDelivery() }
   }
@@ -50,6 +53,7 @@ private struct WatchHome: View {
           }
         }
         Section {
+          WeightUnitPicker()
           NavigationLink(copy[.watchDelivery]) { WatchDeliveryScreen() }
             .accessibilityIdentifier("watch-delivery")
           NavigationLink(copy[.privacyPolicy]) { PrivacyScreen() }
@@ -71,6 +75,7 @@ private struct WatchEntryScreen: View {
   @State private var reps: Reps
   @State private var lastLogged: SetID?
   @State private var logged = 0
+  @Environment(\.gymemoWeightUnit) private var unit
 
   init(item: CompanionExercise) {
     self.item = item
@@ -83,10 +88,10 @@ private struct WatchEntryScreen: View {
       List {
         Section(copy[.weight]) {
           Stepper(onIncrement: { stepWeight(1) }, onDecrement: { stepWeight(-1) }) {
-            Text(copy.load(weight)).font(.body).monospacedDigit()
+            Text(copy.using(weightUnit: unit).load(weight)).font(.body).monospacedDigit()
           }
           .accessibilityLabel(copy[.weight])
-          .accessibilityValue(copy.load(weight))
+          .accessibilityValue(copy.using(weightUnit: unit).load(weight))
           .accessibilityIdentifier("watch-weight")
         }
         Section(copy[.reps]) {
@@ -127,7 +132,7 @@ private struct WatchEntryScreen: View {
   }
 
   private func stepWeight(_ steps: Int) {
-    if let next = Weight.stepped(from: weight.text, by: steps) { weight = next }
+    weight = unit.stepped(from: weight, by: steps)
   }
 
   private func stepReps(_ steps: Int) {
@@ -137,6 +142,7 @@ private struct WatchEntryScreen: View {
 
 private struct WatchDeliveryScreen: View {
   @Environment(WatchModel.self) private var model
+  @Environment(\.gymemoWeightUnit) private var unit
 
   var body: some View {
     List {
@@ -147,7 +153,7 @@ private struct WatchDeliveryScreen: View {
               Text(name.text).font(.headline)
             }
             Text(copy.day(entry.set.day, .short)).foregroundStyle(Color.secondary)
-            Text(copy.set(entry.set)).monospacedDigit()
+            Text(copy.using(weightUnit: unit).set(entry.set)).monospacedDigit()
             WatchDeliveryRow(entry: entry)
             if entry.outcome == nil || entry.outcome == .full {
               Button(copy[.retry]) { model.retry(entry.id) }

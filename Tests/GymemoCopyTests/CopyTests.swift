@@ -268,7 +268,7 @@ private func placeholders(_ format: String) -> [String] {
     #expect(copy.problem(exercise: .exerciseName(.tooLong)).contains("40"))
     #expect(copy.problem(note: .memo(.tooLong)).contains("2,000"))
     let backups: [BackupRefusal] = [
-      .tooLarge, .notABackup, .unsupportedVersion(0), .unsupportedVersion(2),
+      .tooLarge, .notABackup, .unsupportedVersion(0), .unsupportedVersion(Backup.formatVersion + 1),
       .invalidExercise(index: 0), .invalidSet(index: 4), .invalidMemo(index: 9),
       .integrity(.duplicateSetID),
     ]

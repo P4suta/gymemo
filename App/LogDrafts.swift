@@ -4,6 +4,8 @@ import Observation
 struct LogSetDraft {
   var weightText: String
   var repsText: String
+  let weightUnit: WeightUnit
+  var storedWeight: Weight?
   var problem: String?
 }
 
@@ -18,15 +20,36 @@ final class LogDrafts {
   private var entries: [Key: LogSetDraft] = [:]
   private var pending: [LocalDay: [ExerciseID]] = [:]
 
-  func entry(for exercise: ExerciseID, on day: LocalDay, suggestion: SetEntry?) -> LogSetDraft {
-    entries[Key(day: day, exercise: exercise)]
-      ?? LogSetDraft(
-        weightText: suggestion.map { copy.weightField($0.weight) } ?? "",
-        repsText: suggestion.map { "\($0.reps.count)" } ?? "", problem: nil)
+  func entry(
+    for exercise: ExerciseID, on day: LocalDay, suggestion: SetEntry?, unit: WeightUnit
+  ) -> LogSetDraft {
+    if let draft = entries[Key(day: day, exercise: exercise)] {
+      guard draft.weightUnit != unit,
+        case .success(let entry) = SetEntry.parse(
+          weight: draft.weightText, reps: "1", unit: draft.weightUnit,
+          storedWeight: draft.storedWeight)
+      else { return draft }
+      return LogSetDraft(
+        weightText: copy.using(weightUnit: unit).weightField(entry.weight),
+        repsText: draft.repsText, weightUnit: unit, storedWeight: entry.weight,
+        problem: draft.problem)
+    }
+    return LogSetDraft(
+      weightText: suggestion.map { copy.using(weightUnit: unit).weightField($0.weight) } ?? "",
+      repsText: suggestion.map { "\($0.reps.count)" } ?? "", weightUnit: unit,
+      storedWeight: suggestion?.weight, problem: nil)
   }
 
   func update(_ draft: LogSetDraft, for exercise: ExerciseID, on day: LocalDay) {
     entries[Key(day: day, exercise: exercise)] = draft
+  }
+
+  func saved(_ entry: SetEntry, for exercise: ExerciseID, on day: LocalDay, unit: WeightUnit) {
+    update(
+      LogSetDraft(
+        weightText: copy.using(weightUnit: unit).weightField(entry.weight),
+        repsText: "\(entry.reps.count)", weightUnit: unit, storedWeight: entry.weight, problem: nil),
+      for: exercise, on: day)
   }
 
   func waiting(on day: LocalDay) -> [ExerciseID] {

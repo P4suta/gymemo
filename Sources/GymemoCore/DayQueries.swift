@@ -28,11 +28,17 @@ public struct SetEntry: Equatable, Sendable {
   }
 
   /// Reads the two inputs of a set, where an empty weight means the body alone.
-  public static func parse(weight: String, reps: String) -> Result<SetEntry, SetEntryRefusal> {
+  public static func parse(
+    weight: String, reps: String, unit: WeightUnit = .kilograms, storedWeight: Weight? = nil
+  ) -> Result<SetEntry, SetEntryRefusal> {
     let load: Result<Weight, WeightRefusal> =
-      switch Weight.parse(weight) {
-      case .failure(.empty): .success(.bodyweight)
-      case let other: other
+      if let storedWeight {
+        .success(storedWeight)
+      } else {
+        switch unit.parse(weight) {
+        case .failure(.empty): .success(.bodyweight)
+        case let other: other
+        }
       }
     return load.mapError(SetEntryRefusal.weight).flatMap { weight in
       Reps.parse(reps).mapError(SetEntryRefusal.reps).map { SetEntry(weight: weight, reps: $0) }
@@ -44,6 +50,7 @@ public struct DaySummary: Equatable, Identifiable, Sendable {
   public let day: LocalDay
   public let exerciseNames: [ExerciseName]
   public let setCount: Int
+  public let activities: [LoggedActivity]
   public let memo: Memo?
 
   public var id: LocalDay { day }
@@ -97,13 +104,15 @@ extension TrainingLog {
     return source.map { SetEntry(weight: $0.weight, reps: $0.reps) }
   }
 
-  /// Every day that holds a set or a memo, from newest to oldest.
+  /// Every day with a set, timed activity, or memo, from newest to oldest.
   public var history: [DaySummary] {
     trainingDays.union(memos.keys).sorted().reversed().map { day in
       let sections = sections(on: day)
       return DaySummary(
         day: day, exerciseNames: sections.map(\.exercise.name),
-        setCount: sections.reduce(0) { $0 + $1.sets.count }, memo: memos[day])
+        setCount: sections.reduce(0) { $0 + $1.sets.count },
+        activities: activities.records(on: day),
+        memo: memos[day])
     }
   }
 
@@ -129,7 +138,7 @@ extension TrainingLog {
   var exercisesByLatestUse: [(exercise: Exercise, day: LocalDay)] {
     var seen: Set<ExerciseID> = []
     var latest: [(exercise: Exercise, day: LocalDay)] = []
-    for day in trainingDays.sorted().reversed() {
+    for day in strengthDays.sorted().reversed() {
       for set in sets(on: day).reversed() {
         guard seen.insert(set.exerciseID).inserted, let exercise = exercise(set.exerciseID)
         else { continue }
