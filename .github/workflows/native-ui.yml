@@ -20,7 +20,7 @@ jobs:
       id-token: write # Attests test products before protected signing.
       attestations: write # Binds the preserved products to this source.
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     outputs:
@@ -132,7 +132,6 @@ jobs:
       contents: read
       attestations: read # Verifies the products before running them without signing secrets.
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
       MISE_AUTO_INSTALL: "false"
       CARGO_BUILD_JOBS: "2"
     steps:
@@ -157,7 +156,19 @@ jobs:
           codesign --verify --deep --strict target/mac-ui/Build/Products/Debug/gymemo.app
           codesign --verify --deep --strict target/mac-ui/Build/Products/Debug/gymemoNativeUITests-Runner.app
           /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$GITHUB_WORKSPACE/target/mac-ui/Build/Products/Debug/gymemo.app"
-      - run: mise x -- just test-mac-ui
+      - name: Run Mac UI tests with the matching Xcode version
+        run: |
+          runtime="$(sw_vers -productVersion)"
+          case "$runtime" in
+            27.0|27.0.*) export DEVELOPER_DIR=/Applications/Xcode_27.app/Contents/Developer ;;
+            27.2|27.2.*) export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer ;;
+            *)
+              printf 'Mac UI tests have no Xcode pin for macOS %s.\n' "$runtime" >&2
+              exit 1
+              ;;
+          esac
+          xcodebuild -version
+          mise x -- just test-mac-ui
       - run: mise x -- just check-mac-ui-result target/mac-ui.xcresult
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

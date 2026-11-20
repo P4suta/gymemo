@@ -79,14 +79,15 @@ The signing job verifies provenance, signs the app and nested UI runner with the
 A fresh hosted Mac verifies those products, registers the app with Launch Services, and runs the complete suite without signing credentials.
 No job uploads a build to App Store Connect.
 
-The [runner image][mac-test-image] runs macOS 27.2.
+The `xcode-27` runner label can serve both [macOS 27.0.1][mac-test-image-27-0] and [macOS 27.2][mac-test-image-27-2] during an image rollout.
 
-The build and test jobs pin Xcode 27.2 to match the hosted runtime.
-Xcode 27.0's App Intents Testing framework failed to load after the hosted image moved to macOS 27.2.
-Recheck framework compatibility after runner image updates.
-Release archives also use Xcode 27.2.
+The build job uses Xcode 27.0 for test products that can run on both images.
+The test job selects Xcode 27.0 or 27.2 to match the hosted macOS runtime because App Intents Testing loads symbols tied to that runtime.
+An unsupported runtime fails with its version in the diagnostic.
+Release archives use Xcode 27.2.
 
-[mac-test-image]: https://github.com/actions/runner-images/blob/xcode-27-arm64/20261119.0378/images/macos/xcode-27-arm64-Readme.md#xcode
+[mac-test-image-27-0]: https://github.com/actions/runner-images/blob/xcode-27-arm64/20261104.0337/images/macos/xcode-27-arm64-Readme.md#xcode
+[mac-test-image-27-2]: https://github.com/actions/runner-images/blob/xcode-27-arm64/20261119.0378/images/macos/xcode-27-arm64-Readme.md#xcode
 
 `mise x -- just require-mac-ui SHA` requires the most recently created exact-source main run and all three jobs to succeed in the same attempt.
 Pending, failed, missing, or different-source runs fail before the local suites start.
