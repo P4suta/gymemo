@@ -149,6 +149,12 @@ import Testing
     #expect(enough.trend(since: nil).first?.points.count == 5)
   }
 
+  @Test func fitsTheMedianSlopeAndInterceptOfUnevenScores() throws {
+    let progress = try measuredProgress([0, 1, 2, 3, 4], scores: [10, 12, 13, 14, 18])
+    let trend = try #require(progress.trend(since: nil).first)
+    #expect(trend.points.map(\.value) == [10, 11.75, 13.5, 15.25, 17])
+  }
+
   @Test func breaksTheTrendAcrossLongGapsAndKeepsSharedValuesAcrossRanges() throws {
     let offsets = [0, 3, 6, 9, 12, 54, 57, 60, 63, 66, 109, 112, 115, 118, 121]
     let progress = try measuredProgress(offsets, scores: offsets.map { 50 + $0 })

@@ -179,6 +179,29 @@ private func placeholders(_ format: String) -> [String] {
     #expect(try copy("ja", locale: "ja_JP").scoreLine(.oneRepMax(estimate)) == "推定1RM 79.2 kg")
   }
 
+  @Test func writesPoundScoresAndUsesThePoundLimitInEntryErrors() throws {
+    let english = try copy("en", locale: "en_US")
+    let pounds = english.using(weightUnit: .pounds)
+    let estimate = try #require(OneRepMax.estimate(weight: heavy, reps: eight))
+    #expect(pounds.score(.oneRepMax(estimate)) == "174.5 lb")
+    #expect(pounds.scoreLine(.oneRepMax(estimate)) == "Estimated 1RM 174.5 lb")
+    #expect(pounds.problem(entry: .weight(.outOfRange)) == english[.weightPoundsProblem])
+    #expect(english.problem(entry: .weight(.outOfRange)) == english[.weightProblem])
+  }
+
+  @Test func namesAndFormatsTheAvailableMeasurementUnits() throws {
+    let english = try copy("en", locale: "en_US")
+    let distance = try #require(ActivityDistance(meters: 1_609))
+    #expect(english.weightUnitName(.kilograms) == "Kilograms (kg)")
+    #expect(english.weightUnitName(.pounds) == "Pounds (lb)")
+    #expect(english.distanceUnitName(.kilometers) == "Kilometers (km)")
+    #expect(english.distanceUnitName(.miles) == "Miles (mi)")
+    #expect(english.distance(meters: Double(distance.meters), unit: .kilometers) == "1.609 km")
+    #expect(english.distance(meters: Double(distance.meters), unit: .miles) == "1 mi")
+    #expect(english.distanceField(distance, unit: .kilometers) == "1.609")
+    #expect(english.distanceField(distance, unit: .miles) == "1")
+  }
+
   @Test func writesTheWeeklyHeadline() throws {
     let english = try copy("en", locale: "en_US")
     #expect(english.weeklyHeadline(thisWeek: 1, lastWeek: 3) == "1 day this week, 3 days last week")
