@@ -1,4 +1,5 @@
 import Foundation
+import GymemoTestSupport
 import Testing
 
 @testable import GymemoCore
@@ -34,6 +35,67 @@ import Testing
     let mile = try #require(DistanceUnit.miles.parse("1"))
     #expect(mile.meters == 1_609)
     #expect(DistanceUnit.miles.thousandths(for: mile) == 1_000)
+  }
+
+  @Test func acceptsTheActivityDefinitionLimitAndRefusesOneMore() throws {
+    let definitions = try (0...UInt32(TrainingLog.maximumExercises)).map { number in
+      let name = try ExerciseName.parse("Activity \(number)").get()
+      return try #require(
+        TimedActivity(id: TimedActivityID(uuid(number)), name: name, tracksDistance: false))
+    }
+    let extra = try #require(definitions.last)
+    let full = try ActivityLog.make(
+      customActivities: Array(definitions.dropLast()), records: []
+    ).get()
+    #expect(full.customActivities.count == TrainingLog.maximumExercises)
+    let restored = ActivityLog.make(customActivities: definitions, records: [])
+      .map(\.customActivities.count)
+    #expect(restored == .failure(.full))
+
+    let log = try TrainingLog.make(exercises: [], sets: [], memos: [:], activities: full).get()
+    let added = log.apply(.add(id: extra.id, name: "Extra activity", tracksDistance: false))
+      .map(\.log.activities.customActivities.count)
+    #expect(added == .failure(.full))
+  }
+
+  @Test func acceptsTheActivityRecordLimitAndRefusesOneMore() throws {
+    let duration = try #require(ActivityDuration(minutes: 20))
+    let records = (0..<UInt32(TrainingLog.maximumSets)).map { number in
+      LoggedActivity(
+        id: LoggedActivityID(uuid(number)), activityID: .walking, day: .earliest,
+        duration: duration, distance: nil)
+    }
+    let extra = LoggedActivity(
+      id: LoggedActivityID(uuid(UInt32(TrainingLog.maximumSets))), activityID: .walking,
+      day: .earliest, duration: duration, distance: nil)
+    let full = try ActivityLog.make(customActivities: [], records: records).get()
+    #expect(full.records.count == TrainingLog.maximumSets)
+    let restored = ActivityLog.make(customActivities: [], records: records + [extra])
+      .map(\.records.count)
+    #expect(restored == .failure(.full))
+
+    let log = try TrainingLog.make(exercises: [], sets: [], memos: [:], activities: full).get()
+    let logged = log.apply(.record(extra)).map(\.log.activities.records.count)
+    #expect(logged == .failure(.full))
+  }
+
+  @Test func acceptsDecimalUnitInputsAndEnforcesTheirBounds() {
+    #expect(WeightUnit.pounds.parse(" .5 ").map(\.hundredths) == .success(23))
+    #expect(WeightUnit.pounds.parse("1,2").map(\.hundredths) == .success(54))
+    #expect(WeightUnit.pounds.parse("12.34").map(\.hundredths) == .success(560))
+    #expect(WeightUnit.pounds.parse("2204.6").map(\.hundredths) == .success(99_999))
+    #expect(WeightUnit.pounds.parse("2204.61") == .failure(.outOfRange))
+    #expect(WeightUnit.pounds.parse("2205") == .failure(.outOfRange))
+    #expect(WeightUnit.pounds.parse(String(repeating: "9", count: 200)) == .failure(.outOfRange))
+    #expect(WeightUnit.pounds.parse("1.234") == .failure(.tooPrecise))
+    #expect(WeightUnit.pounds.parse(".") == .failure(.notANumber))
+
+    #expect(DistanceUnit.kilometers.parse("1.25")?.meters == 1_250)
+    #expect(DistanceUnit.kilometers.parse("1000")?.meters == ActivityDistance.maximumMeters)
+    #expect(DistanceUnit.kilometers.parse("1000.001") == nil)
+    #expect(DistanceUnit.kilometers.parse(String(repeating: "9", count: 200)) == nil)
+    #expect(DistanceUnit.miles.parse(".5")?.meters == 805)
+    #expect(DistanceUnit.miles.parse("1.0001") == nil)
   }
 
   @Test func manualActivitiesSurviveBackupAndPreserveDistanceEligibility() throws {

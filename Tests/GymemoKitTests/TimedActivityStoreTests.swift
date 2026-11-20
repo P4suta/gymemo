@@ -31,4 +31,19 @@ import Testing
     try reopened.apply([.replaceAll(.empty)])
     #expect(try reopened.load() == .empty)
   }
+
+  @Test(arguments: [
+    "UPDATE timed_activity SET name = 'Walk' WHERE position = -1",
+    "UPDATE timed_activity SET tracks_distance = 0 WHERE position = -1",
+    "UPDATE timed_activity SET id = '67796D65-6D6F-4000-8000-000000000001' WHERE position = -1",
+  ])
+  func refusesAMalformedBuiltInWalkingDefinition(statement: String) throws {
+    let directory = try TemporaryDirectory()
+    let file = directory.file("activities.sqlite")
+    let store = try TrainingLogStore(url: file, starter: .empty)
+    let database = try SQLiteDatabase(url: file)
+    try database.execute(statement)
+    try database.close()
+    #expect(throws: StoreFailure.corruptRow(table: "timed_activity")) { try store.load() }
+  }
 }

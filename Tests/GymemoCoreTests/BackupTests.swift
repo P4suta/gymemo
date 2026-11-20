@@ -215,6 +215,20 @@ import Testing
         == .failure(.integrity(.duplicateSetID)))
   }
 
+  @Test(arguments: [-1, 0, ActivityDistance.maximumMeters + 1])
+  func refusesAnInvalidDistanceEvenWhenAnotherActivityRecordIsValid(_ meters: Int) {
+    let data = Data(
+      """
+      {"format":"gymemo-backup","formatVersion":2,"exercises":[],"sets":[],"memos":[],
+      "activities":[],"activityRecords":[
+      {"id":"67796D65-6D6F-4000-8000-000000000001","activity":"00000000-0000-0000-0000-000000000001",
+      "day":"2026-11-19","minutes":20,"distanceMeters":1500},
+      {"id":"67796D65-6D6F-4000-8000-000000000002","activity":"00000000-0000-0000-0000-000000000001",
+      "day":"2026-11-20","minutes":20,"distanceMeters":\(meters)}]}
+      """.utf8)
+    #expect(Backup.read(data) == .failure(.invalidActivities))
+  }
+
   @Test(arguments: [11, 12, 13, 14] as [UInt64])
   func survivesDamagedDocuments(seed: UInt64) throws {
     var generator = SeededGenerator(seed: seed)

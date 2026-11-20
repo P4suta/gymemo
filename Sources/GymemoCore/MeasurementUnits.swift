@@ -114,7 +114,7 @@ private func parseDecimal(
   let fraction = parts.count == 2 ? parts[1] : ""
   let scale = (0..<places).reduce(1) { scale, _ in scale * 10 }
   guard !(whole.isEmpty && fraction.isEmpty),
-    let units = whole.asciiNumber(limit: limit / scale),
+    let units = whole.asciiNumber(limit: limit),
     let decimals = fraction.asciiNumber(limit: scale)
   else { return .failure(.notANumber) }
   guard fraction.utf8.count <= places else { return .failure(.tooPrecise) }
