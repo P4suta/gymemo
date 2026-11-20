@@ -13,10 +13,8 @@ const PACKAGE: &str = "xtask";
 /// The directory of the runs, relative to the repository.
 const RUNS: &str = "target/mutants";
 /// The most mutants of one shard.
-/// The slowest file-restricted run in the container, over `xtask/src/swift_mutation.rs`, built its baseline in 4 seconds and tested 34 mutants in 70 seconds.
-/// At 2.1 seconds for each mutant, a full shard takes about 214 seconds, under a quarter of the 900-second limit.
-/// Even when one mutant in five reaches the 20-second test timeout of cargo-mutants, a shard takes about 572 seconds, under two thirds of the limit.
-const MUTANTS_PER_SHARD: usize = 100;
+/// The measured shard size fits the 900-second container limit on the release Mac.
+const MUTANTS_PER_SHARD: usize = 50;
 /// The options that the command chooses itself, which a caller may not pass on.
 /// Each shard tests its baseline first, so a failing test suite fails the run instead of catching every mutant.
 /// Each shard runs one job, the default of cargo-mutants, since the shard size rests on one job and 2 GiB holds one build.
@@ -470,12 +468,13 @@ mod tests {
 
     #[test]
     fn each_shard_holds_at_most_its_share_of_mutants() {
-        assert_eq!(MUTANTS_PER_SHARD, 100);
+        assert_eq!(MUTANTS_PER_SHARD, 50);
         assert_eq!(shards(1), 1);
-        assert_eq!(shards(100), 1);
-        assert_eq!(shards(101), 2);
-        assert_eq!(shards(312), 4);
-        assert_eq!(shards(400), 4);
+        assert_eq!(shards(50), 1);
+        assert_eq!(shards(51), 2);
+        assert_eq!(shards(99), 2);
+        assert_eq!(shards(101), 3);
+        assert_eq!(shards(400), 8);
     }
 
     #[test]
@@ -569,7 +568,7 @@ mod tests {
     #[test]
     fn a_run_lists_the_mutants_then_runs_each_shard_in_a_new_directory() {
         let root = Path::new("/repo");
-        let mut host = planned(150, 3, &[shard(90, 0, 0, 10), shard(40, 0, 0, 10)]);
+        let mut host = planned(99, 3, &[shard(45, 0, 0, 5), shard(44, 0, 0, 5)]);
         host.directory("/repo/target/mutants", &["run-1", "run-2"]);
         let arguments = texts(&["--file", "xtask/src/json.rs", "--", "--test-threads", "1"]);
         assert_eq!(mutate(&mut host, root, &arguments), Ok(()));
@@ -608,7 +607,7 @@ mod tests {
         assert_eq!(lines[16], "create /repo/target/mutants/run-3/shard-1");
         assert_eq!(
             host.output,
-            ["PASS mutate-xtask: 130 caught and 20 unviable mutants of 150 listed, in 2 shard(s)"]
+            ["PASS mutate-xtask: 89 caught and 10 unviable mutants of 99 listed, in 2 shard(s)"]
         );
         assert_eq!(host.errors, Vec::<String>::new());
         assert_eq!(host.containers(), 0);
@@ -651,9 +650,9 @@ mod tests {
     fn a_missed_mutant_is_printed_and_fails_the_run_after_every_shard() {
         let root = Path::new("/repo");
         let mut host = planned(
-            201,
+            101,
             1,
-            &[shard(99, 1, 0, 0), shard(100, 0, 0, 0), shard(0, 1, 0, 0)],
+            &[shard(33, 1, 0, 0), shard(34, 0, 0, 0), shard(32, 1, 0, 0)],
         );
         host.ends("\"0/3\"", Ending::Exit(2));
         host.ends("\"2/3\"", Ending::Exit(2));
@@ -685,7 +684,7 @@ mod tests {
         );
         assert_eq!(host.errors, ["TIMEOUT xtask/src/timeout.rs:0:1: replace"]);
 
-        let mut host = planned(150, 1, &[shard(100, 0, 0, 0), shard(50, 0, 0, 0)]);
+        let mut host = planned(75, 1, &[shard(38, 0, 0, 0), shard(37, 0, 0, 0)]);
         host.ends("\"0/2\"", Ending::OutOfMemory(137));
         let stopped = mutate(&mut host, root, &[]);
         assert_eq!(
@@ -702,7 +701,7 @@ mod tests {
                 .any(|line| line.starts_with("read "))
         );
 
-        let mut host = planned(150, 1, &[shard(100, 0, 0, 0), shard(50, 0, 0, 0)]);
+        let mut host = planned(75, 1, &[shard(38, 0, 0, 0), shard(37, 0, 0, 0)]);
         host.ends("\"1/2\"", Ending::Exit(124));
         assert_eq!(
             mutate(&mut host, root, &[]).map_err(|failure| failure.code()),
@@ -713,7 +712,7 @@ mod tests {
     #[test]
     fn a_failed_shard_or_a_missing_outcome_file_stops_the_run() {
         let root = Path::new("/repo");
-        let mut host = planned(150, 1, &[shard(100, 0, 0, 0), shard(50, 0, 0, 0)]);
+        let mut host = planned(75, 1, &[shard(38, 0, 0, 0), shard(37, 0, 0, 0)]);
         host.ends("\"0/2\"", Ending::Exit(4));
         assert_eq!(
             mutate(&mut host, root, &[]),
