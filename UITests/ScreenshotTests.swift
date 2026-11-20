@@ -31,7 +31,7 @@ struct ScreenTour {
   ]
 
   private static let settingsText = [
-    "open-exercises", "open-backup", "open-watch", "open-privacy", "open-shortcuts",
+    "open-exercises", "open-units", "open-backup", "open-watch", "open-privacy", "open-shortcuts",
     "storage-heading", "storage-text", "app-version",
   ]
 
@@ -220,9 +220,18 @@ struct ScreenTour {
       store: "settings-\(prefix)", sample: true, tab: "settings", textSize: textSize,
       language: language)
     app.buttons["open-exercises"].required("the settings list")
-    checkSettingsGrowth(app, reference: reference)
     try check(app, "08-settings")
     try checkBelow(app, "08-settings")
+    try checkUnits(app)
+    checkSettingsGrowth(app, reference: reference)
+  }
+
+  private func checkUnits(_ app: XCUIApplication) throws {
+    app.buttons["open-units"].scrollAndTap(in: app)
+    app.buttons["weight-unit-kg"].required("the weight unit choices")
+    try check(app, "08-units")
+    try checkBelow(app, "08-units")
+    app.goBack()
   }
 
   func runExerciseProgress(in currentApp: XCUIApplication? = nil) throws {
@@ -282,10 +291,11 @@ struct ScreenTour {
 
     app.open(.settings)
     app.buttons["open-exercises"].required("the settings list")
-    checkSettingsGrowth(app, reference: reference)
     try check(app, "08-settings")
     try checkBelow(app, "08-settings")
-    app.buttons["open-exercises"].tap()
+    try checkUnits(app)
+    checkSettingsGrowth(app, reference: reference)
+    app.buttons["open-exercises"].scrollAndTap(in: app)
     app.buttons["manage-\(bench)"].required("the exercise list")
     try check(app, "09-exercises")
     app.buttons["manage-\(bench)"].tap()
@@ -304,7 +314,10 @@ struct ScreenTour {
       try check(app, page == 0 ? "12-privacy" : "12-privacy+\(page)", privacyFacts: facts)
     }
     app.goBack()
-    app.buttons["open-watch"].scrollAndTap(in: app)
+    let watchSettings = app.buttons["open-watch"]
+    watchSettings.scrollAndTap(in: app)
+    watchSettings.requiredGone("the Settings link to Apple Watch")
+    app.staticTexts["watch-help-body"].required("the Apple Watch help")
     try check(app, "13-watch-help")
     try checkBelow(app, "13-watch-help")
   }

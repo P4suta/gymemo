@@ -47,10 +47,10 @@ final class ActivityLogTests: XCTestCase {
   func testChangesTheWeightUnitForTheExistingLog() {
     let app = Gymemo.launch(
       store: "log-units", sample: true, tab: "settings", usesStoredWeightUnit: true)
-    app.any("weight-unit").scrollAndTap(in: app)
-    let pounds = app.buttons["Pounds (lb)"].required("Pounds")
+    app.buttons["open-units"].scrollAndTap(in: app)
+    let pounds = app.buttons["Pounds (lb)"]
+    pounds.scrollAndTap(in: app)
     capture("weight-unit-choice")
-    pounds.tap()
     app.open(.log)
     let unit = app.any("unit-weight-Bench Press")
     XCTAssertEqual(unit.required("the unit of the weight field").label, "lb")
@@ -58,8 +58,7 @@ final class ActivityLogTests: XCTestCase {
     rows.log(weight: "100", reps: "6")
     rows.set(4).required("the logged 100-pound set")
     app.open(.settings)
-    app.any("weight-unit").scrollAndTap(in: app)
-    app.buttons["Kilograms (kg)"].required("Kilograms").tap()
+    app.buttons["Kilograms (kg)"].scrollAndTap(in: app)
     app.open(.log)
     XCTAssertEqual(unit.required("the unit of the weight field").label, "kg")
     XCTAssertEqual(rows.weight.value as? String, "45.36")
@@ -67,10 +66,26 @@ final class ActivityLogTests: XCTestCase {
 
     app.fill("weight-Bench Press", with: "1000")
     app.open(.settings)
-    app.any("weight-unit").scrollAndTap(in: app)
-    app.buttons["Pounds (lb)"].required("Pounds").tap()
+    pounds.scrollAndTap(in: app)
     app.open(.log)
     XCTAssertEqual(unit.required("the unit of the invalid weight field").label, "kg")
     XCTAssertEqual(rows.weight.value as? String, "1000")
+  }
+
+  func testSelectsUnitsAtTheLargestTextSize() {
+    let app = Gymemo.launch(
+      store: "large-unit-choices", tab: "settings", textSize: Gymemo.largestTextSize,
+      usesStoredWeightUnit: true)
+    app.buttons["open-units"].scrollAndTap(in: app)
+    let pounds = app.buttons["Pounds (lb)"]
+    let miles = app.buttons["Miles (mi)"]
+    defer {
+      app.buttons["Kilograms (kg)"].scrollAndTap(in: app)
+      app.buttons["Kilometers (km)"].scrollAndTap(in: app)
+    }
+    pounds.scrollAndTap(in: app)
+    XCTAssertTrue(pounds.isSelected)
+    miles.scrollAndTap(in: app)
+    XCTAssertTrue(miles.isSelected)
   }
 }
