@@ -335,9 +335,28 @@ final class NativePlatformTests: XCTestCase {
       bringIntoView(element, in: app)
       element.tap()
       let clear = app.buttons["clear-\(element.identifier)"].firstMatch
-      XCTAssertTrue(clear.waitForExistence(timeout: 3))
+      guard clear.waitForExistence(timeout: 3) else {
+        XCTFail("Missing clear button for \(element.identifier)")
+        return
+      }
+      if !clear.isHittable {
+        // Tapping outside the floating iPad number pad dismisses it.
+        clear.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+      }
+      guard clear.wait(for: \.isHittable, toEqual: true, timeout: 5) else {
+        XCTFail("Cannot tap clear button for \(element.identifier)")
+        return
+      }
       clear.tap()
+      let cleared = XCTNSPredicateExpectation(
+        predicate: NSPredicate(format: "value == '' OR value == placeholderValue"), object: element)
+      guard XCTWaiter.wait(for: [cleared], timeout: 5) == .completed else {
+        XCTFail("\(element.identifier) did not clear")
+        return
+      }
+      element.tap()
       app.typeText(text)
+      XCTAssertEqual(element.value as? String, text)
       if keyboard.exists { keyboard.tap() }
     }
   #endif
