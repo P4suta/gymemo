@@ -193,6 +193,8 @@ The screens get their rules from `GymemoCore`, which the run covers, and the UI 
 ## Mutation runs of xtask
 
 `mise x -- just mutate-xtask` runs cargo-mutants over the `xtask` package inside the Rust image, in shards of at most 50 mutants, and reads the files that each shard wrote.
+The Rust image pins [Nextest](https://nexte.st/docs/running/), so a failing test ends that mutant's test run immediately.
+The baseline and mutants without a failing test run every selected test before returning a verdict.
 The runner fixes `--gitignore=true` and refuses caller overrides, so ignored build caches stay outside the copied tree.
 The [copying policy](https://mutants.rs/build-dirs.html) otherwise leaves Git ignore filtering off by default.
 Linux build outputs stay in the container's `/tmp/gymemo-target`, apart from native build outputs.
