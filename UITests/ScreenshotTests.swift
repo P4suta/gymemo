@@ -138,7 +138,7 @@ struct ScreenTour {
     let measured =
       audits.contains(.contrast)
         && ["01-log", "02-exercise-picker", "07-exercise-progress", "09-exercises"].contains(name)
-      ? try ContrastAuditSnapshot(app) : nil
+      ? try ContrastAuditSnapshot(app, screen: name) : nil
     let snapshot = name.hasPrefix("12-privacy") ? try PrivacyAuditSnapshot(app) : nil
     let selected: XCUIAccessibilityAuditType
     if let snapshot, audits.contains(.contrast) {

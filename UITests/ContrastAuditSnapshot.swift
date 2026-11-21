@@ -2,53 +2,77 @@ import CoreGraphics
 import XCTest
 
 struct CapturedContrastFrames {
-  struct Text {
+  struct Key: Equatable {
+    let type: XCUIElement.ElementType
     let identifier: String
     let label: String
+  }
+
+  struct Element {
+    let key: Key
     let frame: CGRect
   }
 
-  let texts: [Text]
+  let elements: [Element]
 
-  func frame(identifier: String, label: String) -> CGRect? {
-    guard !identifier.isEmpty, !label.isEmpty else { return nil }
-    let matches = texts.filter { $0.identifier == identifier && $0.label == label }
+  func frame(for key: Key) -> CGRect? {
+    guard !key.identifier.isEmpty, !key.label.isEmpty else { return nil }
+    let matches = elements.filter { $0.key == key }
     return matches.count == 1 ? matches.first?.frame : nil
   }
 }
 
 @MainActor
 struct ContrastAuditSnapshot {
+  private static let managedExercise = "Seated Row"
+  private static let managedExerciseIdentifier = "manage-\(managedExercise)"
   private let viewport: ContentViewport
   private let image: CGImage
   private let frames: CapturedContrastFrames
 
-  init(_ app: XCUIApplication) throws {
+  init(_ app: XCUIApplication, screen: String) throws {
     viewport = ContentViewport(app)
+    let texts = app.staticTexts.allElementsBoundByIndex
+    let buttons =
+      screen == "09-exercises"
+      ? app.buttons.matching(identifier: Self.managedExerciseIdentifier).allElementsBoundByIndex
+      : []
     frames = CapturedContrastFrames(
-      texts: app.staticTexts.allElementsBoundByIndex.map {
-        CapturedContrastFrames.Text(identifier: $0.identifier, label: $0.label, frame: $0.frame)
+      elements: (texts + buttons).map { element in
+        let key = CapturedContrastFrames.Key(
+          type: element.elementType, identifier: element.identifier, label: element.label)
+        return CapturedContrastFrames.Element(key: key, frame: element.frame)
       })
     image = try XCTUnwrap(app.screenshot().image.cgImage)
   }
 
-  static func extent(identifier: String, screen: String) -> PrimaryTextContrast.Extent? {
-    if screen == "01-log", identifier.hasPrefix("set-number-") { return .glyphs }
-    if screen == "02-exercise-picker", identifier == "section-recent" { return .row }
-    if screen == "07-exercise-progress", identifier == "section-sets-by-day" { return .row }
-    if ["02-exercise-picker", "09-exercises"].contains(screen),
-      identifier.hasPrefix("section-body-part-")
-    {
+  static func extent(
+    for key: CapturedContrastFrames.Key, on screen: String
+  ) -> PrimaryTextContrast.Extent? {
+    switch (screen, key.type, key.identifier) {
+    case ("01-log", .staticText, let identifier)
+    where identifier.hasPrefix("set-number-") || identifier.hasPrefix("previous-session-"):
+      return .glyphs
+    case ("02-exercise-picker", .staticText, "section-activities"),
+      ("02-exercise-picker", .staticText, "section-recent"),
+      ("07-exercise-progress", .staticText, "section-sets-by-day"):
       return .row
+    case (_, .staticText, let identifier)
+    where ["02-exercise-picker", "09-exercises"].contains(screen)
+      && identifier.hasPrefix("section-body-part-"):
+      return .row
+    case ("09-exercises", .button, managedExerciseIdentifier) where key.label == managedExercise:
+      return .glyphs
+    default:
+      return nil
     }
-    return nil
   }
 
   func passes(_ issue: XCUIAccessibilityAuditIssue, on screen: String, darkInk: Bool) -> Bool {
-    guard issue.auditType == .contrast, let element = issue.element,
-      element.elementType == .staticText,
-      let extent = Self.extent(identifier: element.identifier, screen: screen),
-      let frame = frames.frame(identifier: element.identifier, label: element.label)
+    guard issue.auditType == .contrast, let element = issue.element else { return false }
+    let key = CapturedContrastFrames.Key(
+      type: element.elementType, identifier: element.identifier, label: element.label)
+    guard let extent = Self.extent(for: key, on: screen), let frame = frames.frame(for: key)
     else { return false }
     let pixel = CGSize(
       width: viewport.bounds.width / CGFloat(image.width),

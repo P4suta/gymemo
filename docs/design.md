@@ -261,8 +261,9 @@ The set editor's Weight, Reps, kg, and Delete Set labels also have a narrow imag
 The privacy screen's data collection value and native navigation title use the same check for contrast reports observed on iOS 27.
 The check measures the unrounded [contrast ratio defined by the Web Content Accessibility Guidelines](https://www.w3.org/TR/WCAG22/#dfn-contrast-ratio) in the reported label's screenshot bounds and requires at least 4.5:1.
 It refuses missing ink, an ambiguous or colored background, and nonopaque pixels.
-Outside privacy, the image check applies to the identified set-editor labels, set numbers, and exercise-section headers on their recorded screens.
-Set numbers and section headers have stable identifiers and bind to their unique text frames and pixels captured before the SDK audit.
+Outside privacy, the image check applies to the identified set-editor labels, set numbers, prior sessions, exercise-section headers, and the sample Seated Row button on their recorded screens.
+The log, exercise picker, exercise progress, and exercise management checks bind the reported element's type, identifier, and label to one frame and its pixels captured before the SDK audit.
+The sample exercise button qualifies for measurement only when its label is the exercise name alone.
 Missing, changed, or duplicated labels can't receive a measured pass.
 Each measured frame must fit fully between the captured native bars.
 The row-sized section headers require at least 20 primary ink pixels covering 0.1 percent of their frame.

@@ -49,6 +49,7 @@ struct ExercisePicker: View {
             }
           } header: {
             Text(copy[.activities]).foregroundStyle(SecondaryTextStyle())
+              .accessibilityIdentifier("section-activities")
           }
         }
         if !recent.isEmpty {

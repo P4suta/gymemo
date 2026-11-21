@@ -1,41 +1,66 @@
 import XCTest
 
 final class ContrastAuditSnapshotTests: XCTestCase {
-  func testBindsOnlyOneCapturedIdentifierAndItsUnchangedLabel() {
+  func testBindsOneCapturedElementWithItsTypeIdentifierAndLabel() {
     let first = CGRect(x: 40, y: 320, width: 10, height: 20)
     let second = CGRect(x: 40, y: 807, width: 10, height: 20)
-    let frames = CapturedContrastFrames(texts: [
-      .init(identifier: "set-number-bench", label: "1", frame: first),
-      .init(identifier: "set-number-pull-up", label: "1", frame: second),
+    let bench = CapturedContrastFrames.Key(
+      type: .staticText, identifier: "set-number-bench", label: "1")
+    let pullUp = CapturedContrastFrames.Key(
+      type: .staticText, identifier: "set-number-pull-up", label: "1")
+    let frames = CapturedContrastFrames(elements: [
+      .init(key: bench, frame: first),
+      .init(key: pullUp, frame: second),
     ])
-    XCTAssertEqual(frames.frame(identifier: "set-number-pull-up", label: "1"), second)
-    XCTAssertNil(frames.frame(identifier: "set-number-pull-up", label: "2"))
-    XCTAssertNil(frames.frame(identifier: "set-number-deleted", label: "1"))
-    XCTAssertNil(frames.frame(identifier: "", label: "1"))
-    XCTAssertNil(frames.frame(identifier: "set-number-bench", label: ""))
-    let duplicates = CapturedContrastFrames(texts: frames.texts + [frames.texts[1]])
-    XCTAssertNil(duplicates.frame(identifier: "set-number-pull-up", label: "1"))
+    XCTAssertEqual(frames.frame(for: pullUp), second)
+    XCTAssertNil(
+      frames.frame(for: .init(type: .button, identifier: pullUp.identifier, label: pullUp.label)))
+    XCTAssertNil(
+      frames.frame(for: .init(type: .staticText, identifier: pullUp.identifier, label: "2")))
+    XCTAssertNil(
+      frames.frame(for: .init(type: .staticText, identifier: "set-number-deleted", label: "1")))
+    XCTAssertNil(frames.frame(for: .init(type: .staticText, identifier: "", label: "1")))
+    XCTAssertNil(
+      frames.frame(for: .init(type: .staticText, identifier: pullUp.identifier, label: "")))
+    let duplicates = CapturedContrastFrames(elements: frames.elements + [frames.elements[1]])
+    XCTAssertNil(duplicates.frame(for: pullUp))
   }
 
   @MainActor
   func testRestrictsMeasuredReportsToTheirCapturedScreenAndTextRole() {
-    XCTAssertNotNil(ContrastAuditSnapshot.extent(identifier: "set-number-a", screen: "01-log"))
-    XCTAssertNotNil(
-      ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "02-exercise-picker"))
-    XCTAssertNotNil(
+    func textExtent(_ identifier: String, on screen: String) -> PrimaryTextContrast.Extent? {
       ContrastAuditSnapshot.extent(
-        identifier: "section-sets-by-day", screen: "07-exercise-progress"))
-    for screen in ["02-exercise-picker", "09-exercises"] {
-      XCTAssertNotNil(
-        ContrastAuditSnapshot.extent(identifier: "section-body-part-chest", screen: screen))
+        for: .init(type: .staticText, identifier: identifier, label: "Sample"), on: screen)
     }
-    XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "01-log"))
-    XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "set-number-a", screen: "09-exercises"))
-    XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "unknown", screen: "02-exercise-picker"))
-    XCTAssertNil(ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "12-privacy"))
+    XCTAssertNotNil(textExtent("set-number-a", on: "01-log"))
+    XCTAssertNotNil(textExtent("previous-session-Pull-Up", on: "01-log"))
+    XCTAssertNotNil(textExtent("section-activities", on: "02-exercise-picker"))
+    XCTAssertNotNil(textExtent("section-recent", on: "02-exercise-picker"))
+    XCTAssertNotNil(textExtent("section-sets-by-day", on: "07-exercise-progress"))
+    for screen in ["02-exercise-picker", "09-exercises"] {
+      XCTAssertNotNil(textExtent("section-body-part-chest", on: screen))
+    }
+    XCTAssertNil(textExtent("section-recent", on: "01-log"))
+    XCTAssertNil(textExtent("section-activities", on: "09-exercises"))
+    XCTAssertNil(textExtent("set-number-a", on: "09-exercises"))
+    XCTAssertNil(textExtent("previous-session-Pull-Up", on: "09-exercises"))
+    XCTAssertNil(textExtent("unknown", on: "02-exercise-picker"))
+    XCTAssertNil(textExtent("section-recent", on: "12-privacy"))
+    XCTAssertNil(textExtent("section-sets-by-day", on: "06-analysis"))
+    XCTAssertNil(textExtent("section-recent", on: "07-exercise-progress"))
+    XCTAssertNil(textExtent("manage-Seated Row", on: "09-exercises"))
+
+    let row = CapturedContrastFrames.Key(
+      type: .button, identifier: "manage-Seated Row", label: "Seated Row")
+    XCTAssertNotNil(ContrastAuditSnapshot.extent(for: row, on: "09-exercises"))
+    XCTAssertNil(ContrastAuditSnapshot.extent(for: row, on: "02-exercise-picker"))
     XCTAssertNil(
-      ContrastAuditSnapshot.extent(identifier: "section-sets-by-day", screen: "06-analysis"))
+      ContrastAuditSnapshot.extent(
+        for: .init(type: .button, identifier: row.identifier, label: "Seated Row, Hidden"),
+        on: "09-exercises"))
     XCTAssertNil(
-      ContrastAuditSnapshot.extent(identifier: "section-recent", screen: "07-exercise-progress"))
+      ContrastAuditSnapshot.extent(
+        for: .init(type: .button, identifier: "manage-Bench Press", label: "Bench Press"),
+        on: "09-exercises"))
   }
 }
