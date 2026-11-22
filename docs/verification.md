@@ -203,7 +203,8 @@ The run passes when the tests caught every mutant, none timed out, and the shard
 The test deadline is the greater of 60 seconds and three times the shard baseline's test duration, following the [cargo-mutants timeout calculation](https://mutants.rs/timeouts.html).
 The 60-second floor covers pauses during Nextest startup and test execution.
 Each shard has a 900-second deadline.
-A test timeout leaves the run inconclusive.
+A missed mutant fails the run with exit code 1 even when a test times out.
+When all shards finish without a missed mutant, a test timeout makes the run inconclusive with exit code 75.
 `.cargo/mutants.toml` excludes the Kani harnesses, which compile under `cfg(kani)` alone.
 It also excludes only the five Security framework translation functions in `xtask/src/mac_installer/native/security.rs`.
 Linux can't execute those macOS API effects.
