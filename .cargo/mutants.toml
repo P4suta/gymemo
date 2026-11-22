@@ -1,6 +1,6 @@
-# The time limits of each mutant's test run, fixed so that a slow host and a fast one report the same result.
+# Runner pauses can delay Nextest before any test starts.
 timeout_multiplier = 3.0
-minimum_test_timeout = 20.0
+minimum_test_timeout = 60.0
 test_tool = "nextest"
 
 # Exempt as no-decision: the `proofs` module of `xtask/src/swift_source.rs` holds only the Kani harnesses, which compile under `cfg(kani)` alone and decide nothing in the tool.

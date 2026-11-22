@@ -200,7 +200,11 @@ The runner fixes `--gitignore=true` and refuses caller overrides, so ignored bui
 The [copying policy](https://mutants.rs/build-dirs.html) otherwise leaves Git ignore filtering off by default.
 Linux build outputs stay in the container's `/tmp/gymemo-target`, apart from native build outputs.
 The run passes when the tests caught every mutant, none timed out, and the shards account for every listed mutant.
-`.cargo/mutants.toml` fixes the timeouts and excludes the Kani harnesses, which compile under `cfg(kani)` alone.
+The test deadline is the greater of 60 seconds and three times the shard baseline's test duration, following the [cargo-mutants timeout calculation](https://mutants.rs/timeouts.html).
+The 60-second floor covers pauses during Nextest startup and test execution.
+Each shard has a 900-second deadline.
+A test timeout leaves the run inconclusive.
+`.cargo/mutants.toml` excludes the Kani harnesses, which compile under `cfg(kani)` alone.
 It also excludes only the five Security framework translation functions in `xtask/src/mac_installer/native/security.rs`.
 Linux can't execute those macOS API effects.
 The portable installer controller keeps credential, destination, identity, preference, and cleanup decisions inside the measured scope.
